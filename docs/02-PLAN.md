@@ -10,9 +10,8 @@ de tokens a mitad de una fase, apuntar el estado exacto en la sección "En curso
 
 ## Estado global
 
-- **Fase actual:** FASE 14 (arranca tras corregir la FASE 12)
-- **Fases completadas:** 12 de 21 — backend + scaffold + auth + admin + catálogos
-  (la FASE 12 quedó **incompleta** y sus correcciones son previas a la 14)
+- **Fase actual:** FASE 14 (módulo de cuentas bancarias)
+- **Fases completadas:** 13 de 21 — backend + scaffold + auth + admin + catálogos + workspace
 - **Verificado en Supabase (FASE 11):** 
   - 15 tablas con RLS activo ✓
   - 4 funciones helper ✓
@@ -425,27 +424,9 @@ en vez de ayudar, hay que decirlo y ajustarlo entonces, no arrastrarlo.
 
 ## En curso (actualizar si se corta a mitad de fase)
 
-**FASE 13 cerrada.** La siguiente es la **FASE 14** (módulo de cuentas bancarias:
-`CrearBanco`, `CrearCuenta`, `CuentaDetail`, formulario de movimiento manual y borrado con
-confirmación).
-
-**Antes de la FASE 14 hay que cerrar la FASE 12**, que quedó a medias y es la que da el
-marco donde vive el módulo de cuentas:
-
-1. `EmpresaLayout` está construido sobre una tabla `ramas` que no existe. Hay que rehacerlo
-   sobre `bancos` / `brokers` / `wallet_providers`, que son las tres ramas reales, y
-   apuntar sus enlaces a las rutas del PRD §10 (ninguna de las actuales existe).
-2. Las suscripciones realtime se hacen sobre `empresas` y `ramas`. Debe ser sobre las 11
-   tablas de la publicación (mejor vía `db.suscribir()`, que avisa si la tabla no está
-   publicada).
-3. `EmpresaOverview` consulta `wallet_saldos_view`, que no existe, y suma
-   `valor_unitario` en vez de `valor_total`. Lo correcto es `wallets_view` (que ya trae
-   `saldo_total`) y `activos_broker_view` (que ya trae `valor_total`), y subtotales por
-   moneda (D4).
-4. `ConfirmDialog.jsx` existe sin usarse en ningún sitio. La FASE 14 lo necesita para el
-   borrado de cuentas.
-
-Nada de esto requiere migración nueva: las tablas y las vistas ya están aplicadas.
+**FASE 13 ✅ y FASE 12 ✅ completadas.** La siguiente es la **FASE 14** (módulo de cuentas
+bancarias: `CrearBanco`, `CrearCuenta`, `CuentaDetail`, formulario de movimiento manual y
+borrado con confirmación). El layout y overview están listos.
 
 ### Lo que le toca al usuario AHORA (no es bloqueante para FASE 12, pero lo es para probarla)
 

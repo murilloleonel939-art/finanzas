@@ -1,13 +1,14 @@
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { obtenerResumenEmpresa, obtenerEmpresa } from '@/lib/empresas-usuario'
+import { obtenerEmpresa, obtenerResumenEmpresa } from '@/lib/empresas-usuario'
+import { formatearMonto } from '@/lib/monedas'
 import { Card } from '@/components/ui/card'
 import { Building2, TrendingUp, Loader2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 /**
  * EmpresaOverview: resumen financiero de la empresa.
  * Muestra subtotales por moneda sin conversión (decisión D4).
+ * Las vistas que se consultan traen los nombres resueltos (D8).
  */
 export default function EmpresaOverview() {
   const { empresaId } = useParams()
@@ -54,7 +55,7 @@ export default function EmpresaOverview() {
             <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
             <p className="text-muted-foreground mb-2">No hay datos financieros registrados</p>
             <p className="text-xs text-muted-foreground">
-              Comienza creando un banco, broker o wallet, e ingresa tus primeros movimientos.
+              Comienza creando un banco, broker o proveedor de wallet e ingresa tus primeros movimientos.
             </p>
           </Card>
         ) : (
@@ -73,7 +74,7 @@ export default function EmpresaOverview() {
                       Saldo total
                     </p>
                     <p className="text-2xl font-bold text-foreground">
-                      {formatoMoneda(monto, moneda)}
+                      {formatearMonto(monto, moneda)}
                     </p>
                   </div>
                   <span className="text-xs font-medium px-2 py-1 bg-muted rounded">
@@ -90,50 +91,12 @@ export default function EmpresaOverview() {
           <p className="text-xs text-blue-900">
             <strong>Nota:</strong> Los totales se muestran por moneda sin conversión.
             No hay un total consolidado porque cada divisa tiene su propia tasa de cambio
-            y no es posible sumarlas directamente.
+            y no es posible sumarlas directamente (decisión D4).
           </p>
         </div>
       </div>
     </div>
   )
-}
-
-/**
- * Formatea un monto como moneda según la divisa.
- */
-function formatoMoneda(monto, moneda) {
-  const num = parseFloat(monto || 0)
-  
-  // Divisas fiat comunes
-  const divisasFiat = {
-    USD: { locale: 'en-US', currency: 'USD' },
-    EUR: { locale: 'de-DE', currency: 'EUR' },
-    COP: { locale: 'es-CO', currency: 'COP' },
-    MXN: { locale: 'es-MX', currency: 'MXN' },
-    ARS: { locale: 'es-AR', currency: 'ARS' },
-    CLP: { locale: 'es-CL', currency: 'CLP' },
-    PEN: { locale: 'es-PE', currency: 'PEN' },
-    BRL: { locale: 'pt-BR', currency: 'BRL' },
-    GBP: { locale: 'en-GB', currency: 'GBP' },
-  }
-
-  // Si es una divisa conocida, usar Intl.NumberFormat
-  if (divisasFiat[moneda]) {
-    const { locale, currency } = divisasFiat[moneda]
-    try {
-      return new Intl.NumberFormat(locale, {
-        style: 'currency',
-        currency,
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 8,
-      }).format(num)
-    } catch (e) {
-      // Fallback
-    }
-  }
-
-  // Para cripto u otros, mostrar con decimales y símbolo
-  return `${num.toFixed(8)} ${moneda}`
 }
 
 /**

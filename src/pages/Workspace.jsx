@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { obtenerEmpresasUsuario, suscribirseAEmpresasUsuario } from '@/lib/empresas-usuario'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Building2, ChevronRight, LogOut } from 'lucide-react'
+import { Building2, ChevronRight, LogOut, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function Workspace() {

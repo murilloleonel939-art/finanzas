@@ -344,3 +344,21 @@ pedirlo a una vista fallaría.
 - `suscribir()` **avisa por consola** si la tabla no está en la publicación
   `supabase_realtime`. Es el fallo exacto que tuvo la FASE 12 al suscribirse a `ramas`: un
   canal que nunca emite y no dice por qué.
+
+## D24 — Las tres ramas no existen: son constantes en el sidebar
+
+**Qué:** El PRD §11.3 define tres módulos fijos (Bancos, Brokers, Proveedores de Wallet).
+`obtenerRamas()` de `empresas-usuario.js` devuelve un array constante con `id`, `nombre`,
+`ruta`, sin consultar BD. El sidebar de `EmpresaLayout` los pinta igual.
+
+**Por qué:** No hay una tabla `ramas`. Una tabla vacía que solo sirve para listar tres
+filas hardcodeadas es un anti-pattern: hace falta un índice, un RLS, triggers, y toda la
+infraestructura de BD para algo que es invariante. Los módulos se definen una sola vez en
+el código.
+
+**Suscripciones realtime:** en vez de escuchar `ramas`, `suscribirseAModulos()` escucha
+los tres tipos de cambios en `bancos`, `brokers` y `wallet_providers` (y es la que usa
+`EmpresaLayout`).
+
+**Consecuencia:** no hay «crear rama nueva». Las ramas no se crean; existen. La FASE 14 empieza
+a poblar las tres.
