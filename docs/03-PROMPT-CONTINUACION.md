@@ -20,8 +20,11 @@ Continúo el proyecto FinanzAdmin Pro. Es una reconstrucción desde cero sobre
 Supabase Cloud, no una migración de Base44.
 
 Si el repositorio no está ya en el workspace, clónalo primero:
-  git clone <URL-DEL-REPO> finanzas
+  git clone https://github.com/murilloleonel939-art/finanzas.git finanzas
 Y trabaja dentro de esa carpeta.
+⚠️ Antes de clonar en otra máquina, comprueba que `origin/main` tiene los commits
+de las FASES 12-15. Si el clon no los trae, el push desde la máquina original está
+pendiente y esos commits solo existen en local.
 
 ANTES DE HACER NADA, lee estos archivos en este orden:
   1. docs/00-CONTEXTO.md      → qué es el proyecto, arquitectura y decisiones cerradas
@@ -44,13 +47,18 @@ ESTADO RESUMIDO (por si acaso):
   Hay también `npm run humo` (42 comprobaciones de la FASE 15).
 - COLUMNAS REALES: cuentas.monto (no saldo_actual) · movimientos.descripcion (no
   concepto) · no existe saldo_resultante (se reconstruye) · bancos solo pais +
-  nombre_banco · brokers solo nombre_broker + moneda · type_cuenta es enum de DOS
+  nombre_banco · brokers solo nombre_broker + moneda · tipo_cuenta es enum de DOS
   (ahorros, corriente) · tipo_activo es enum de SIETE · activos_broker NO tiene
   valor_total (es de activos_broker_view) · no existe wallet_saldos_view (usar
   wallets_view, que trae saldo_total).
 - PENDIENTE IMPORTANTE: el módulo de brokers NUNCA se ha ejecutado contra Supabase.
   La verificación es estática + con un doble del cliente. Ver "Prueba de humo real"
   en docs/02-PLAN.md — es la FASE 16 paso 0.
+- DECISIONES NUEVAS de la FASE 15: D25 (un CHECK de la base es un contrato: el
+  cliente puede adelantarse para dar mejor error, nunca satisfacerlo inventando los
+  datos que faltan) y D26 (hoyLocal() escribe fechas en la zona del navegador, no en
+  UTC — toISOString() hacía que un alta de después de las 19:00 en Colombia naciera
+  con la fecha de mañana).
 - PENDIENTE DEL USUARIO: desplegar las Edge Functions (supabase/functions/README.md),
   configurar SMTP propio y rellenar la anon key real en .env.local.
 - Si el repo no está clonado, o el remote no está configurado, pídeme la URL.
@@ -63,6 +71,9 @@ REGLAS DE TRABAJO:
   nueva a docs/01-DECISIONES.md con su razonamiento.
 - Si una fase no se puede completar, apunta el estado exacto en "En curso" al
   final de docs/02-PLAN.md antes de terminar el turno.
+- Si te quedas sin presupuesto a mitad de una fase, **commitea lo que compile**
+  antes de terminar. Una fase a medias commiteada se retoma; un árbol de trabajo
+  sucio se pierde si el siguiente chat clona el repo en otra máquina.
 - Tenemos poco presupuesto de tokens: sé conciso, no repitas el PRD, no expliques
   lo que ya está documentado.
 - Todas las decisiones de docs/01-DECISIONES.md están CERRADAS. No las vuelvas a
