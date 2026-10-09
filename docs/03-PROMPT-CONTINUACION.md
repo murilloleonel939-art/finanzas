@@ -25,7 +25,7 @@ Y trabaja dentro de esa carpeta.
 
 ANTES DE HACER NADA, lee estos archivos en este orden:
   1. docs/00-CONTEXTO.md      → qué es el proyecto, arquitectura y decisiones cerradas
-  2. docs/01-DECISIONES.md    → el razonamiento detrás de cada decisión (D1-D18)
+  2. docs/01-DECISIONES.md    → el razonamiento detrás de cada decisión (D1-D19)
   3. docs/02-PLAN.md          → las 21 fases, cuál toca ahora, y qué se entregó ya
   4. docs/PRD.md              → PRD condensado (reglas de negocio)
   5. docs/04-SETUP-SUPABASE.md → cómo se aplicó el esquema
@@ -34,10 +34,10 @@ Después mira la sección "En curso" al final de docs/02-PLAN.md: ahí está el 
 exacto en que se quedó la construcción.
 
 ESTADO RESUMIDO (por si acaso):
-- FASES 0-10 completadas. El backend está desplegado y verificado en Supabase.
-- Siguiente: FASE 11 (panel de administración: AdminDashboard + EmpresasPage).
-- El frontend compila y la gestión de usuarios está construida en /admin/usuarios.
-- PENDIENTE DEL USUARIO para la FASE 10: desplegar las Edge Functions
+- FASES 0-11 completadas. El backend está desplegado y verificado en Supabase.
+- Siguiente: FASE 12 (workspace y sidebar de empresa).
+- El frontend compila y el panel /admin está completo (dashboard, empresas, usuarios).
+- PENDIENTE DEL USUARIO: aplicar la migración 0008 en Supabase, desplegar las Edge Functions
   (supabase/functions/README.md) y configurar SMTP propio.
 - Si el repo no está clonado, o el remote no está configurado, pídeme la URL.
 

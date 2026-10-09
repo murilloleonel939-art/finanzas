@@ -227,3 +227,31 @@ activo y no hay forma de recuperarlo desde la interfaz: habría que entrar al SQ
 **Nota:** el camino directo desde el frontend (`profiles_update`) sí lo cubre el trigger,
 porque ahí `auth.uid()` existe. Es decir, la comprobación hace falta exactamente donde el
 trigger no llega.
+
+## D19 — El acceso a los datos se deriva del estado de la empresa
+
+`has_empresa_access()` y `can_write_empresa()` (migración 0008) exigen que la empresa
+exista y que `deleted_at is null`, además de comprobar `user_empresa`.
+
+**El fallo que corrige:** la 0006 comprobaba solo la fila de `user_empresa`. Borrar una
+empresa (D7) la ocultaba del panel —`empresas_select` filtra `deleted_at`— pero **no
+retiraba el acceso a nada más**: el usuario asignado seguía leyendo y escribiendo bancos,
+cuentas, movimientos, brokers, wallets y precios, y el bucket `extractos` le seguía
+sirviendo los PDFs. Con el `empresa_id` en el historial del navegador, bastaba una llamada
+directa a la API REST. Es el mismo agujero que D14 cierra para el aislamiento entre
+empresas, pero en el eje temporal: "empresa borrada" no era una frontera.
+
+**Por qué derivar en vez de cascada:** la alternativa era recorrer bancos → cuentas →
+movimientos → brokers → activos → precios → wallets → saldos marcando `deleted_at` en cada
+fila. Son ~9 tablas y una transacción larga que puede fallar a medias, dejando una empresa
+medio borrada. Derivar el acceso de la empresa es una condición en una función, se evalúa
+en un lookup de índice por fila, y **restaurar es gratis**: al poner `deleted_at = null`
+vuelve todo, sin reconstruir nada.
+
+**Consecuencia:** borrar una empresa es un `UPDATE` de una fila. Y no hay cascada que
+pueda quedar a medias.
+
+**Nota:** aplica también al `super_admin`. Es coherente con lo que `empresas_select` ya
+hacía en la 0006 para todos. Si más adelante hace falta una papelera para restaurar
+empresas borradas desde la interfaz, se añade una vista o una función específica — no se
+relajan estas dos.

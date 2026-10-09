@@ -93,7 +93,7 @@ login del CLI de Supabase: no se puede hacer desde aquí.
 | Documento | Contenido |
 |---|---|
 | [`docs/00-CONTEXTO.md`](docs/00-CONTEXTO.md) | Punto de entrada: arquitectura y decisiones cerradas |
-| [`docs/01-DECISIONES.md`](docs/01-DECISIONES.md) | El razonamiento detrás de cada decisión (D1-D16) |
+| [`docs/01-DECISIONES.md`](docs/01-DECISIONES.md) | El razonamiento detrás de cada decisión (D1-D19) |
 | [`docs/02-PLAN.md`](docs/02-PLAN.md) | Las 21 fases y el estado de avance |
 | [`docs/03-PROMPT-CONTINUACION.md`](docs/03-PROMPT-CONTINUACION.md) | Cómo retomar el trabajo en una sesión nueva |
 | [`docs/04-SETUP-SUPABASE.md`](docs/04-SETUP-SUPABASE.md) | Guía paso a paso del esquema |

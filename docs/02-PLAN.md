@@ -10,19 +10,24 @@ de tokens a mitad de una fase, apuntar el estado exacto en la sección "En curso
 
 ## Estado global
 
-- **Fase actual:** FASE 11 (panel de administración)
-- **Fases completadas:** 11 de 21 — backend + scaffold + auth + gestión de usuarios
+- **Fase actual:** FASE 12 (workspace y sidebar de empresa)
+- **Fases completadas:** 12 de 21 — backend + scaffold + auth + admin completo
 - **Verificado en Supabase:** las 15 tablas con RLS activo, las 4 funciones helper,
   las 7 vistas, las 11 tablas publicadas para realtime, y el bucket `extractos`
   creado como **privado**. Backend verificado por completo.
+- **Migración pendiente de aplicar:** `0008_empresa_borrada_sin_acceso.sql`
+  (la añade la FASE 11; ver la nota de esa fase). **Hay que ejecutarla antes de
+  borrar una empresa desde el panel**, o el borrado no retirará el acceso.
 - **Bloqueante próximo:** las Edge Functions de la FASE 10 están escritas y el
   frontend compila, pero **falta desplegarlas** y tener SMTP propio para que las
   invitaciones lleguen. Ver `supabase/functions/README.md`.
 - **Pendientes del usuario** (no bloquean hasta la fase indicada):
+  - Aplicar la migración 0008 en el SQL Editor
   - Desplegar las Edge Functions + SMTP propio → para probar invitaciones reales (FASE 10)
   - Proveedor de IA para extracción de PDFs → FASE 17
   - API de mercado para precios → FASE 18
   - Plan de Supabase (Pro, por los backups) → antes de datos reales
+  - Recurso en Coolify con las variables `VITE_*` de build → FASE 20
 
 ---
 
@@ -209,13 +214,44 @@ hizo falta 0008.
 
 ---
 
-## FASE 11 — Panel de administración
+## FASE 11 — Panel de administración ✅
 
-- [ ] `AdminLayout` + navegación
-- [ ] `AdminDashboard` con estadísticas (conteos, no sumas de dinero)
-- [ ] `EmpresasPage` + `EmpresaDialog` (CRUD completo)
+- [x] `AdminLayout` + navegación
+- [x] `AdminDashboard` con estadísticas (conteos, no sumas de dinero)
+- [x] `EmpresasPage` + `EmpresaDialog` (CRUD completo)
 
 **Entregable:** el super admin gestiona empresas y ve el dashboard.
+
+**Archivos:**
+
+```
+supabase/migrations/0008_empresa_borrada_sin_acceso.sql   ← ver nota abajo
+src/lib/admin.js               estadísticas (conteos) + empresas recientes
+src/lib/empresas.js            CRUD de empresas con filtro de borrado centralizado
+src/lib/paises.js              catálogo de países ISO + opción «Otro»
+src/pages/AdminDashboard.jsx   tarjetas, aviso accionable, empresas recientes
+src/pages/EmpresasPage.jsx     tabla, buscador, filtro por estado, 4 contadores
+src/components/EmpresaDialog.jsx  alta/edición/borrado con confirmación
+src/App.jsx                    las 3 rutas de /admin ya apuntan a componentes reales
+```
+
+**Decisión nueva:** D19 (el acceso se deriva del estado de la empresa).
+
+**SÍ hace falta migración nueva: la 0008.** Al construir el borrado de empresas
+apareció un hueco real en la 0006, no una preferencia:
+
+`has_empresa_access()` y `can_write_empresa()` solo miraban la fila de `user_empresa`;
+ninguna comprobaba si la **empresa** seguía viva. Con borrado lógico (D7), borrar una
+empresa la ocultaba del panel (porque `empresas_select` sí filtra `deleted_at`) pero
+**dejaba a sus usuarios leyendo y escribiendo todos sus datos financieros**, y con el
+bucket `extractos` sirviéndoles los PDFs. Es decir: "borrar" una empresa no le quitaba
+el acceso a nadie.
+
+La 0008 añade la comprobación de la empresa a las dos funciones. Efecto deseado:
+restaurar una empresa devuelve el acceso a todo su contenido sin tocar ninguna fila
+hija, así que borrar una empresa **no necesita cascada** de borrados lógicos. La 0006
+ya aplicada no se toca.
+
 
 ---
 
@@ -337,28 +373,26 @@ hizo falta 0008.
 
 ## En curso (actualizar si se corta a mitad de fase)
 
-**Nada en curso.** FASES 0-10 completadas. La siguiente es la **FASE 11** (panel de
-administración: `AdminDashboard` y `EmpresasPage` + `EmpresaDialog`). El `AdminLayout`
-ya existe en su forma mínima (FASE 10) y la FASE 11 solo tiene que rellenar sus páginas.
+**Nada en curso.** FASES 0-11 completadas. La siguiente es la **FASE 12** (workspace
+y sidebar de empresa: `Workspace`, `EmpresaLayout` con el sidebar jerárquico del §11.3,
+suscripciones realtime, diálogos de confirmación de borrado y `EmpresaOverview` con
+subtotales por moneda).
 
-### Lo que le toca al usuario antes de la FASE 11
+### Lo que le toca al usuario antes de la FASE 12
 
-La FASE 10 deja el código listo pero **no probado contra Supabase**, porque dos cosas
-dependen de tu cuenta y no se pueden hacer desde aquí:
-
-1. **Desplegar las Edge Functions.** Requiere `supabase login` (abre navegador) y
-   `supabase link`. Comandos exactos en
-   [`supabase/functions/README.md`](../supabase/functions/README.md):
+1. **Aplicar la migración 0008** en el SQL Editor de Supabase (una sola vez, es
+   idempotente). Sin ella, borrar una empresa desde el panel la oculta pero no
+   retira el acceso a sus datos. Ver la nota de la FASE 11.
+2. **Desplegar las Edge Functions** (FASE 10). Requiere `supabase login`:
    ```bash
    supabase functions deploy invitar-usuario    --project-ref obxedjpnusceyizcdbvc
    supabase functions deploy actualizar-usuario --project-ref obxedjpnusceyizcdbvc
    ```
-2. **Configurar SMTP propio** (Project Settings → Auth → SMTP). Sin esto el correo de
+3. **Configurar SMTP propio** (Project Settings → Auth → SMTP). Sin esto el correo de
    invitación no llega. Ver `docs/04-SETUP-SUPABASE.md`, paso 6.
 
-Prueba mínima una vez desplegado: entrar como `super_admin` a `/admin/usuarios`,
-invitar un email tuyo distinto, y comprobar que llega el correo y que al aceptar el
-usuario ya tiene su empresa asignada.
+Prueba mínima del panel: entrar como `super_admin` a `/admin`, ver los contadores, crear
+una empresa en `/admin/empresas` y editar un usuario en `/admin/usuarios`.
 
 ### Entregado hasta ahora
 
@@ -379,6 +413,8 @@ supabase/migrations/          (aplicadas y verificadas en Supabase)
   0005_jobs_vistas.sql        import_jobs + 7 vistas (security_invoker)
   0006_rls.sql                4 funciones helper + policies de las 15 tablas
   0007_triggers_storage.sql   alta de usuario, realtime, bucket privado, cron
+  0008_empresa_borrada_sin_acceso.sql  acceso derivado del estado de la empresa (D19)
+                               ↑ PENDIENTE DE APLICAR en Supabase
 
 supabase/                     (FASE 10 — escritas, PENDIENTES DE DESPLEGAR)
   config.toml                 verify_jwt=false en las dos funciones
@@ -415,18 +451,27 @@ Gestión de usuarios (FASE 10)
   src/components/AdminLayout.jsx      sidebar de /admin, guarda soloAdmin en el layout
   src/components/ui/                  + dialog, select, checkbox, badge
 
+Panel de administración (FASE 11)
+  src/lib/admin.js                    estadísticas (conteos) + empresas recientes
+  src/lib/empresas.js                 CRUD, con el filtro de borrado centralizado
+  src/lib/paises.js                   catálogo ISO + centinela «Otro»
+  src/pages/AdminDashboard.jsx        tarjetas, aviso de usuarios sin empresa, recientes
+  src/pages/EmpresasPage.jsx          tabla, buscador, filtro por estado
+  src/components/EmpresaDialog.jsx    alta / edición / borrado con confirmación
+
 Dependencias añadidas en la FASE 10 (antes no había ninguna de Radix):
   @radix-ui/react-dialog, @radix-ui/react-select, @radix-ui/react-checkbox
+La FASE 11 no añade ninguna dependencia: reutiliza las de la FASE 10.
 ```
 
 **Backend: 15 tablas, 7 vistas, 9 enums, RLS en todas.**
-**Frontend: compila (`npm run build` verificado) — 597 KB de JS, 177 KB gzip.**
+**Frontend: compila (`npm run build` verificado) — 616 KB de JS, 181 KB gzip.**
 
-> El salto de 462 a 597 KB es de esta fase: Radix (dialog, select, checkbox) y sus
-> primitivas de accesibilidad. Es un coste fijo y ya está pagado: las Fases 11-16 no
-> añaden dependencias, solo las usan. En la FASE 20, si preocupa el tamaño, la salida
-> sigue siendo dividir el bundle por ruta con `React.lazy` — el panel `/admin` es el
-> candidato ideal, porque un `cliente` nunca lo abre. No es urgente.
+> El salto de 462 a 597 KB fue de la FASE 10 (Radix y sus primitivas de
+> accesibilidad). La FASE 11 solo añade 19 KB: no mete dependencias nuevas. En la
+> FASE 20, si preocupa el tamaño, la salida sigue siendo dividir el bundle por ruta
+> con `React.lazy` — el panel `/admin` es el candidato ideal, porque un `cliente`
+> nunca lo abre. No es urgente.
 
 ### Para continuar
 

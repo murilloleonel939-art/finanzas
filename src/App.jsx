@@ -10,7 +10,9 @@ import ForgotPassword from './pages/ForgotPassword.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
 import Home from './pages/Home.jsx'
 
-// Panel de administración (FASE 10 — construido)
+// Panel de administración (FASES 10-11 — construido)
+import AdminDashboard from './pages/AdminDashboard.jsx'
+import EmpresasPage from './pages/EmpresasPage.jsx'
 import UsuariosPage from './pages/UsuariosPage.jsx'
 
 // Mapa completo de rutas (§11.1 del PRD).
@@ -45,14 +47,8 @@ export default function App() {
           <AdminLayout />
         </ProtectedRoute>
       }>
-        <Route index element={
-          <Placeholder nombre="Dashboard" fase="11"
-            descripcion="Estadísticas: empresas registradas y activas, contadores y clientes." />
-        } />
-        <Route path="empresas" element={
-          <Placeholder nombre="Gestión de empresas" fase="11"
-            descripcion="CRUD completo de empresas con EmpresaDialog." />
-        } />
+        <Route index element={<AdminDashboard />} />
+        <Route path="empresas" element={<EmpresasPage />} />
         <Route path="usuarios" element={<UsuariosPage />} />
       </Route>
 

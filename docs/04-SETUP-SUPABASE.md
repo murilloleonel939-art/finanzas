@@ -21,6 +21,13 @@ Las migraciones son **secuenciales**. Hay que ejecutarlas en orden:
 | 5 | `0005_jobs_vistas.sql` | `import_jobs` + 7 vistas |
 | 6 | `0006_rls.sql` | Funciones helper + policies |
 | 7 | `0007_triggers_storage.sql` | Triggers, realtime, bucket, cron |
+| 8 | `0008_empresa_borrada_sin_acceso.sql` | El acceso se deriva del estado de la empresa (D19) |
+
+> Las migraciones 1-7 ya están aplicadas en el proyecto. La **0008** la añadió la
+> FASE 11 y **está pendiente de aplicar**: sin ella, borrar una empresa la oculta del
+> panel pero no retira el acceso a sus datos financieros a los usuarios asignados.
+> Es un `create or replace function` de dos funciones, así que se puede ejecutar
+> por separado y sin riesgo.
 
 Todos los archivos son **idempotentes** donde es posible: se pueden volver a ejecutar sin
 romper nada (`create table if not exists`, `drop policy if exists`, guardas en los enums).
