@@ -10,8 +10,9 @@ de tokens a mitad de una fase, apuntar el estado exacto en la sección "En curso
 
 ## Estado global
 
-- **Fase actual:** FASE 12 (workspace y sidebar de empresa)
-- **Fases completadas:** 11 de 21 — backend + scaffold + auth + admin completo
+- **Fase actual:** FASE 14 (arranca tras corregir la FASE 12)
+- **Fases completadas:** 12 de 21 — backend + scaffold + auth + admin + catálogos
+  (la FASE 12 quedó **incompleta** y sus correcciones son previas a la 14)
 - **Verificado en Supabase (FASE 11):** 
   - 15 tablas con RLS activo ✓
   - 4 funciones helper ✓
@@ -256,28 +257,72 @@ ya aplicada no se toca.
 
 ---
 
-## FASE 12 — Workspace y sidebar de empresa
+## FASE 12 — Workspace y sidebar de empresa ⚠️ INCOMPLETA
 
-- [ ] `Workspace` (lista de empresas asignadas)
+- [x] `Workspace` (lista de empresas asignadas) ← funciona
 - [ ] `EmpresaLayout` con sidebar jerárquico (§11.3)
+      ⚠️ construido sobre una tabla `ramas` que **no existe** en el esquema
+      (ni en el PRD). Todos sus enlaces apuntan a rutas inexistentes.
 - [ ] Suscripciones realtime
+      ⚠️ se suscribe a `empresas` y `ramas`; ninguna está en la publicación
+      `supabase_realtime` (la 0007 solo publica las 11 tablas financieras).
 - [ ] Diálogos de confirmación para borrado
+      ⚠️ `ConfirmDialog.jsx` existe pero no está usado en ningún sitio.
 - [ ] `EmpresaOverview` con **subtotales por moneda** (decisión D4)
+      ⚠️ consulta `wallet_saldos_view`, que no existe; y suma
+      `valor_unitario` en vez de `valor_total`.
 
-**Entregable:** navegación completa entre empresas y sus ramas.
+**Entregable:** no alcanzado. Ver correcciones pendientes antes de FASE 13.
+
+> Nota: la verificación de esta fase destapó que la documentación generada
+> bajo `docs/FASE-12-*.md` y `FASE-12-*.txt` describe archivos, hooks y rutas
+> que no existen. Descartar esa documentación.
 
 ---
 
-## FASE 13 — Catálogos y utilidades
+## FASE 13 — Catálogos y utilidades ✅
 
-- [ ] `src/lib/bancosPorPais.js`
-- [ ] `src/lib/walletProviders.js`
-- [ ] Monedas cripto y fiat
-- [ ] `src/lib/earnConfig.js`
-- [ ] `src/components/shared/MonthFilter.jsx`
-- [ ] `src/lib/db.js` — adaptador con forma del SDK de Base44 (decisión D8)
+- [x] `src/lib/bancosPorPais.js` — 9 países del PRD + 4 de Centroamérica, opción «Otro»
+- [x] `src/lib/walletProviders.js` — cripto / fiat / ambos, opción «Otro»
+- [x] `src/lib/monedas.js` — cripto y fiat, defaults alineados con el esquema
+- [x] `src/lib/earnConfig.js` — clasificación Earn, métricas y activos por moneda
+- [x] `src/components/shared/MonthFilter.jsx` — Select + 3 funciones puras
+- [x] `src/lib/db.js` — adaptador con forma del SDK de Base44 (decisión D8)
 
-**Entregable:** piezas compartidas listas para los módulos.
+**Entregable:** alcanzado. Sin páginas nuevas: son piezas compartidas.
+
+**Archivos:**
+
+```
+src/lib/bancosPorPais.js              bancosDePais, tieneCatalogo, resolverNombreBanco
+src/lib/walletProviders.js            proveedoresPorTipo, tipoDeProveedor, claveProveedor
+src/lib/monedas.js                    MONEDAS_CRIPTO/FIAT, formatearMonto, MONEDA_DEFECTO
+src/lib/earnConfig.js                 esMovimientoEarn, esInteres, resumenEarn,
+                                      activosEarnPorMoneda, categoriaEarn
+src/components/shared/MonthFilter.jsx getMesesDisponibles, formatMes, filtrarPorMes
+src/lib/db.js                         listar/obtener/crear/crearMuchos/actualizar/
+                                      borrar/contar/suscribir
+```
+
+**Decisiones nuevas:** D20 (Earn se clasifica en el cliente), D21 (catálogos con centinela
+«Otro», un proveedor por nombre), D22 (el mes se corta del string, no con `Date`),
+D23 (`db.js` lanza y aplica el filtro de borrado por ti).
+
+**Sin migración nueva.** La fase no toca el esquema: `pais`, `nombre_banco`,
+`nombre_proveedor` y `tipo_moneda` ya son texto libre en las migraciones 0002-0004, y
+`earnConfig` deriva todo de `descripcion`. El adaptador lee de las 7 vistas de la 0005 y
+escribe en las tablas, todo ya cubierto por el RLS de la 0006.
+
+**Verificado:** `npm run build` compila (627 KB, 183 KB gzip; +11 KB sobre la FASE 11). Se
+añadió un bundle de comprobaciones (23 casos: bancos, monedas, proveedores, Earn con las
+métricas del PRD §7, MonthFilter) y un doble del cliente de Supabase para `db.js` (filtro de
+borrado automático, rango de fechas, paginación, rechazo de escritura en vistas, aviso de
+realtime). **Los dos archivos de prueba son temporales (`/tmp`) y no se han añadido al
+repo:** el proyecto no tiene runner de tests todavía.
+
+**Nota sobre `db.js`:** está escrito y verificado, pero **ningún módulo lo usa aún**. Las
+fases 14-16 son quienes deben llamarlo; si al construir `CuentaDetail` resulta que estorba
+en vez de ayudar, hay que decirlo y ajustarlo entonces, no arrastrarlo.
 
 ---
 
@@ -290,6 +335,12 @@ ya aplicada no se toca.
 - [ ] Eliminación con confirmación
 
 **Entregable:** rama de cuentas operable de punta a punta.
+
+> **Antes de empezar la FASE 14:** las correcciones pendientes de la FASE 12
+> (`EmpresaLayout` construido sobre una tabla `ramas` inexistente, `EmpresaOverview`
+> consultando `wallet_saldos_view`, que no existe). La rama de cuentas se monta **dentro**
+> de ese layout, así que si sigue roto, la FASE 14 hereda el problema.
+
 
 ---
 
@@ -374,10 +425,27 @@ ya aplicada no se toca.
 
 ## En curso (actualizar si se corta a mitad de fase)
 
-**FASE 12 arrancando.** La siguiente es construir la **FASE 12** (workspace y sidebar
-de empresa: `Workspace`, `EmpresaLayout` con el sidebar jerárquico del §11.3,
-suscripciones realtime, diálogos de confirmación de borrado y `EmpresaOverview` con
-subtotales por moneda).
+**FASE 13 cerrada.** La siguiente es la **FASE 14** (módulo de cuentas bancarias:
+`CrearBanco`, `CrearCuenta`, `CuentaDetail`, formulario de movimiento manual y borrado con
+confirmación).
+
+**Antes de la FASE 14 hay que cerrar la FASE 12**, que quedó a medias y es la que da el
+marco donde vive el módulo de cuentas:
+
+1. `EmpresaLayout` está construido sobre una tabla `ramas` que no existe. Hay que rehacerlo
+   sobre `bancos` / `brokers` / `wallet_providers`, que son las tres ramas reales, y
+   apuntar sus enlaces a las rutas del PRD §10 (ninguna de las actuales existe).
+2. Las suscripciones realtime se hacen sobre `empresas` y `ramas`. Debe ser sobre las 11
+   tablas de la publicación (mejor vía `db.suscribir()`, que avisa si la tabla no está
+   publicada).
+3. `EmpresaOverview` consulta `wallet_saldos_view`, que no existe, y suma
+   `valor_unitario` en vez de `valor_total`. Lo correcto es `wallets_view` (que ya trae
+   `saldo_total`) y `activos_broker_view` (que ya trae `valor_total`), y subtotales por
+   moneda (D4).
+4. `ConfirmDialog.jsx` existe sin usarse en ningún sitio. La FASE 14 lo necesita para el
+   borrado de cuentas.
+
+Nada de esto requiere migración nueva: las tablas y las vistas ya están aplicadas.
 
 ### Lo que le toca al usuario AHORA (no es bloqueante para FASE 12, pero lo es para probarla)
 
@@ -459,13 +527,22 @@ Panel de administración (FASE 11)
   src/pages/EmpresasPage.jsx          tabla, buscador, filtro por estado
   src/components/EmpresaDialog.jsx    alta / edición / borrado con confirmación
 
+Catálogos y utilidades (FASE 13)
+  src/lib/bancosPorPais.js            bancos por país + «Otro»
+  src/lib/walletProviders.js          proveedores cripto/fiat/ambos + «Otro»
+  src/lib/monedas.js                  monedas cripto y fiat + formateo
+  src/lib/earnConfig.js               clasificación y métricas Earn
+  src/components/shared/MonthFilter.jsx  filtro de mes compartido
+  src/lib/db.js                       adaptador de datos (D8)
+
 Dependencias añadidas en la FASE 10 (antes no había ninguna de Radix):
   @radix-ui/react-dialog, @radix-ui/react-select, @radix-ui/react-checkbox
 La FASE 11 no añade ninguna dependencia: reutiliza las de la FASE 10.
+La FASE 13 tampoco: son módulos de JS puro y un componente sobre el Select ya instalado.
 ```
 
 **Backend: 15 tablas, 7 vistas, 9 enums, RLS en todas.**
-**Frontend: compila (`npm run build` verificado) — 616 KB de JS, 181 KB gzip.**
+**Frontend: compila (`npm run build` verificado) — 627 KB de JS, 183 KB gzip.**
 
 > El salto de 462 a 597 KB fue de la FASE 10 (Radix y sus primitivas de
 > accesibilidad). La FASE 11 solo añade 19 KB: no mete dependencias nuevas. En la
@@ -480,4 +557,4 @@ La FASE 11 no añade ninguna dependencia: reutiliza las de la FASE 10.
 2. `npm run dev` y comprobar que carga `http://localhost:5173/login`.
 3. Entrar con tu cuenta de super_admin → debe redirigir a `/admin`.
 4. Ir a `/admin/usuarios` y probar la invitación (tras desplegar las funciones y el SMTP).
-5. Empezar la FASE 11.
+5. Corregir la FASE 12 (los 4 puntos de arriba) y después empezar la FASE 14.

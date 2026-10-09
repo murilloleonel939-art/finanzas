@@ -255,3 +255,92 @@ pueda quedar a medias.
 hacía en la 0006 para todos. Si más adelante hace falta una papelera para restaurar
 empresas borradas desde la interfaz, se añade una vista o una función específica — no se
 relajan estas dos.
+
+## D20 — `earnConfig` clasifica Earn en el cliente, no en la base
+
+**Qué:** `src/lib/earnConfig.js`. Los dos mecanismos del PRD §7 (palabras clave en la
+descripción y lista `EARN_ALL_MOVEMENTS_PROVIDERS`) se aplican en el frontend, sobre la
+descripción tal como llegó del extracto. La base no guarda ninguna marca `es_earn`.
+
+**Por qué:** `descripcion` es texto libre (decisión D8 quitó los campos derivados, y esto lo
+sería). Añadir una columna obligaría a recalcularla cada vez que se mejore la detección —y
+se va a mejorar, porque depende de cómo redacten los proveedores— con un `UPDATE` masivo
+sobre el histórico.
+
+**Consecuencias, aceptadas a propósito:**
+
+1. Una descripción mal escrita deja el movimiento **fuera** de Earn y el número no cuadra
+   con lo que muestra el proveedor. Por eso `categoriaEarn()` es pública: la UI puede
+   explicar por qué una fila se clasificó como se clasificó en vez de mostrar un total
+   inexplicable.
+2. Se añadieron las variantes en español (`suscripcion`, `interes`, `redencion`, `ahorro`)
+   a las palabras del PRD. No es una ampliación de alcance: los extractos de proveedores de
+   la región están en español, y sin ellas "Suscripción a producto Earn" se leería como un
+   egreso normal y **"Total invertido" daría cero**.
+3. La coincidencia es **por palabra completa**. `earnings` no cuenta como `earn`; con un
+   `includes()` a secas, cualquier "earnings" bancario entraría como producto Earn.
+
+**Nota:** `esInteres()` (regex `interes|interest|rendimiento|ganancia|yield`) es **más
+amplia** que la palabra clave `interest` de Earn e incluye ingresos que no son productos
+Earn. Son dos métricas distintas del PRD ("intereses ganados" frente a "total recompensas")
+y no se deben mezclar.
+
+## D21 — Bancos y proveedores: catálogos de ayuda, con centinelas «Otro»
+
+**Qué:** `bancosPorPais.js` y `walletProviders.js` exportan listas y funciones
+(`bancosDePais`, `proveedoresPorTipo`, `resolverNombreBanco`…) más un centinela
+`'__otro__'` que **nunca se guarda** en la base. El valor que va a la base lo produce
+`resolver*()`, que devuelve `null` si «Otro» quedó vacío.
+
+**Por qué:** `bancos.nombre_banco` y `wallet_providers.nombre_proveedor` son texto libre;
+el catálogo no valida nada. El centinela es solo del selector — sin esta separación, un
+banco escrito a mano se guardaría literalmente como `__otro__`.
+
+**Detalle del PRD §14 resuelto:** al listar los proveedores, los bloques «ambos»,
+«cripto» y «fiat» se solapan (Binance sale en dos, PayPal en dos). `WALLET_PROVIDERS`
+guarda **una entrada por proveedor**, con el tipo más amplio (`ambos`), porque el enum
+`tipo_proveedor` no admite dos filas para el mismo nombre y duplicarlo mostraría la misma
+opción dos veces. `proveedoresPorTipo('cripto')` sigue devolviendo los `ambos`, que es lo
+que se espera al crear una wallet cripto.
+
+**Decisión menor:** `bancosPorPais.js` incluye Costa Rica, Guatemala, Honduras y El
+Salvador, que no están en la lista de 9 países del PRD §14. Una empresa registrada en un
+país puede operar cuentas en otro, y la lista de bancos por país es del *banco*, no de la
+empresa.
+
+## D22 — `MonthFilter` parte la fecha como texto, sin pasar por `Date`
+
+**Qué:** `claveMes()` hace `regex` sobre el string ISO en vez de `new Date(fecha)`.
+
+**Por qué:** `fecha` es una columna `date` y llega como `'2026-10-01'`. `new Date()` la
+interpreta como medianoche **UTC**; en Colombia (UTC-5) `toLocaleDateString` devolvería el
+**30 de septiembre** y el movimiento aparecería en el mes equivocado —el mismo problema que
+`formatFecha()` de la FASE 8 evita en el otro sentido. Un `date` no tiene hora: cortarlo
+como texto es exacto y no depende de la zona del navegador.
+
+## D23 — `db.js`: adaptador que lanza y filtra el borrado por ti
+
+**Qué:** `src/lib/db.js` implementa la segunda mitad de D8. Registra cada fuente con dos
+banderas —`borrado` (¿la tabla tiene `deleted_at`?) y `soloLectura` (¿es una vista?)— y
+ofrece `listar / obtener / crear / crearMuchos / actualizar / borrar / contar / suscribir`.
+
+**Por qué lanza en vez de devolver `{ data, error }`:** el SDK que reemplaza lanzaba, y
+`supabase-js` no. Un `error` que se ignora se convierte en `data` nulo y la UI lo pinta
+como "sin movimientos": un saldo vacío indistinguible de un fallo de red. En una app
+financiera, un fallo silencioso es peor que uno ruidoso.
+
+**Por qué decide él el filtro de borrado:** es el error clásico del borrado lógico (D7) —
+olvidar `.is('deleted_at', null)` en una consulta nueva y que los registros borrados
+reaparezcan dos fases después. Aquí el llamador no puede olvidarlo. Las vistas ya filtran
+por dentro, así que el adaptador pide `deleted_at` **solo** cuando la fuente es una tabla:
+pedirlo a una vista fallaría.
+
+**Consecuencias:**
+
+- El adaptador **no** rellena `empresa_id` ni `created_by`. Inventar la sesión en la capa
+  de datos escondería un fallo de RLS detrás de un error de constraint.
+- `borrar()` es lógico por defecto; físico donde la tabla no tiene la columna
+  (`wallet_saldos`, `import_jobs`).
+- `suscribir()` **avisa por consola** si la tabla no está en la publicación
+  `supabase_realtime`. Es el fallo exacto que tuvo la FASE 12 al suscribirse a `ramas`: un
+  canal que nunca emite y no dice por qué.

@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import AdminLayout from './components/AdminLayout.jsx'
+import EmpresaLayout from './layouts/EmpresaLayout.jsx'
 import Placeholder from './pages/Placeholder.jsx'
 
 // Auth (FASE 9 — construidas)
@@ -14,6 +15,10 @@ import Home from './pages/Home.jsx'
 import AdminDashboard from './pages/AdminDashboard.jsx'
 import EmpresasPage from './pages/EmpresasPage.jsx'
 import UsuariosPage from './pages/UsuariosPage.jsx'
+
+// Workspace y empresa (FASE 12)
+import Workspace from './pages/Workspace.jsx'
+import EmpresaOverview from './pages/EmpresaOverview.jsx'
 
 // Mapa completo de rutas (§11.1 del PRD).
 // Las construidas apuntan a su componente real; las pendientes a un
@@ -34,8 +39,7 @@ export default function App() {
       {/* --- Workspace (FASE 12) --- */}
       <Route path="/workspace" element={
         <ProtectedRoute>
-          <Placeholder nombre="Mis empresas" fase="12"
-            descripcion="Lista de las empresas asignadas al usuario." />
+          <Workspace />
         </ProtectedRoute>
       } />
 
@@ -53,66 +57,49 @@ export default function App() {
       </Route>
 
       {/* --- Empresa (FASES 12-16) --- */}
-      <Route path="/empresa/:empresaId">
-        <Route index element={
-          <ProtectedRoute>
-            <Placeholder nombre="Resumen de la empresa" fase="12"
-              descripcion="Subtotales por moneda, sin total consolidado (decisión D4)." />
-          </ProtectedRoute>
-        } />
+      <Route path="/empresa/:empresaId" element={
+        <ProtectedRoute>
+          <EmpresaLayout />
+        </ProtectedRoute>
+      }>
+        <Route index element={<EmpresaOverview />} />
 
         {/* Cuentas bancarias (FASE 14) */}
         <Route path="cuentas/crear-banco" element={
-          <ProtectedRoute>
-            <Placeholder nombre="Crear banco" fase="14"
-              descripcion="Catálogo de bancos por país, con opción «Otro»." />
-          </ProtectedRoute>
+          <Placeholder nombre="Crear banco" fase="14"
+            descripcion="Catálogo de bancos por país, con opción «Otro»." />
         } />
         <Route path="cuentas/banco/:bancoId/crear-cuenta" element={
-          <ProtectedRoute>
-            <Placeholder nombre="Crear cuenta" fase="14"
-              descripcion="Número de cuenta, tipo y moneda." />
-          </ProtectedRoute>
+          <Placeholder nombre="Crear cuenta" fase="14"
+            descripcion="Número de cuenta, tipo y moneda." />
         } />
         <Route path="cuentas/banco/:bancoId/cuenta/:cuentaId" element={
-          <ProtectedRoute>
-            <Placeholder nombre="Detalle de cuenta" fase="14"
-              descripcion="Resumen, filtro por mes, movimientos, importar y exportar." />
-          </ProtectedRoute>
+          <Placeholder nombre="Detalle de cuenta" fase="14"
+            descripcion="Resumen, filtro por mes, movimientos, importar y exportar." />
         } />
 
         {/* Brokers (FASE 15) */}
         <Route path="brokers/crear-broker" element={
-          <ProtectedRoute>
-            <Placeholder nombre="Crear broker" fase="15"
-              descripcion="Nombre del broker y moneda base." />
-          </ProtectedRoute>
+          <Placeholder nombre="Crear broker" fase="15"
+            descripcion="Nombre del broker y moneda base." />
         } />
         <Route path="brokers/broker/:brokerId" element={
-          <ProtectedRoute>
-            <Placeholder nombre="Detalle de broker" fase="15"
-              descripcion="Pestañas: movimientos, activos y precios." />
-          </ProtectedRoute>
+          <Placeholder nombre="Detalle de broker" fase="15"
+            descripcion="Pestañas: movimientos, activos y precios." />
         } />
 
         {/* Wallets (FASE 16) */}
         <Route path="wallets/crear-proveedor" element={
-          <ProtectedRoute>
-            <Placeholder nombre="Crear proveedor de wallet" fase="16"
-              descripcion="Catálogo por tipo (cripto, fiat, ambos), con opción «Otro»." />
-          </ProtectedRoute>
+          <Placeholder nombre="Crear proveedor de wallet" fase="16"
+            descripcion="Catálogo por tipo (cripto, fiat, ambos), con opción «Otro»." />
         } />
         <Route path="wallets/proveedor/:proveedorId/crear-wallet" element={
-          <ProtectedRoute>
-            <Placeholder nombre="Crear wallet" fase="16"
-              descripcion="Etiqueta, dirección y moneda." />
-          </ProtectedRoute>
+          <Placeholder nombre="Crear wallet" fase="16"
+            descripcion="Etiqueta, dirección y moneda." />
         } />
         <Route path="wallets/proveedor/:proveedorId/wallet/:walletId" element={
-          <ProtectedRoute>
-            <Placeholder nombre="Detalle de wallet" fase="16"
-              descripcion="Pantalla única para proveedores «todo es Earn»; pestañas para el resto." />
-          </ProtectedRoute>
+          <Placeholder nombre="Detalle de wallet" fase="16"
+            descripcion="Pantalla única para proveedores «todo es Earn»; pestañas para el resto." />
         } />
       </Route>
 
