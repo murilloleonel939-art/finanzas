@@ -10,8 +10,8 @@ de tokens a mitad de una fase, apuntar el estado exacto en la sección "En curso
 
 ## Estado global
 
-- **Fase actual:** FASE 14 (módulo de cuentas bancarias)
-- **Fases completadas:** 13 de 21 — backend + scaffold + auth + admin + catálogos + workspace
+- **Fase actual:** FASE 16 (módulo wallets + Earn)
+- **Fases completadas:** 15 de 21 — backend + scaffold + auth + admin + catálogos + workspace + cuentas + brokers
 - **Verificado en Supabase (FASE 11):** 
   - 15 tablas con RLS activo ✓
   - 4 funciones helper ✓
@@ -256,26 +256,22 @@ ya aplicada no se toca.
 
 ---
 
-## FASE 12 — Workspace y sidebar de empresa ⚠️ INCOMPLETA
+## FASE 12 — Workspace y sidebar de empresa ✅
 
 - [x] `Workspace` (lista de empresas asignadas) ← funciona
-- [ ] `EmpresaLayout` con sidebar jerárquico (§11.3)
-      ⚠️ construido sobre una tabla `ramas` que **no existe** en el esquema
-      (ni en el PRD). Todos sus enlaces apuntan a rutas inexistentes.
-- [ ] Suscripciones realtime
-      ⚠️ se suscribe a `empresas` y `ramas`; ninguna está en la publicación
-      `supabase_realtime` (la 0007 solo publica las 11 tablas financieras).
-- [ ] Diálogos de confirmación para borrado
-      ⚠️ `ConfirmDialog.jsx` existe pero no está usado en ningún sitio.
-- [ ] `EmpresaOverview` con **subtotales por moneda** (decisión D4)
-      ⚠️ consulta `wallet_saldos_view`, que no existe; y suma
-      `valor_unitario` en vez de `valor_total`.
+- [x] `EmpresaLayout` con sidebar jerárquico (§11.3)
+- [x] Suscripciones realtime
+- [x] Diálogos de confirmación para borrado
+- [x] `EmpresaOverview` con **subtotales por moneda** (decisión D4)
 
-**Entregable:** no alcanzado. Ver correcciones pendientes antes de FASE 13.
+**Entregable:** alcanzado en `d8bef5e`. Los cuatro defectos originales eran el mismo error
+de fondo —código escrito contra un esquema imaginario—: la tabla `ramas` no existe (D24,
+las tres ramas son constantes), la publicación realtime de la 0007 no incluye `ramas`, y
+`wallet_saldos_view` tampoco existe (la vista real es `wallets_view`, que trae
+`saldo_total`). `EmpresaOverview` sumaba `valor_unitario` en vez de `valor_total`.
 
-> Nota: la verificación de esta fase destapó que la documentación generada
-> bajo `docs/FASE-12-*.md` y `FASE-12-*.txt` describe archivos, hooks y rutas
-> que no existen. Descartar esa documentación.
+La documentación generada bajo `docs/FASE-12-*.md` y `FASE-12-*.txt` describe archivos,
+hooks y rutas inexistentes: **descartada**, no forma parte del proyecto.
 
 ---
 
@@ -325,32 +321,103 @@ en vez de ayudar, hay que decirlo y ajustarlo entonces, no arrastrarlo.
 
 ---
 
-## FASE 14 — Módulo cuentas bancarias
+## FASE 14 — Módulo cuentas bancarias ✅
 
-- [ ] `CrearBanco` (con opción "Otro")
-- [ ] `CrearCuenta`
-- [ ] `CuentaDetail` con tarjetas, MonthFilter, tabla paginada
-- [ ] Formulario de movimiento manual
-- [ ] Eliminación con confirmación
+- [x] `CrearBanco` (con opción "Otro")
+- [x] `CrearCuenta`
+- [x] `CuentaDetail` con tarjetas, MonthFilter, tabla paginada
+- [x] Formulario de movimiento manual
+- [x] Eliminación con confirmación
 
-**Entregable:** rama de cuentas operable de punta a punta.
+**Entregable:** alcanzado. Rama de cuentas operable de punta a punta.
 
-> **Antes de empezar la FASE 14:** las correcciones pendientes de la FASE 12
-> (`EmpresaLayout` construido sobre una tabla `ramas` inexistente, `EmpresaOverview`
-> consultando `wallet_saldos_view`, que no existe). La rama de cuentas se monta **dentro**
-> de ese layout, así que si sigue roto, la FASE 14 hereda el problema.
+**Archivos:** `src/lib/cuentas.js`, `src/pages/BancosPage.jsx`, `CrearBanco.jsx`,
+`CrearCuenta.jsx`, `CuentaDetail.jsx`, `CrearMovimiento.jsx`.
 
+**La primera versión de esta fase inventó columnas.** El commit `b2b22c8` daba por buenas
+`cuentas.saldo_actual`, `movimientos.concepto`, `movimientos.saldo_resultante` y
+`bancos.nombre_oficial`, ninguna de las cuales existe. `npm run build` no lo detectó porque
+solo valida sintaxis: las columnas de PostgREST son strings en runtime y habrían reventado
+en el navegador con `column does not exist`. La corrección es `9a47e7c`:
+
+| Inventado | Real |
+|---|---|
+| `cuentas.saldo_actual` | `cuentas.monto` |
+| `movimientos.concepto` | `movimientos.descripcion` |
+| `movimientos.saldo_resultante` | no existe: se reconstruye con `conSaldoResultante()` |
+| `bancos.nombre_oficial` | `bancos.nombre_banco` (+ `pais`) |
+| `tipo_cuenta` abierto | enum de dos valores: `ahorros`, `corriente` |
+
+**De ahí salió `scripts/verificar-columnas.mjs`** (ver "Herramientas de verificación"): lee
+las migraciones como fuente de verdad y comprueba cada columna que el código menciona.
+Corre con `npm run verificar`.
+
+**Decisión nueva:** D25 (validar el CHECK en el cliente antes del insert).
+
+**Verificado:** `npm run verificar` → 0 problemas; `npm run humo` → 42 comprobaciones OK;
+`npm run build` compila.
 
 ---
 
-## FASE 15 — Módulo brokers
+## FASE 15 — Módulo brokers ✅
 
-- [ ] `CrearBroker` (con opción "Otro")
-- [ ] `BrokerDetail` con 3 pestañas (Movimientos / Activos / Precios)
-- [ ] Cálculo de valor total por posición
-- [ ] Eliminación con confirmación
+- [x] `CrearBroker` (con opción "Otro")
+- [x] `BrokerDetail` con 3 pestañas (Movimientos / Activos / Precios)
+- [x] Cálculo de valor total por posición
+- [x] Eliminación con confirmación
 
-**Entregable:** rama de brokers operable.
+**Entregable:** alcanzado. Rama de brokers operable.
+
+**Archivos:**
+
+```
+src/lib/brokers.js             catálogo (37 brokers) + TIPOS_ACTIVO con las 7 del enum
+src/lib/brokers-datos.js       capa de datos + calcularTotalesBroker
+src/pages/BrokersPage.jsx      listado con borrado lógico
+src/pages/CrearBroker.jsx      alta con «Otro» y moneda de caja sugerida
+src/pages/BrokerDetail.jsx     3 pestañas, MonthFilter, paginación, borrado
+src/pages/CrearMovimientoBroker.jsx   dos naturalezas: caja y operación
+src/pages/CrearActivo.jsx      posición con ticker único por broker
+```
+
+**Dos naturalezas en `movimientos_broker`** (migración 0003): *caja* (depósito/retiro, solo
+`monto`) y *operación* (compra/venta, con `cantidad` + `valor_unitario`). El CHECK
+`mov_broker_cantidad_valor_coherentes` exige que los dos vengan juntos o ninguno. La página
+lo trata como un campo explícito del formulario (`modo`) y no lo deduce de si el usuario
+rellenó un campo de más.
+
+**Semántica del PRD §5:** `ingreso` es depósito **o venta**; `egreso` es retiro **o compra**.
+El signo del monto nunca distingue (el monto es siempre positivo): lo que separa una caja de
+una operación es si trae `cantidad` y `valor_unitario`.
+
+**`calcularTotalesBroker`** devuelve una línea por moneda (D4) con tres cifras: `caja`
+(ingresos − egresos), `invertido` (compras − ventas) y `valorActivos` (de
+`activos_broker_view.valor_total`). Los activos **no** se suman a la caja: el efectivo no es
+el valor de mercado de la cartera.
+
+**Correcciones aplicadas al revisar la fase** (antes de commitear, ver D25 y D26):
+
+1. `crearMovimientoBroker()` "arreglaba" una operación incompleta enviándola como caja. Eso
+   guardaba la fila **perdiendo la cantidad en silencio**. Ahora lanza.
+2. Los formularios precargaban la fecha con `new Date().toISOString().slice(0,10)`, que es
+   **UTC**: en Colombia (UTC-5), después de las 19:00 el movimiento nacía con la fecha de
+   mañana. Ahora usan `hoyLocal()`.
+3. `CrearMovimientoBroker` importaba `calcularTotalesBroker` sin usarlo; `CrearBroker` tenía
+   una rama no-op (`if (delCatalogo) setMoneda(v)` justo después de `setMoneda(v)`);
+   `CrearActivo` tenía la lista de monedas escrita a mano en vez de usar `MONEDAS_FIAT`.
+
+**Sin migración nueva.** Todo cabe en 0002-0007. `brokers` solo tiene `nombre_broker` y
+`moneda` — no hay `api_key` ni `token`: la conexión con APIs de mercado es la FASE 18 y vive
+en el servidor (D11/D13), no como credencial por broker en el navegador.
+
+**Verificado:** `npm run verificar` → 0 problemas; `npm run humo` → 42 comprobaciones OK
+(incluye 3 controles negativos que confirman que la prueba detecta regresiones);
+`npm run build` compila (697 KB de JS, 197 KB gzip).
+
+> **Aviso — esto NO es una prueba contra Supabase.** La fase está verificada de forma
+> estática (las columnas existen en las migraciones) y con un doble del cliente. **Sigue
+> sin haberse ejecutado ni una consulta contra el proyecto real.** Ver "Prueba de humo
+> real" más abajo.
 
 ---
 
@@ -424,11 +491,63 @@ en vez de ayudar, hay que decirlo y ajustarlo entonces, no arrastrarlo.
 
 ## En curso (actualizar si se corta a mitad de fase)
 
-**FASE 13 ✅ y FASE 12 ✅ completadas.** La siguiente es la **FASE 14** (módulo de cuentas
-bancarias: `CrearBanco`, `CrearCuenta`, `CuentaDetail`, formulario de movimiento manual y
-borrado con confirmación). El layout y overview están listos.
+**FASES 12, 13, 14 y 15 ✅ completadas y commiteadas.** La siguiente es la **FASE 16**
+(módulo wallets + Earn: `CrearWalletProvider`, `CrearWallet`, `WalletDetail` con sus dos
+variantes, `WalletEarn`, `WalletEarnAssets`).
 
-### Lo que le toca al usuario AHORA (no es bloqueante para FASE 12, pero lo es para probarla)
+### Herramientas de verificación (usar en cada fase)
+
+Las dos son obligatorias antes de dar una fase por terminada:
+
+```bash
+npm run verificar   # columnas del código contra las migraciones — 0 problemas esperado
+npm run humo        # prueba de humo de la FASE 15 — 42 comprobaciones
+npm run build       # compila (no valida columnas: son strings en runtime)
+```
+
+- **`scripts/verificar-columnas.mjs`** lee `supabase/migrations/` como fuente de verdad del
+  esquema y comprueba cada columna que el código menciona, en `select`, `insert`, `update`
+  y en las claves de los filtros. Existe porque `npm run build` no ve este error: la
+  primera versión de la FASE 14 inventó cuatro columnas y compiló sin una queja.
+- **`scripts/humo-brokers.mjs`** + `scripts/humo-fase15.mjs` + `scripts/stub-supabase.mjs`
+  compilan las funciones reales de `src/lib/` con esbuild, sustituyen **solo** el cliente de
+  Supabase por un doble que graba cada consulta, y afirman sobre ellas. El doble no imita
+  comportamiento: es un **espía**, para poder comprobar que las columnas pedidas existen,
+  que el filtro `deleted_at` está puesto (D7) y que `crearMovimientoBroker` respeta el CHECK
+  de la 0003.
+
+  Está comprobado que la prueba **detecta regresiones** (tres controles negativos):
+  reintroducir `saldo_actual` → 2 fallos; volver a "arreglar" una operación incompleta como
+  caja → 3 fallos; quitar el filtro `deleted_at` → 2 fallos.
+
+  El runner fija `TZ=America/Bogota` a propósito: en UTC, "hoy local" y "hoy UTC" coinciden
+  y la prueba de `hoyLocal()` pasaría aunque la función estuviera mal.
+
+### Prueba de humo real (PENDIENTE — es lo que falta de verdad)
+
+**El módulo de brokers nunca se ha ejecutado contra Supabase.** El esquema se ha verificado
+de forma estática y con un doble, pero **ni una sola consulta ha salido contra el proyecto
+real**. Es exactamente el agujero por el que se colaron las columnas inventadas de la
+FASE 14: todo compilaba y todo "pasaba" hasta abrir el navegador.
+
+El RLS es la otra mitad del riesgo: las policies de la 0006 están escritas y verificadas en
+su definición (FASE 11), pero ninguna pantalla ha ejercitado todavía el camino
+`authenticated` → `has_empresa_access` → fila devuelta.
+
+La prueba de humo real es la **FASE 16 paso 0**, antes de escribir una línea del módulo de
+wallets:
+
+1. Rellenar la anon key real en `.env.local` (Project Settings → API).
+2. `npm run dev`, entrar como super_admin, crear dos empresas y un segundo usuario asignado
+   solo a una — para comprobar que el RLS aísla de verdad.
+3. Crear un banco, una cuenta, un broker, una operación y un activo. Recargar cada pantalla.
+4. **Comprobar el descuadre de fecha**: dar de alta un movimiento después de las 19:00 hora
+   de Colombia y verificar que la fecha guardada es la de hoy, no la de mañana. Es la
+   corrección (2) de la FASE 15 y no se puede validar sin Supabase.
+5. Borrar un broker y confirmar que desaparece del listado y que sus movimientos dejan de
+   salir (borrado lógico, D7).
+
+### Lo que le toca al usuario AHORA (no bloquea FASE 16)
 
 1. **Desplegar las Edge Functions** (necesarias para FASE 10). Requiere `supabase login`:
    ```bash
@@ -437,18 +556,17 @@ borrado con confirmación). El layout y overview están listos.
    ```
 2. **Configurar SMTP propio** (Project Settings → Auth → SMTP). Sin esto el correo de
    invitación no llega.
-3. **Datos de prueba:** crear dos empresas en `/admin/empresas` y un segundo usuario
-   asignado solo a una, para validar que el RLS aisla correctamente.
+3. **Plan de Supabase Pro** antes de cargar datos reales (backups).
 
-FASE 12 se puede construir sin esto, pero sin SMTP y sin datos no se puede probar de
-verdad (verías un workspace vacío).
+FASE 16 se puede construir sin esto, pero sin la anon key y sin datos no se puede probar
+nada de verdad.
 
 ### Entregado hasta ahora
 
 ```
 docs/
   00-CONTEXTO.md              handoff entre chats — leer primero
-  01-DECISIONES.md            D1-D18 con razonamiento
+  01-DECISIONES.md            D1-D26 con razonamiento
   02-PLAN.md                  este archivo
   03-PROMPT-CONTINUACION.md   texto para pegar en chat nuevo
   04-SETUP-SUPABASE.md        cómo aplicar el esquema, paso a paso
@@ -463,7 +581,6 @@ supabase/migrations/          (aplicadas y verificadas en Supabase)
   0006_rls.sql                4 funciones helper + policies de las 15 tablas
   0007_triggers_storage.sql   alta de usuario, realtime, bucket privado, cron
   0008_empresa_borrada_sin_acceso.sql  acceso derivado del estado de la empresa (D19)
-                               ↑ PENDIENTE DE APLICAR en Supabase
 
 supabase/                     (FASE 10 — escritas, PENDIENTES DE DESPLEGAR)
   config.toml                 verify_jwt=false en las dos funciones
@@ -514,22 +631,47 @@ Catálogos y utilidades (FASE 13)
   src/lib/monedas.js                  monedas cripto y fiat + formateo
   src/lib/earnConfig.js               clasificación y métricas Earn
   src/components/shared/MonthFilter.jsx  filtro de mes compartido
-  src/lib/db.js                       adaptador de datos (D8)
+  src/lib/db.js                       adaptador de datos (D8) — AÚN SIN USAR
+
+Cuentas bancarias (FASE 14)
+  src/lib/cuentas.js                  capa de datos + recalcularSaldoCuenta +
+                                      conSaldoResultante + resumenCuenta
+  src/pages/BancosPage.jsx            bancos con sus cuentas, borrado confirmado
+  src/pages/CrearBanco.jsx            catálogo por país + «Otro»
+  src/pages/CrearCuenta.jsx           cuenta + movimiento de apertura del saldo
+  src/pages/CuentaDetail.jsx          tarjetas, MonthFilter, tabla paginada
+  src/pages/CrearMovimiento.jsx       alta manual de movimiento
+
+Brokers (FASE 15)
+  src/lib/brokers.js                  catálogo (37) + TIPOS_ACTIVO (7 del enum)
+  src/lib/brokers-datos.js            capa de datos + calcularTotalesBroker
+  src/pages/BrokersPage.jsx           listado con borrado lógico
+  src/pages/CrearBroker.jsx           alta + moneda de caja sugerida
+  src/pages/BrokerDetail.jsx          3 pestañas (Movimientos/Activos/Precios)
+  src/pages/CrearMovimientoBroker.jsx caja u operación, campo explícito
+  src/pages/CrearActivo.jsx           posición con ticker único por broker
+
+Verificación
+  scripts/verificar-columnas.mjs      columnas del código vs. migraciones
+  scripts/humo-brokers.mjs            runner (esbuild + TZ fijada)
+  scripts/humo-fase15.mjs             las 42 comprobaciones
+  scripts/stub-supabase.mjs           espía del cliente de Supabase
 
 Dependencias añadidas en la FASE 10 (antes no había ninguna de Radix):
   @radix-ui/react-dialog, @radix-ui/react-select, @radix-ui/react-checkbox
 La FASE 11 no añade ninguna dependencia: reutiliza las de la FASE 10.
 La FASE 13 tampoco: son módulos de JS puro y un componente sobre el Select ya instalado.
+Las FASES 14 y 15 tampoco: 62 KB de JS nuevo, cero dependencias.
 ```
 
 **Backend: 15 tablas, 7 vistas, 9 enums, RLS en todas.**
-**Frontend: compila (`npm run build` verificado) — 627 KB de JS, 183 KB gzip.**
+**Frontend: compila (`npm run build` verificado) — 697 KB de JS, 197 KB gzip.**
 
 > El salto de 462 a 597 KB fue de la FASE 10 (Radix y sus primitivas de
-> accesibilidad). La FASE 11 solo añade 19 KB: no mete dependencias nuevas. En la
-> FASE 20, si preocupa el tamaño, la salida sigue siendo dividir el bundle por ruta
-> con `React.lazy` — el panel `/admin` es el candidato ideal, porque un `cliente`
-> nunca lo abre. No es urgente.
+> accesibilidad). La FASE 11 solo añade 19 KB: no mete dependencias nuevas. Las fases 14 y
+> 15 suman 62 KB de código propio. En la FASE 20, si preocupa el tamaño, la salida sigue
+> siendo dividir el bundle por ruta con `React.lazy` — el panel `/admin` es el candidato
+> ideal, porque un `cliente` nunca lo abre. No es urgente.
 
 ### Para continuar
 
@@ -537,5 +679,6 @@ La FASE 13 tampoco: son módulos de JS puro y un componente sobre el Select ya i
    marcador, `src/lib/supabase.js` lanza un error explicando exactamente qué falta.
 2. `npm run dev` y comprobar que carga `http://localhost:5173/login`.
 3. Entrar con tu cuenta de super_admin → debe redirigir a `/admin`.
-4. Ir a `/admin/usuarios` y probar la invitación (tras desplegar las funciones y el SMTP).
-5. Corregir la FASE 12 (los 4 puntos de arriba) y después empezar la FASE 14.
+4. Hacer la prueba de humo real de la sección anterior (pasos 2 a 5) — es la FASE 16 paso 0.
+5. Ir a `/admin/usuarios` y probar la invitación (tras desplegar las funciones y el SMTP).
+6. Empezar la FASE 16 (módulo wallets + Earn).

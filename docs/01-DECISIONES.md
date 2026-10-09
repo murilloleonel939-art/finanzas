@@ -362,3 +362,69 @@ los tres tipos de cambios en `bancos`, `brokers` y `wallet_providers` (y es la q
 
 **Consecuencia:** no hay «crear rama nueva». Las ramas no se crean; existen. La FASE 14 empieza
 a poblar las tres.
+
+## D25 — Validar el CHECK en el cliente y lanzar; nunca "arreglar" el dato
+
+**Qué:** donde una migración define un CHECK que obliga a que dos campos sean coherentes,
+la capa de datos lo comprueba **antes** del insert y **lanza** un error que nombra el campo
+que falta. No lo normaliza ni lo completa.
+
+**El caso concreto:** `movimientos_broker` tiene dos naturalezas en la misma tabla (0003):
+*caja* (solo `monto`) y *operación* (`monto` + `cantidad` + `valor_unitario`). El CHECK
+`mov_broker_cantidad_valor_coherentes` exige que `cantidad` y `valor_unitario` vengan **los
+dos o ninguno**. La primera versión de `crearMovimientoBroker()` hacía esto:
+
+```js
+const esOperacion = cantidad != null && valorUnitario != null
+// …y si no lo era, mandaba los dos a null
+```
+
+Ese `&&` "arreglaba" en silencio una operación a la que le faltaba un campo: la guardaba
+como si fuera un depósito o un retiro, **perdiendo la cantidad y el valor unitario**. El
+razonamiento documentado era "así no deja que Postgres la rechace con un mensaje que no
+explica nada", pero el resultado era peor que el fallo que evitaba: en una app financiera,
+una operación incompleta es un fallo del llamante y debe ser ruidoso (es el mismo principio
+que D23), no convertirse en un movimiento de caja que nadie puede auditar después.
+
+**Por qué no dejar que Postgres lance el 23514:** funciona, pero el mensaje no dice qué
+campo falta y llega después de un viaje de red. La validación es la misma condición que el
+CHECK, escrita en el cliente, con un mensaje que nombra el campo.
+
+**Regla general:** un CHECK de la base es un contrato, no una sugerencia. El cliente puede
+adelantarse a él para dar mejor error; lo que no puede es **satisfacerlo inventando** los
+datos que faltan.
+
+## D26 — `hoyLocal()`: escribir fechas en la zona del navegador, no en UTC
+
+**Qué:** `src/lib/utils.js` exporta `hoyLocal()`, que devuelve el día del navegador como
+`'YYYY-MM-DD'` usando `getFullYear/getMonth/getDate`. Es el valor por defecto de todos los
+campos `fecha` de los formularios.
+
+**Por qué:** los formularios precargaban la fecha con
+`new Date().toISOString().slice(0, 10)`. `toISOString()` devuelve **UTC**: en Colombia
+(UTC-5), a partir de las 19:00 locales ya es el día siguiente en UTC, así que el formulario
+abría con **la fecha de mañana** —y el atributo `max` también la permitía—. Un movimiento
+dado de alta de noche quedaba guardado con la fecha equivocada. No es un problema de
+presentación: se escribe en la base.
+
+**Es el tercer caso del mismo error, en tres direcciones distintas.** Vale la pena verlo
+junto porque el proyecto ya lo había resuelto dos veces y volvió a aparecer:
+
+| Dónde | Sentido | Qué se rompía | Decisión |
+|---|---|---|---|
+| `formatFecha()` (FASE 8) | leer | un alta de las 20:00 se mostraba con la fecha del día siguiente | corta el ISO y usa `Intl` |
+| `MonthFilter.claveMes()` (FASE 13) | agrupar | `new Date('2026-10-01')` es medianoche UTC; en Bogotá el movimiento caía en septiembre | D22: cortar el string, sin `Date` |
+| `hoyLocal()` (FASE 15) | **escribir** | el formulario precargaba la fecha de mañana | D26: componentes locales |
+
+**Por qué es el peor de los tres:** los dos primeros mostraban mal un dato correcto. Este
+**guarda un dato incorrecto**, y una `date` sin hora no se puede corregir después sin saber
+en qué zona se escribió.
+
+**Por qué `getFullYear()` y no `toLocaleDateString('sv-SE')` o similar:** los componentes
+locales no dependen del locale del sistema ni de que exista una locale que devuelva ISO.
+`toISOString()` es exacto pero en UTC; los componentes locales son exactos y en la zona
+correcta.
+
+**La columna `fecha` es `date`, no `timestamptz`:** no lleva hora ni zona. Guardar el día
+que ve el usuario es la única interpretación defendible, y es la que el PRD da por supuesta
+(«el movimiento del 3 de octubre»).
