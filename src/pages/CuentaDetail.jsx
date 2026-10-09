@@ -1,158 +1,146 @@
 import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabase'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { formatearMonto } from '@/lib/monedas'
-import { getMesesDisponibles, formatMes, filtrarPorMes } from '@/components/shared/MonthFilter'
+import { nombrePais } from '@/lib/paises'
+import {
+  obtenerCuenta,
+  listarMovimientos,
+  borrarMovimiento,
+  conSaldoResultante,
+  resumenPeriodo,
+} from '@/lib/cuentas'
+import { getMesesDisponibles, filtrarPorMes, formatMes, MES_TODOS } from '@/components/shared/MonthFilter'
 import MonthFilter from '@/components/shared/MonthFilter'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Loader2, ChevronLeft, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import ConfirmDialog from '@/components/ConfirmDialog'
+import {
+  Loader2,
+  ChevronLeft,
+  Plus,
+  Trash2,
+  AlertCircle,
+  ChevronLeft as Anterior,
+  ChevronRight as Siguiente,
+} from 'lucide-react'
+
+const POR_PAGINA = 20
 
 /**
- * CuentaDetail: vista de una cuenta con tabla paginada de movimientos.
- * 
- * Componentes:
- *   - Header con nombre de cuenta y moneda
- *   - Stats: saldo actual, total ingreso/egreso, filtrados por mes
- *   - MonthFilter: selector de mes + rango de fechas
- *   - Tabla: movimientos con paginación
- *   - Botones: crear movimiento manual, borrar cuenta
+ * CuentaDetail: detalle de una cuenta bancaria (PRD §4).
+ *
+ * Tarjetas: saldo actual, ingresos del período, egresos del período e
+ * intereses/retenciones. Filtro por mes. Tabla paginada ordenada por `fecha` +
+ * `orden`. Alta manual de movimientos y borrado con confirmación.
+ *
+ * El saldo por fila se reconstruye en `conSaldoResultante()`: el esquema no
+ * guarda un saldo por movimiento (ojo: **no existe** la columna
+ * `saldo_resultante`, la calcula el cliente a partir de `cuentas.monto`).
  */
 export default function CuentaDetail() {
   const { empresaId, cuentaId } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
-  const [mesFiltro, setMesFiltro] = useState('')
-  const [paginaActual, setPaginaActual] = useState(0)
-  const ITEMS_POR_PAGINA = 20
+  const [mes, setMes] = useState(MES_TODOS)
+  const [pagina, setPagina] = useState(0)
+  const [movimientoABorrar, setMovimientoABorrar] = useState(null)
 
-  // Obtener cuenta
-  const { data: cuenta, isLoading: cargandoCuenta } = useQuery({
+  const { data: cuenta, isLoading: cargandoCuenta, error: errorCuenta } = useQuery({
     queryKey: ['cuenta', cuentaId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('cuentas')
-        .select('id, numero_cuenta, tipo_cuenta, tipo_moneda, saldo_actual, banco_id, empresa_id')
-        .eq('id', cuentaId)
-        .single()
-
-      if (error) throw error
-      return data
-    },
+    queryFn: () => obtenerCuenta(cuentaId),
   })
 
-  // Obtener banco
-  const { data: banco } = useQuery({
-    queryKey: ['banco', cuenta?.banco_id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('bancos')
-        .select('id, nombre_banco')
-        .eq('id', cuenta.banco_id)
-        .single()
-
-      if (error) throw error
-      return data
-    },
-    enabled: !!cuenta?.banco_id,
+  const { data: movimientos = [], isLoading: cargandoMovs, error: errorMovs } = useQuery({
+    queryKey: ['movimientos', cuentaId],
+    queryFn: () => listarMovimientos(cuentaId),
   })
 
-  // Obtener todos los movimientos de la cuenta (sin paginación, para filtrar por mes)
-  const { data: movimientosCompleto = [], isLoading: cargandoMovimientos } = useQuery({
-    queryKey: ['movimientos-cuenta', cuentaId, mesFiltro],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('movimientos')
-        .select('id, fecha, tipo, concepto, monto, saldo_resultante, descripcion')
-        .eq('cuenta_id', cuentaId)
-        .is('deleted_at', null)
-        .order('fecha', { ascending: false })
+  const meses = useMemo(() => getMesesDisponibles(movimientos), [movimientos])
 
-      if (error) throw error
-      return data || []
-    },
-    enabled: !!cuentaId,
-  })
+  // Al cambiar de mes se vuelve a la primera página: si no, quedarse en la
+  // página 5 de un mes de 3 movimientos mostraría una tabla vacía.
+  const cambiarMes = (nuevo) => {
+    setMes(nuevo)
+    setPagina(0)
+  }
 
-  // Obtener meses disponibles
-  const mesesDisponibles = useMemo(() => {
-    return getMesesDisponibles(movimientosCompleto, 'fecha')
-  }, [movimientosCompleto])
+  const filtrados = useMemo(() => filtrarPorMes(movimientos, mes), [movimientos, mes])
 
-  // Filtrar por mes
-  const movimientosFiltrados = useMemo(() => {
-    if (!mesFiltro) return movimientosCompleto
-    return filtrarPorMes(movimientosCompleto, mesFiltro, 'fecha')
-  }, [movimientosCompleto, mesFiltro])
-
-  // Paginación
-  const totalPaginas = Math.ceil(movimientosFiltrados.length / ITEMS_POR_PAGINA)
-  const movimientosPaginados = movimientosFiltrados.slice(
-    paginaActual * ITEMS_POR_PAGINA,
-    (paginaActual + 1) * ITEMS_POR_PAGINA
+  const conSaldo = useMemo(
+    () => conSaldoResultante(filtrados, cuenta?.monto ?? 0),
+    [filtrados, cuenta?.monto]
   )
 
-  // Stats (del mes filtrado)
-  const stats = useMemo(() => {
-    const ingresos = movimientosFiltrados
-      .filter((m) => m.tipo === 'ingreso')
-      .reduce((sum, m) => sum + parseFloat(m.monto || 0), 0)
+  const totalPaginas = Math.max(1, Math.ceil(conSaldo.length / POR_PAGINA))
+  const paginaSegura = Math.min(pagina, totalPaginas - 1)
+  const visibles = conSaldo.slice(paginaSegura * POR_PAGINA, (paginaSegura + 1) * POR_PAGINA)
 
-    const egresos = movimientosFiltrados
-      .filter((m) => m.tipo === 'egreso')
-      .reduce((sum, m) => sum + parseFloat(m.monto || 0), 0)
+  const resumen = useMemo(() => resumenPeriodo(filtrados), [filtrados])
 
-    return {
-      ingresos,
-      egresos,
-      neto: ingresos - egresos,
-    }
-  }, [movimientosFiltrados])
+  const { mutate: eliminar, isPending: borrando } = useMutation({
+    mutationFn: (mov) => borrarMovimiento(mov.id, cuentaId),
+    onSuccess: () => {
+      setMovimientoABorrar(null)
+      queryClient.invalidateQueries({ queryKey: ['movimientos', cuentaId] })
+      queryClient.invalidateQueries({ queryKey: ['cuenta', cuentaId] })
+    },
+  })
 
-  const isLoading = cargandoCuenta || cargandoMovimientos
+  const cargando = cargandoCuenta || cargandoMovs
+  const error = errorCuenta || errorMovs
 
-  if (isLoading) {
+  if (cargando) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     )
   }
 
-  if (!cuenta) {
+  if (error || !cuenta) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <p className="text-red-600">Cuenta no encontrada</p>
-        <Button onClick={() => navigate(`/empresa/${empresaId}`)} variant="outline">
-          Volver
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <AlertCircle className="h-8 w-8 text-destructive" />
+        <p className="text-destructive">
+          {error?.message ?? 'Cuenta no encontrada'}
+        </p>
+        <Button onClick={() => navigate(`/empresa/${empresaId}/bancos`)} variant="outline">
+          Volver a bancos
         </Button>
       </div>
     )
   }
 
+  const periodo = mes === MES_TODOS ? 'acumulado' : formatMes(mes)
+
   return (
     <div className="flex-1 p-6 md:p-8 overflow-y-auto">
       <div className="max-w-6xl">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
-          <button
-            onClick={() => navigate(`/empresa/${empresaId}`)}
-            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-3xl font-bold">{cuenta.numero_cuenta}</h1>
-              <span className="text-xs font-medium px-2 py-1 bg-blue-100 text-blue-700 rounded">
-                {cuenta.tipo_moneda}
-              </span>
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate(`/empresa/${empresaId}/bancos`)}
+              className="p-2 hover:bg-muted rounded-lg transition-colors"
+              aria-label="Volver"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-3xl font-bold">{cuenta.numero_cuenta}</h1>
+                <span className="text-xs font-medium px-2 py-1 bg-primary/10 text-primary rounded">
+                  {cuenta.tipo_moneda}
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {cuenta.banco_nombre}
+                {cuenta.banco_pais ? ` • ${nombrePais(cuenta.banco_pais)}` : ''} •{' '}
+                {cuenta.tipo_cuenta}
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground">
-              {banco?.nombre_banco || 'Banco'} • {cuenta.tipo_cuenta}
-            </p>
           </div>
           <Button
             onClick={() => navigate(`/empresa/${empresaId}/cuentas/${cuentaId}/movimiento`)}
@@ -163,93 +151,144 @@ export default function CuentaDetail() {
           </Button>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        {/* Tarjetas */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <Card className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Saldo actual</p>
             <p className="text-2xl font-bold">
-              {formatearMonto(cuenta.saldo_actual, cuenta.tipo_moneda)}
+              {formatearMonto(cuenta.monto, cuenta.tipo_moneda)}
             </p>
           </Card>
-          <Card className="p-4 border-l-4 border-l-green-500">
-            <p className="text-xs text-muted-foreground mb-1">Ingresos {mesFiltro ? `(${formatMes(mesFiltro)})` : ''}</p>
-            <p className="text-2xl font-bold text-green-600">
-              {formatearMonto(stats.ingresos, cuenta.tipo_moneda)}
+          <Card className="p-4 border-l-4 border-l-emerald-500">
+            <p className="text-xs text-muted-foreground mb-1">Ingresos ({periodo})</p>
+            <p className="text-2xl font-bold text-emerald-600">
+              {formatearMonto(resumen.ingresos, cuenta.tipo_moneda)}
             </p>
           </Card>
-          <Card className="p-4 border-l-4 border-l-red-500">
-            <p className="text-xs text-muted-foreground mb-1">Egresos {mesFiltro ? `(${formatMes(mesFiltro)})` : ''}</p>
-            <p className="text-2xl font-bold text-red-600">
-              {formatearMonto(stats.egresos, cuenta.tipo_moneda)}
+          <Card className="p-4 border-l-4 border-l-rose-500">
+            <p className="text-xs text-muted-foreground mb-1">Egresos ({periodo})</p>
+            <p className="text-2xl font-bold text-rose-600">
+              {formatearMonto(resumen.egresos, cuenta.tipo_moneda)}
             </p>
           </Card>
           <Card className="p-4">
-            <p className="text-xs text-muted-foreground mb-1">Neto {mesFiltro ? `(${formatMes(mesFiltro)})` : ''}</p>
-            <p className={`text-2xl font-bold ${stats.neto >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatearMonto(stats.neto, cuenta.tipo_moneda)}
+            <p className="text-xs text-muted-foreground mb-1">Neto ({periodo})</p>
+            <p
+              className={`text-2xl font-bold ${
+                resumen.neto >= 0 ? 'text-emerald-600' : 'text-rose-600'
+              }`}
+            >
+              {formatearMonto(resumen.neto, cuenta.tipo_moneda)}
             </p>
           </Card>
         </div>
 
-        {/* MonthFilter */}
+        {/* Intereses y retenciones: el PRD §4 los pide aparte del neto. */}
+        {(resumen.intereses > 0 || resumen.retenciones > 0) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            <Card className="p-3">
+              <p className="text-xs text-muted-foreground mb-1">
+                Intereses del período ({periodo})
+              </p>
+              <p className="text-lg font-semibold">
+                {formatearMonto(resumen.intereses, cuenta.tipo_moneda)}
+              </p>
+            </Card>
+            <Card className="p-3">
+              <p className="text-xs text-muted-foreground mb-1">
+                Retenciones e impuestos ({periodo})
+              </p>
+              <p className="text-lg font-semibold">
+                {formatearMonto(resumen.retenciones, cuenta.tipo_moneda)}
+              </p>
+            </Card>
+          </div>
+        )}
+
+        {/* Filtro de mes */}
         <div className="mb-6">
           <MonthFilter
-            meses={mesesDisponibles}
-            mesFiltro={mesFiltro}
-            onMesChange={setMesFiltro}
+            meses={meses}
+            value={mes}
+            onChange={cambiarMes}
+            label="Período"
           />
         </div>
 
-        {/* Tabla de movimientos */}
+        {/* Tabla */}
         <Card>
-          {movimientosFiltrados.length === 0 ? (
+          {conSaldo.length === 0 ? (
             <div className="p-8 text-center">
-              <p className="text-muted-foreground mb-4">No hay movimientos en esta cuenta</p>
+              <p className="text-muted-foreground mb-4">
+                {movimientos.length === 0
+                  ? 'Esta cuenta todavía no tiene movimientos.'
+                  : `Sin movimientos en ${periodo}.`}
+              </p>
               <Button
                 onClick={() => navigate(`/empresa/${empresaId}/cuentas/${cuentaId}/movimiento`)}
                 variant="outline"
+                className="gap-2"
               >
-                Crear movimiento
+                <Plus className="w-4 h-4" />
+                Registrar movimiento
               </Button>
             </div>
           ) : (
-            <div>
+            <>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="border-b bg-muted/50">
                     <tr>
                       <th className="text-left px-4 py-3 font-medium">Fecha</th>
-                      <th className="text-left px-4 py-3 font-medium">Concepto</th>
+                      <th className="text-left px-4 py-3 font-medium">Descripción</th>
                       <th className="text-left px-4 py-3 font-medium">Tipo</th>
                       <th className="text-right px-4 py-3 font-medium">Monto</th>
                       <th className="text-right px-4 py-3 font-medium">Saldo</th>
-                      <th className="text-right px-4 py-3 font-medium">Acciones</th>
+                      <th className="w-10" />
                     </tr>
                   </thead>
                   <tbody>
-                    {movimientosPaginados.map((m) => (
-                      <tr key={m.id} className="border-b hover:bg-muted/30">
-                        <td className="px-4 py-3 text-muted-foreground">{m.fecha}</td>
-                        <td className="px-4 py-3">{m.concepto || '-'}</td>
+                    {visibles.map((m) => (
+                      <tr key={m.id} className="border-b last:border-0 hover:bg-muted/30">
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                          {m.fecha}
+                        </td>
+                        <td className="px-4 py-3">
+                          {m.descripcion}
+                          {m.external_id && (
+                            <span className="ml-2 text-xs text-muted-foreground" title="Importado">
+                              ⤓
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <span
-                            className={`text-xs font-medium px-2 py-1 rounded ${
+                            className={`text-xs font-medium px-2 py-1 rounded whitespace-nowrap ${
                               m.tipo === 'ingreso'
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-red-100 text-red-700'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-rose-100 text-rose-700'
                             }`}
                           >
-                            {m.tipo === 'ingreso' ? '+' : '-'} {m.monto}
+                            {m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right font-medium">
+                        <td
+                          className={`px-4 py-3 text-right font-medium whitespace-nowrap ${
+                            m.tipo === 'ingreso' ? 'text-emerald-600' : 'text-rose-600'
+                          }`}
+                        >
+                          {m.tipo === 'ingreso' ? '+' : '−'}
                           {formatearMonto(m.monto, cuenta.tipo_moneda)}
                         </td>
-                        <td className="px-4 py-3 text-right font-medium">
+                        <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">
                           {formatearMonto(m.saldo_resultante, cuenta.tipo_moneda)}
                         </td>
-                        <td className="px-4 py-3 text-right">
-                          <button className="p-1 hover:bg-red-100 rounded text-red-600">
+                        <td className="px-2 py-3">
+                          <button
+                            onClick={() => setMovimientoABorrar(m)}
+                            className="p-1.5 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive transition-colors"
+                            title="Borrar movimiento"
+                          >
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </td>
@@ -259,52 +298,52 @@ export default function CuentaDetail() {
                 </table>
               </div>
 
-              {/* Paginación */}
               {totalPaginas > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t">
                   <p className="text-xs text-muted-foreground">
-                    Página {paginaActual + 1} de {totalPaginas} ({movimientosFiltrados.length} movimientos)
+                    Página {paginaSegura + 1} de {totalPaginas} • {conSaldo.length} movimientos
                   </p>
                   <div className="flex gap-2">
                     <Button
-                      onClick={() => setPaginaActual(Math.max(0, paginaActual - 1))}
+                      onClick={() => setPagina((p) => Math.max(0, p - 1))}
                       variant="outline"
                       size="sm"
-                      disabled={paginaActual === 0}
+                      disabled={paginaSegura === 0}
+                      className="gap-1"
                     >
-                      <ChevronUp className="w-4 h-4" />
+                      <Anterior className="w-4 h-4" />
+                      Anterior
                     </Button>
                     <Button
-                      onClick={() => setPaginaActual(Math.min(totalPaginas - 1, paginaActual + 1))}
+                      onClick={() => setPagina((p) => Math.min(totalPaginas - 1, p + 1))}
                       variant="outline"
                       size="sm"
-                      disabled={paginaActual === totalPaginas - 1}
+                      disabled={paginaSegura >= totalPaginas - 1}
+                      className="gap-1"
                     >
-                      <ChevronDown className="w-4 h-4" />
+                      Siguiente
+                      <Siguiente className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
               )}
-            </div>
+            </>
           )}
         </Card>
-
-        {/* Botón borrar cuenta */}
-        <div className="mt-8">
-          <Button
-            variant="destructive"
-            onClick={() => {
-              if (confirm('¿Eliminar esta cuenta y todos sus movimientos?')) {
-                // TODO: implementar borrado
-              }
-            }}
-            className="gap-2"
-          >
-            <Trash2 className="w-4 h-4" />
-            Eliminar cuenta
-          </Button>
-        </div>
       </div>
+
+      <ConfirmDialog
+        open={!!movimientoABorrar}
+        onOpenChange={(abierto) => !abierto && setMovimientoABorrar(null)}
+        title="¿Borrar este movimiento?"
+        description={
+          movimientoABorrar
+            ? `«${movimientoABorrar.descripcion}» del ${movimientoABorrar.fecha}. El saldo de la cuenta se recalculará.`
+            : ''
+        }
+        onConfirm={() => eliminar(movimientoABorrar)}
+        isLoading={borrando}
+      />
     </div>
   )
 }

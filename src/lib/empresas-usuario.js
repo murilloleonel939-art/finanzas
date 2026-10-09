@@ -147,59 +147,50 @@ export function suscribirseAModulos(empresaId, callback) {
 }
 
 /**
- * Obtiene el resumen financiero de una empresa: subtotales por moneda
- * desde las vistas publicadas. Los nombres están resueltos en las vistas (D8).
- * 
- * Las tres fuentes son:
- *   - movimientos_view: saldos de cuentas bancarias por tipo_moneda
- *   - activos_broker_view: valor_total de activos por moneda
- *   - wallets_view: saldo_total de wallets por moneda
+ * Obtiene el resumen financiero de una empresa: subtotales por moneda (D4).
+ *
+ * Las tres fuentes, con las columnas REALES de las vistas de la 0005:
+ *   - cuentas_view       → `monto` (saldo de cada cuenta) + `tipo_moneda`
+ *   - activos_broker_view → `valor_total` ya calculado (cantidad × valor_unitario)
+ *   - wallets_view       → `saldo_total` y `tipo_moneda`
+ *
+ * Ojo: NO existe `wallet_saldos_view` (la primera versión la consultaba) ni
+ * `cuentas_view.saldo_actual` (la columna es `monto`). Las dos cosas fallaban
+ * en runtime con `column does not exist`.
  */
 export async function obtenerResumenEmpresa(empresaId) {
-  // 1. Saldo total de cuentas bancarias por moneda
-  const { data: cuentas, error: errorCuentas } = await supabase
-    .from('movimientos_view')
-    .select('tipo_moneda, monto: saldo_actual')
-    .eq('empresa_id', empresaId)
+  const [cuentas, activos, wallets] = await Promise.all([
+    supabase
+      .from('cuentas_view')
+      .select('tipo_moneda, monto')
+      .eq('empresa_id', empresaId),
+    supabase
+      .from('activos_broker_view')
+      .select('moneda, valor_total')
+      .eq('empresa_id', empresaId),
+    supabase
+      .from('wallets_view')
+      .select('tipo_moneda, saldo_total')
+      .eq('empresa_id', empresaId),
+  ])
 
-  if (errorCuentas) throw errorCuentas
+  const error = cuentas.error || activos.error || wallets.error
+  if (error) throw error
 
-  // 2. Valor total de activos en brokers por moneda
-  const { data: activos, error: errorActivos } = await supabase
-    .from('activos_broker_view')
-    .select('moneda, valor_total')
-    .eq('empresa_id', empresaId)
-
-  if (errorActivos) throw errorActivos
-
-  // 3. Saldos totales de wallets por moneda
-  const { data: wallets, error: errorWallets } = await supabase
-    .from('wallets_view')
-    .select('moneda, saldo_total')
-    .eq('empresa_id', empresaId)
-
-  if (errorWallets) throw errorWallets
-
-  // Agregar por moneda (D4: sin conversión)
+  // Agregación por moneda. Sin conversión: cada moneda es su propia línea (D4).
   const totales = {}
 
-  cuentas?.forEach(({ tipo_moneda, monto }) => {
-    const moneda = tipo_moneda || 'N/A'
-    totales[moneda] = (totales[moneda] || 0) + parseFloat(monto || 0)
-  })
+  const acumular = (moneda, monto) => {
+    const m = (moneda || 'N/A').toUpperCase()
+    totales[m] = (totales[m] ?? 0) + Number(monto ?? 0)
+  }
 
-  activos?.forEach(({ moneda, valor_total }) => {
-    const m = moneda || 'N/A'
-    totales[m] = (totales[m] || 0) + parseFloat(valor_total || 0)
-  })
+  for (const c of cuentas.data ?? []) acumular(c.tipo_moneda, c.monto)
+  for (const a of activos.data ?? []) acumular(a.moneda, a.valor_total)
+  for (const w of wallets.data ?? []) acumular(w.tipo_moneda, w.saldo_total)
 
-  wallets?.forEach(({ moneda, saldo_total }) => {
-    const m = moneda || 'N/A'
-    totales[m] = (totales[m] || 0) + parseFloat(saldo_total || 0)
-  })
-
-  // Convertir a array, ordenar alfabético por moneda y devolver
   return Object.entries(totales)
-    .map(([moneda, monto]) => ({ moneda, monto }))
+    .map(([moneda, monto]) => ({ moneda, monto: Number(monto.toFixed(8)) }))
+    .filter((t) => t.monto !== 0)
     .sort((a, b) => a.moneda.localeCompare(b.moneda))
 }
