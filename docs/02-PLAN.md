@@ -315,9 +315,14 @@ borrado automático, rango de fechas, paginación, rechazo de escritura en vista
 realtime). **Los dos archivos de prueba son temporales (`/tmp`) y no se han añadido al
 repo:** el proyecto no tiene runner de tests todavía.
 
-**Nota sobre `db.js`:** está escrito y verificado, pero **ningún módulo lo usa aún**. Las
-fases 14-16 son quienes deben llamarlo; si al construir `CuentaDetail` resulta que estorba
-en vez de ayudar, hay que decirlo y ajustarlo entonces, no arrastrarlo.
+**Nota sobre `db.js` (actualizada al cerrar la FASE 15):** sigue **sin usarlo nadie**. Sus
+dos fases candidatas eran la 14 y la 15, y las dos acabaron escribiendo consultas directas
+contra Supabase, porque necesitan cosas que el adaptador no cubre: `listarMovimientos`
+requiere un segundo criterio de orden (`orden`) y `crearMovimiento` lee el orden máximo del
+día antes de insertar. Está escrito y verificado en aislamiento, pero hoy es deuda, no
+infraestructura. La FASE 16 lo decide: si el módulo de wallets tampoco lo usa, se borra —
+el proyecto no necesita dos adaptadores de datos, y un archivo que nadie llama confunde al
+siguiente chat que lee el árbol. Si se conserva, es porque wallets lo llama de verdad.
 
 ---
 
