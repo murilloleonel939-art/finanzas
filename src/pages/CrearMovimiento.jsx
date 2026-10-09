@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatearMonto } from '@/lib/monedas'
+import { hoyLocal } from '@/lib/utils'
 import { obtenerCuenta, crearMovimiento, recalcularSaldoCuenta } from '@/lib/cuentas'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -31,7 +32,7 @@ export default function CrearMovimiento() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
 
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyLocal()
 
   const [fecha, setFecha] = useState(hoy)
   const [tipo, setTipo] = useState('ingreso')

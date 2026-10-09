@@ -24,3 +24,26 @@ export function formatFecha(valor) {
     year: 'numeric',
   })
 }
+
+/**
+ * Fecha de HOY en la zona del navegador, como 'YYYY-MM-DD'.
+ *
+ * Es el valor por defecto de los campos `fecha` de los formularios, así que
+ * tiene que ser el día que ve el usuario, no el día UTC.
+ *
+ * **Por qué no `new Date().toISOString().slice(0, 10)`:** `toISOString()`
+ * devuelve UTC. En Colombia (UTC-5), a las 20:30 locales ya es el día
+ * siguiente en UTC, así que el formulario precargaba **mañana** como fecha del
+ * movimiento y el atributo `max` dejaba además elegirla. Es el mismo error de
+ * zona horaria que D22 evita en `MonthFilter` y que `formatFecha()` evita al
+ * mostrar: aquí el sentido es el inverso (escribir en vez de leer) y el daño es
+ * peor, porque un movimiento con la fecha equivocada queda en la base.
+ *
+ * Se construye con los componentes locales en vez de `toLocaleDateString`:
+ * así no depende del locale del sistema ni de que exista una locale que
+ * devuelva ISO.
+ */
+export function hoyLocal(ahora = new Date()) {
+  const dosDigitos = (n) => String(n).padStart(2, '0')
+  return `${ahora.getFullYear()}-${dosDigitos(ahora.getMonth() + 1)}-${dosDigitos(ahora.getDate())}`
+}

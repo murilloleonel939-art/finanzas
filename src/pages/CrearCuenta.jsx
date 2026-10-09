@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { MONEDAS_FIAT } from '@/lib/monedas'
+import { hoyLocal } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -99,7 +100,7 @@ export default function CrearCuenta() {
         const { error: errMov } = await supabase.from('movimientos').insert({
           empresa_id: empresaId,
           cuenta_id: cuenta.id,
-          fecha: new Date().toISOString().slice(0, 10),
+          fecha: hoyLocal(),
           descripcion: 'Saldo inicial',
           tipo: 'ingreso',
           monto: saldo,

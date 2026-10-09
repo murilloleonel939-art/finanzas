@@ -99,10 +99,13 @@ export async function listarMovimientosBroker(brokerId) {
  *   caja       → solo monto (cantidad y valor_unitario NULL)
  *   operación  → monto + cantidad + valor_unitario
  *
- * El CHECK `mov_broker_cantidad_valor_coherentes` de la 0003 rechaza una
- * operación a la que le falte uno de los dos, así que se normalizan aquí: si
- * llega una operación incompleta se envía como caja, en vez de dejar que
- * Postgres la rechace con un mensaje que no explica nada.
+ * El CHECK `mov_broker_cantidad_valor_coherentes` de la 0003 exige que
+ * `cantidad` y `valor_unitario` vengan **los dos o ninguno**. Aquí se exige lo
+ * mismo por adelantado y se **lanza** si solo llega uno: mandarlo a la base
+ * daría un 23514 que no dice qué falta, y "arreglarlo" enviándolo como caja
+ * —que es lo que hacía la primera versión de esta función— guardaría la fila
+ * perdiendo la cantidad en silencio. En una app financiera, una operación
+ * incompleta es un fallo del llamante, no un movimiento de caja.
  *
  * Ojo con la semántica del PRD §5: `ingreso` es depósito **o venta**, y
  * `egreso` es retiro **o compra**. El signo del monto nunca se usa para
@@ -119,7 +122,16 @@ export async function crearMovimientoBroker({
   valorUnitario,
   userId,
 }) {
-  const esOperacion = cantidad != null && valorUnitario != null
+  const tieneCantidad = cantidad != null
+  const tieneValor = valorUnitario != null
+
+  if (tieneCantidad !== tieneValor) {
+    throw new Error(
+      tieneCantidad
+        ? 'Falta el valor unitario: una operación necesita cantidad y valor unitario.'
+        : 'Falta la cantidad: una operación necesita cantidad y valor unitario.'
+    )
+  }
 
   const fila = {
     empresa_id: empresaId,
@@ -128,8 +140,8 @@ export async function crearMovimientoBroker({
     descripcion,
     tipo,
     monto,
-    cantidad: esOperacion ? cantidad : null,
-    valor_unitario: esOperacion ? valorUnitario : null,
+    cantidad: tieneCantidad ? cantidad : null,
+    valor_unitario: tieneValor ? valorUnitario : null,
     created_by: userId,
   }
 

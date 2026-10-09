@@ -27,6 +27,13 @@ import CuentaDetail from './pages/CuentaDetail.jsx'
 import CrearMovimiento from './pages/CrearMovimiento.jsx'
 import BancosPage from './pages/BancosPage.jsx'
 
+// Brokers (FASE 15)
+import BrokersPage from './pages/BrokersPage.jsx'
+import CrearBroker from './pages/CrearBroker.jsx'
+import BrokerDetail from './pages/BrokerDetail.jsx'
+import CrearMovimientoBroker from './pages/CrearMovimientoBroker.jsx'
+import CrearActivo from './pages/CrearActivo.jsx'
+
 // Mapa completo de rutas (§11.1 del PRD).
 // Las construidas apuntan a su componente real; las pendientes a un
 // placeholder que indica en qué fase se harán.
@@ -79,14 +86,11 @@ export default function App() {
         <Route path="cuentas/:cuentaId/movimiento" element={<CrearMovimiento />} />
 
         {/* Brokers (FASE 15) */}
-        <Route path="brokers/crear-broker" element={
-          <Placeholder nombre="Crear broker" fase="15"
-            descripcion="Nombre del broker y moneda base." />
-        } />
-        <Route path="brokers/broker/:brokerId" element={
-          <Placeholder nombre="Detalle de broker" fase="15"
-            descripcion="Pestañas: movimientos, activos y precios." />
-        } />
+        <Route path="brokers" element={<BrokersPage />} />
+        <Route path="brokers/crear" element={<CrearBroker />} />
+        <Route path="brokers/:brokerId" element={<BrokerDetail />} />
+        <Route path="brokers/:brokerId/movimiento" element={<CrearMovimientoBroker />} />
+        <Route path="brokers/:brokerId/activo" element={<CrearActivo />} />
 
         {/* Wallets (FASE 16) */}
         <Route path="wallets/crear-proveedor" element={
