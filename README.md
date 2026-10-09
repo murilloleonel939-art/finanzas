@@ -75,12 +75,25 @@ src/
   pages/                   Pantallas, una por ruta
 ```
 
+## Edge Functions
+
+La gestión de usuarios (invitar, cambiar rol o estado) necesita la `service_role` key, que no
+puede estar en el navegador porque el bundle es público. Vive en dos Edge Functions que
+verifican primero que quien llama es `super_admin` activo:
+
+- `invitar-usuario` — `auth.admin.inviteUserByEmail` + asignación de empresas.
+- `actualizar-usuario` — rol global, estado, empresas y reenvío del enlace de acceso.
+
+Para desplegarlas y verificar que quedaron activas:
+[`supabase/functions/README.md`](supabase/functions/README.md). El despliegue requiere tu
+login del CLI de Supabase: no se puede hacer desde aquí.
+
 ## Documentación
 
 | Documento | Contenido |
 |---|---|
 | [`docs/00-CONTEXTO.md`](docs/00-CONTEXTO.md) | Punto de entrada: arquitectura y decisiones cerradas |
-| [`docs/01-DECISIONES.md`](docs/01-DECISIONES.md) | El razonamiento detrás de cada decisión (D1-D14) |
+| [`docs/01-DECISIONES.md`](docs/01-DECISIONES.md) | El razonamiento detrás de cada decisión (D1-D16) |
 | [`docs/02-PLAN.md`](docs/02-PLAN.md) | Las 21 fases y el estado de avance |
 | [`docs/03-PROMPT-CONTINUACION.md`](docs/03-PROMPT-CONTINUACION.md) | Cómo retomar el trabajo en una sesión nueva |
 | [`docs/04-SETUP-SUPABASE.md`](docs/04-SETUP-SUPABASE.md) | Guía paso a paso del esquema |

@@ -10,18 +10,19 @@ de tokens a mitad de una fase, apuntar el estado exacto en la sección "En curso
 
 ## Estado global
 
-- **Fase actual:** FASE 10 (invitaciones)
-- **Fases completadas:** 10 de 21 — backend + scaffold + auth
+- **Fase actual:** FASE 11 (panel de administración)
+- **Fases completadas:** 11 de 21 — backend + scaffold + auth + gestión de usuarios
 - **Verificado en Supabase:** las 15 tablas con RLS activo, las 4 funciones helper,
   las 7 vistas, las 11 tablas publicadas para realtime, y el bucket `extractos`
   creado como **privado**. Backend verificado por completo.
-- **Bloqueante próximo:** la FASE 10 necesita SMTP propio configurado en Supabase
-  y las Edge Functions instaladas en el proyecto.
+- **Bloqueante próximo:** las Edge Functions de la FASE 10 están escritas y el
+  frontend compila, pero **falta desplegarlas** y tener SMTP propio para que las
+  invitaciones lleguen. Ver `supabase/functions/README.md`.
 - **Pendientes del usuario** (no bloquean hasta la fase indicada):
+  - Desplegar las Edge Functions + SMTP propio → para probar invitaciones reales (FASE 10)
   - Proveedor de IA para extracción de PDFs → FASE 17
   - API de mercado para precios → FASE 18
   - Plan de Supabase (Pro, por los backups) → antes de datos reales
-  - SMTP propio → antes de invitar clientes (FASE 10)
 
 ---
 
@@ -167,16 +168,44 @@ empresas distintas verificando que no se ven datos cruzados.
 
 ---
 
-## FASE 10 — Invitaciones y gestión de usuarios
+## FASE 10 — Invitaciones y gestión de usuarios ✅
 
-- [ ] Edge Function `invitar-usuario` (usa `service_role`)
-- [ ] Edge Function para actualizar `app_role` / `estado`
-- [ ] `UsuariosPage` + `UsuarioDialog`
-- [ ] Asignación de empresas (crea/elimina `user_empresa`)
+- [x] Edge Function `invitar-usuario` (usa `service_role`)
+- [x] Edge Function para actualizar `app_role` / `estado`
+- [x] `UsuariosPage` + `UsuarioDialog`
+- [x] Asignación de empresas (crea/elimina `user_empresa`)
 
 **Entregable:** el admin invita y el usuario entra con su asignación aplicada.
 
 **Prerequisito:** SMTP propio configurado (decisión D10).
+**Estado:** código entregado y compilando. **Falta desplegar** las funciones con
+`supabase functions deploy` (requiere el login del CLI) y configurar el SMTP.
+
+**Archivos:**
+
+```
+supabase/config.toml                        verify_jwt=false + por qué es seguro (D17)
+supabase/functions/README.md                guía de despliegue y diagnóstico
+supabase/functions/_shared/cors.ts          cabeceras CORS compartidas
+supabase/functions/_shared/auth.ts          requireSuperAdmin() — la puerta de entrada
+supabase/functions/_shared/empresas.ts      validar/asignar empresas + guarda del último admin
+supabase/functions/invitar-usuario/index.ts
+supabase/functions/actualizar-usuario/index.ts
+src/lib/usuarios.js                         capa de datos (invoca las funciones)
+src/pages/UsuariosPage.jsx                  lista, buscador, estadísticas, reenvío
+src/components/UsuarioDialog.jsx            alta y edición + asignación por empresa
+src/components/AdminLayout.jsx              marco de /admin (mínimo; FASE 11 lo completa)
+src/components/ui/                          + dialog, select, checkbox, badge
+```
+
+**Decisiones nuevas:** D15 (el rol por empresa se ajusta en la función, no en el trigger),
+D16 (quitar una empresa es borrado lógico), D17 (autorización propia en vez de
+`verify_jwt`), D18 (guarda del último `super_admin`).
+
+**Sin migración nueva.** Se revisó la 0006 y las policies de `profiles` y `user_empresa`
+ya cubren todo lo que necesita la fase: el super_admin lee y escribe ambos, y el trigger
+`proteger_campos_profile` impide que un no-admin se cambie el rol desde el frontend. No
+hizo falta 0008.
 
 ---
 
@@ -308,14 +337,35 @@ empresas distintas verificando que no se ven datos cruzados.
 
 ## En curso (actualizar si se corta a mitad de fase)
 
-**Nada en curso.** FASES 0-9 completadas. La siguiente es la FASE 10 (invitaciones).
+**Nada en curso.** FASES 0-10 completadas. La siguiente es la **FASE 11** (panel de
+administración: `AdminDashboard` y `EmpresasPage` + `EmpresaDialog`). El `AdminLayout`
+ya existe en su forma mínima (FASE 10) y la FASE 11 solo tiene que rellenar sus páginas.
+
+### Lo que le toca al usuario antes de la FASE 11
+
+La FASE 10 deja el código listo pero **no probado contra Supabase**, porque dos cosas
+dependen de tu cuenta y no se pueden hacer desde aquí:
+
+1. **Desplegar las Edge Functions.** Requiere `supabase login` (abre navegador) y
+   `supabase link`. Comandos exactos en
+   [`supabase/functions/README.md`](../supabase/functions/README.md):
+   ```bash
+   supabase functions deploy invitar-usuario    --project-ref obxedjpnusceyizcdbvc
+   supabase functions deploy actualizar-usuario --project-ref obxedjpnusceyizcdbvc
+   ```
+2. **Configurar SMTP propio** (Project Settings → Auth → SMTP). Sin esto el correo de
+   invitación no llega. Ver `docs/04-SETUP-SUPABASE.md`, paso 6.
+
+Prueba mínima una vez desplegado: entrar como `super_admin` a `/admin/usuarios`,
+invitar un email tuyo distinto, y comprobar que llega el correo y que al aceptar el
+usuario ya tiene su empresa asignada.
 
 ### Entregado hasta ahora
 
 ```
 docs/
   00-CONTEXTO.md              handoff entre chats — leer primero
-  01-DECISIONES.md            D1-D14 con razonamiento
+  01-DECISIONES.md            D1-D18 con razonamiento
   02-PLAN.md                  este archivo
   03-PROMPT-CONTINUACION.md   texto para pegar en chat nuevo
   04-SETUP-SUPABASE.md        cómo aplicar el esquema, paso a paso
@@ -330,6 +380,13 @@ supabase/migrations/          (aplicadas y verificadas en Supabase)
   0006_rls.sql                4 funciones helper + policies de las 15 tablas
   0007_triggers_storage.sql   alta de usuario, realtime, bucket privado, cron
 
+supabase/                     (FASE 10 — escritas, PENDIENTES DE DESPLEGAR)
+  config.toml                 verify_jwt=false en las dos funciones
+  functions/README.md         despliegue y diagnóstico de errores
+  functions/_shared/          cors.ts, auth.ts, empresas.ts
+  functions/invitar-usuario/       inviteUserByEmail + asignación de empresas
+  functions/actualizar-usuario/    rol, estado, empresas, reenvío de enlace
+
 Frontend (FASE 8)
   package.json, vite.config.js, tailwind.config.js, postcss.config.js, index.html
   .env.example / .env.local   (la anon key es un marcador: hay que rellenarla)
@@ -337,7 +394,7 @@ Frontend (FASE 8)
   src/App.jsx                 las 19 rutas del §11.1 (auth reales, resto Placeholder)
   src/index.css               tema Tailwind + variables shadcn + ingreso/egreso
   src/lib/supabase.js         cliente
-  src/lib/utils.js            cn()
+  src/lib/utils.js            cn() + formatFecha()
   src/pages/Placeholder.jsx   página temporal, indica su fase en cada ruta
 
 Auth (FASE 9)
@@ -349,22 +406,33 @@ Auth (FASE 9)
   src/pages/ResetPassword.jsx         doble uso: recuperación y aceptación de invitación
   src/pages/Home.jsx                  redirect por rol
   src/components/ui/                  button, input, label, card
+
+Gestión de usuarios (FASE 10)
+  src/lib/usuarios.js                 capa de datos: invoca las funciones y cruza
+                                      profiles + user_empresa + empresas
+  src/pages/UsuariosPage.jsx          tabla, buscador, 4 contadores, reenvío de enlace
+  src/components/UsuarioDialog.jsx    alta/edición, casilla + rol POR EMPRESA
+  src/components/AdminLayout.jsx      sidebar de /admin, guarda soloAdmin en el layout
+  src/components/ui/                  + dialog, select, checkbox, badge
+
+Dependencias añadidas en la FASE 10 (antes no había ninguna de Radix):
+  @radix-ui/react-dialog, @radix-ui/react-select, @radix-ui/react-checkbox
 ```
 
 **Backend: 15 tablas, 7 vistas, 9 enums, RLS en todas.**
-**Frontend: compila (`npm run build` verificado) — 462 KB de JS, 133 KB gzip.**
+**Frontend: compila (`npm run build` verificado) — 597 KB de JS, 177 KB gzip.**
 
-> El salto de 194 a 462 KB (una sola vez) es supabase-js + react-query. Es el coste
-> fijo de las librerías base; a partir de aquí crece poco. Si en la FASE 20 preocupa
-> el tamaño, la salida es dividir el bundle por ruta con `React.lazy`. No es urgente.
+> El salto de 462 a 597 KB es de esta fase: Radix (dialog, select, checkbox) y sus
+> primitivas de accesibilidad. Es un coste fijo y ya está pagado: las Fases 11-16 no
+> añaden dependencias, solo las usan. En la FASE 20, si preocupa el tamaño, la salida
+> sigue siendo dividir el bundle por ruta con `React.lazy` — el panel `/admin` es el
+> candidato ideal, porque un `cliente` nunca lo abre. No es urgente.
 
 ### Para continuar
 
 1. Rellenar la anon key real en `.env.local` (Project Settings → API). Si queda el
    marcador, `src/lib/supabase.js` lanza un error explicando exactamente qué falta.
-2. `npm run dev`, entrar a `http://localhost:5173/login` y comprobar que carga.
-3. Probar: entrar con tu cuenta de super_admin → debe redirigir a `/admin`.
-4. Empezar la FASE 10. **Antes hace falta:**
-   - SMTP propio configurado (o las invitaciones no llegan).
-   - Instalar las Edge Functions en el proyecto (`supabase functions` /
-     el aviso "Edge functions not installed" del dashboard).
+2. `npm run dev` y comprobar que carga `http://localhost:5173/login`.
+3. Entrar con tu cuenta de super_admin → debe redirigir a `/admin`.
+4. Ir a `/admin/usuarios` y probar la invitación (tras desplegar las funciones y el SMTP).
+5. Empezar la FASE 11.

@@ -31,3 +31,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# Caché local de npm (el HOME del sandbox puede no ser escribible)
+.npm-cache/

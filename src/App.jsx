@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
+import AdminLayout from './components/AdminLayout.jsx'
 import Placeholder from './pages/Placeholder.jsx'
 
 // Auth (FASE 9 — construidas)
@@ -8,6 +9,9 @@ import Register from './pages/Register.jsx'
 import ForgotPassword from './pages/ForgotPassword.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
 import Home from './pages/Home.jsx'
+
+// Panel de administración (FASE 10 — construido)
+import UsuariosPage from './pages/UsuariosPage.jsx'
 
 // Mapa completo de rutas (§11.1 del PRD).
 // Las construidas apuntan a su componente real; las pendientes a un
@@ -34,25 +38,22 @@ export default function App() {
       } />
 
       {/* --- Panel de administración (FASES 10-11) --- */}
-      <Route path="/admin">
+      {/* La guarda soloAdmin va en el layout: así toda la sección /admin
+          queda protegida de una vez y no ruta por ruta. */}
+      <Route path="/admin" element={
+        <ProtectedRoute soloAdmin>
+          <AdminLayout />
+        </ProtectedRoute>
+      }>
         <Route index element={
-          <ProtectedRoute soloAdmin>
-            <Placeholder nombre="Dashboard" fase="11"
-              descripcion="Estadísticas: empresas registradas y activas, contadores y clientes." />
-          </ProtectedRoute>
+          <Placeholder nombre="Dashboard" fase="11"
+            descripcion="Estadísticas: empresas registradas y activas, contadores y clientes." />
         } />
         <Route path="empresas" element={
-          <ProtectedRoute soloAdmin>
-            <Placeholder nombre="Gestión de empresas" fase="11"
-              descripcion="CRUD completo de empresas con EmpresaDialog." />
-          </ProtectedRoute>
+          <Placeholder nombre="Gestión de empresas" fase="11"
+            descripcion="CRUD completo de empresas con EmpresaDialog." />
         } />
-        <Route path="usuarios" element={
-          <ProtectedRoute soloAdmin>
-            <Placeholder nombre="Gestión de usuarios" fase="10"
-              descripcion="Invitación, edición de rol y estado, asignación de empresas." />
-          </ProtectedRoute>
-        } />
+        <Route path="usuarios" element={<UsuariosPage />} />
       </Route>
 
       {/* --- Empresa (FASES 12-16) --- */}

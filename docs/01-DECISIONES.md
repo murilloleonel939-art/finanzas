@@ -161,3 +161,69 @@ policy sobre `profiles` que consulte `profiles`.
 
 **Efecto colateral positivo:** `estado: inactivo` deja de ser un bloqueo evitable en
 `AuthContext` y pasa a ser innegociable en la base.
+
+## D15 — El `rol` por empresa se asigna en la Edge Function, no en el trigger
+
+El trigger `handle_new_user` (0007) crea los vínculos `user_empresa` con `rol = 'cliente'`
+fijo. La Edge Function `invitar-usuario` **corrige el rol después**, en la misma petición.
+
+**Por qué:** D6 dice que un usuario puede ser `contador` en una empresa y `cliente` en otra.
+`raw_user_meta_data` es un objeto plano: se le puede pasar `empresa_ids: [...]` (una lista de
+ids), pero no un rol **por** empresa sin inventar un formato y parsearlo en plpgsql. El
+trigger sigue siendo quien **crea** los vínculos — eso mantiene la atomicidad de D10 y evita
+la carrera entre "usuario creado" y "asignación aplicada" —, y la función solo ajusta el rol
+y completa altas y bajas.
+
+**Consecuencia:** si el ajuste falla, el usuario queda invitado con rol `cliente`. No se
+revierte la invitación: el correo con el enlace ya salió y borrar la cuenta dejaría el enlace
+roto. La función devuelve `aviso` y el panel lo muestra.
+
+**Alternativa descartada:** pasar `empresas: [{id, rol}]` en los metadatos y expandirlo en
+plpgsql. Funciona, pero mete lógica de negocio en un trigger y hace que un formato de payload
+del cliente sea un requisito del esquema.
+
+## D16 — Quitar una empresa es borrado lógico, no `DELETE`
+
+`aplicarEmpresas()` pone `deleted_at = now()` en `user_empresa` para dar de baja un acceso, y
+lo vuelve a `null` para reactivarlo.
+
+**Por qué:** `user_empresa` ya tiene `deleted_at` (D7) y `has_empresa_access()` filtra por él.
+Se conserva el histórico de quién tuvo acceso a qué empresa y cuándo se le retiró, que es
+justo lo que hace falta para auditar un fraude. Un `DELETE` real deja al usuario borrado sin
+rastro y convierte "¿tuvo acceso?" en una pregunta sin respuesta.
+
+**Efecto:** `unique (user_id, empresa_id)` se respeta siempre (reactivar es un `UPDATE`), así
+que no hay que lidiar con conflictos de clave al reasignar.
+
+## D17 — Las Edge Functions autorizan con el JWT del llamante, no con `verify_jwt`
+
+`config.toml` pone `verify_jwt = false` en las dos funciones. Cada una ejecuta
+`requireSuperAdmin()`, que lee el header `Authorization`, verifica el token con
+`auth.getUser()`, y exige `app_role = 'super_admin'` **y** `estado = 'activo'` en `profiles`
+antes de construir el cliente con `service_role`.
+
+**Por qué no sirve confiar solo en `verify_jwt`:** exige un JWT válido, pero **cualquier**
+usuario autenticado del proyecto tiene uno — incluido un `cliente` de una empresa. Como la
+función necesita `service_role` (que ignora el RLS) para llamar a `auth.admin`, un `cliente`
+autenticado podría invitarse a sí mismo como `super_admin`. La puerta de entrada es la
+comprobación del rol, no la validez del token.
+
+**Por qué `verify_jwt = false` y no `true`:** con `true`, Supabase rechaza antes de ejecutar
+el código y solo puede devolver un 401 genérico. Aquí interesa distinguir "no eres admin"
+(403) de "tu sesión caducó" (401) para que la interfaz pueda decir qué pasa.
+
+## D18 — Guarda del último `super_admin` en `actualizar-usuario`
+
+La función impide quitarle el rol a un `super_admin` o desactivarlo si es el último
+`super_admin` **activo**, y también que un administrador se desactive o se baje el rol **a sí
+mismo**. Devuelve `409` con `codigo: 'ULTIMO_ADMIN'`.
+
+**Por qué:** el trigger `proteger_campos_profile` de la 0006 se sale sin comprobar nada
+cuando `auth.uid()` es `null` — y con `service_role` siempre es `null`. Esa condición de
+salida es correcta para el trigger (los triggers internos deben poder escribir) pero deja
+descubierto este camino. Sin la guarda, el panel puede quedarse sin ningún administrador
+activo y no hay forma de recuperarlo desde la interfaz: habría que entrar al SQL Editor.
+
+**Nota:** el camino directo desde el frontend (`profiles_update`) sí lo cubre el trigger,
+porque ahí `auth.uid()` existe. Es decir, la comprobación hace falta exactamente donde el
+trigger no llega.

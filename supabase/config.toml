@@ -1,0 +1,48 @@
+# =====================================================================
+# FinanzAdmin Pro — configuración de Edge Functions
+# =====================================================================
+# Se despliega con:
+#   supabase functions deploy invitar-usuario     --project-ref <ref>
+#   supabase functions deploy actualizar-usuario  --project-ref <ref>
+#
+# O las dos de golpe:
+#   supabase functions deploy --project-ref <ref>
+#
+# IMPORTANTE: `_shared/` NO es una función, es código compartido. El CLI
+# ignora las carpetas que empiezan por guion bajo al desplegar, pero SÍ
+# incluye su contenido dentro de cada función por el import relativo.
+# Por eso el deploy debe hacerse desde esta carpeta (`supabase/functions`),
+# no subiendo archivos a mano.
+
+[functions.invitar-usuario]
+# verify_jwt = false: la función hace su propia autorización. Lee el JWT del
+# header Authorization y comprueba contra `profiles` que el llamante es
+# super_admin ACTIVO antes de tocar nada. Dejarlo en true haría que Supabase
+# rechazara la petición antes, con un 401 genérico y sin margen para explicar
+# el motivo real (que puede ser "tu sesión caducó" o "no eres admin").
+verify_jwt = false
+
+[functions.actualizar-usuario]
+verify_jwt = false
+
+# ---------------------------------------------------------------------
+# Por qué verify_jwt = false NO deja esto abierto
+# ---------------------------------------------------------------------
+# Es el error más común al desplegar Edge Functions. `verify_jwt` solo
+# controla si Supabase exige un JWT VÁLIDO en el header. Con `false`, la
+# función recibe la petición y decide ella misma. Aquí la decisión pasa
+# siempre por `requireSuperAdmin()` (_shared/auth.ts), que:
+#   1. Exige el header Authorization.
+#   2. Llama a auth.getUser() para verificar la firma del token.
+#   3. Lee el profile del llamante y exige app_role='super_admin' y
+#      estado='activo'.
+#   4. Solo entonces crea el cliente con service_role.
+# Un `cliente` autenticado que llame a la función recibe 403. Un anónimo,
+# 401. La service_role key nunca sale de la función.
+#
+# ---------------------------------------------------------------------
+# Secretos
+# ---------------------------------------------------------------------
+# SUPABASE_URL, SUPABASE_ANON_KEY y SUPABASE_SERVICE_ROLE_KEY los inyecta
+# Supabase automáticamente en el runtime. NO hay que configurarlos con
+# `supabase secrets set` y no deben commitearse nunca.
