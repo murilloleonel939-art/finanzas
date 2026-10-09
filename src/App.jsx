@@ -20,6 +20,13 @@ import UsuariosPage from './pages/UsuariosPage.jsx'
 import Workspace from './pages/Workspace.jsx'
 import EmpresaOverview from './pages/EmpresaOverview.jsx'
 
+// Cuentas bancarias (FASE 14)
+import CrearBanco from './pages/CrearBanco.jsx'
+import CrearCuenta from './pages/CrearCuenta.jsx'
+import CuentaDetail from './pages/CuentaDetail.jsx'
+import CrearMovimiento from './pages/CrearMovimiento.jsx'
+import BancosPage from './pages/BancosPage.jsx'
+
 // Mapa completo de rutas (§11.1 del PRD).
 // Las construidas apuntan a su componente real; las pendientes a un
 // placeholder que indica en qué fase se harán.
@@ -65,18 +72,11 @@ export default function App() {
         <Route index element={<EmpresaOverview />} />
 
         {/* Cuentas bancarias (FASE 14) */}
-        <Route path="cuentas/crear-banco" element={
-          <Placeholder nombre="Crear banco" fase="14"
-            descripcion="Catálogo de bancos por país, con opción «Otro»." />
-        } />
-        <Route path="cuentas/banco/:bancoId/crear-cuenta" element={
-          <Placeholder nombre="Crear cuenta" fase="14"
-            descripcion="Número de cuenta, tipo y moneda." />
-        } />
-        <Route path="cuentas/banco/:bancoId/cuenta/:cuentaId" element={
-          <Placeholder nombre="Detalle de cuenta" fase="14"
-            descripcion="Resumen, filtro por mes, movimientos, importar y exportar." />
-        } />
+        <Route path="bancos" element={<BancosPage />} />
+        <Route path="bancos/crear" element={<CrearBanco />} />
+        <Route path="cuentas/crear" element={<CrearCuenta />} />
+        <Route path="cuentas/:cuentaId" element={<CuentaDetail />} />
+        <Route path="cuentas/:cuentaId/movimiento" element={<CrearMovimiento />} />
 
         {/* Brokers (FASE 15) */}
         <Route path="brokers/crear-broker" element={
