@@ -11,18 +11,19 @@ de tokens a mitad de una fase, apuntar el estado exacto en la sección "En curso
 ## Estado global
 
 - **Fase actual:** FASE 12 (workspace y sidebar de empresa)
-- **Fases completadas:** 12 de 21 — backend + scaffold + auth + admin completo
-- **Verificado en Supabase:** las 15 tablas con RLS activo, las 4 funciones helper,
-  las 7 vistas, las 11 tablas publicadas para realtime, y el bucket `extractos`
-  creado como **privado**. Backend verificado por completo.
-- **Migración pendiente de aplicar:** `0008_empresa_borrada_sin_acceso.sql`
-  (la añade la FASE 11; ver la nota de esa fase). **Hay que ejecutarla antes de
-  borrar una empresa desde el panel**, o el borrado no retirará el acceso.
+- **Fases completadas:** 11 de 21 — backend + scaffold + auth + admin completo
+- **Verificado en Supabase (FASE 11):** 
+  - 15 tablas con RLS activo ✓
+  - 4 funciones helper ✓
+  - 7 vistas con `security_invoker = true` ✓
+  - 11 tablas publicadas para realtime ✓
+  - Bucket `extractos` privado ✓
+  - Migración 0008 aplicada ✓
+  - Backend íntegramente verificado ✓
 - **Bloqueante próximo:** las Edge Functions de la FASE 10 están escritas y el
   frontend compila, pero **falta desplegarlas** y tener SMTP propio para que las
   invitaciones lleguen. Ver `supabase/functions/README.md`.
 - **Pendientes del usuario** (no bloquean hasta la fase indicada):
-  - Aplicar la migración 0008 en el SQL Editor
   - Desplegar las Edge Functions + SMTP propio → para probar invitaciones reales (FASE 10)
   - Proveedor de IA para extracción de PDFs → FASE 17
   - API de mercado para precios → FASE 18
@@ -373,26 +374,25 @@ ya aplicada no se toca.
 
 ## En curso (actualizar si se corta a mitad de fase)
 
-**Nada en curso.** FASES 0-11 completadas. La siguiente es la **FASE 12** (workspace
-y sidebar de empresa: `Workspace`, `EmpresaLayout` con el sidebar jerárquico del §11.3,
+**FASE 12 arrancando.** La siguiente es construir la **FASE 12** (workspace y sidebar
+de empresa: `Workspace`, `EmpresaLayout` con el sidebar jerárquico del §11.3,
 suscripciones realtime, diálogos de confirmación de borrado y `EmpresaOverview` con
 subtotales por moneda).
 
-### Lo que le toca al usuario antes de la FASE 12
+### Lo que le toca al usuario AHORA (no es bloqueante para FASE 12, pero lo es para probarla)
 
-1. **Aplicar la migración 0008** en el SQL Editor de Supabase (una sola vez, es
-   idempotente). Sin ella, borrar una empresa desde el panel la oculta pero no
-   retira el acceso a sus datos. Ver la nota de la FASE 11.
-2. **Desplegar las Edge Functions** (FASE 10). Requiere `supabase login`:
+1. **Desplegar las Edge Functions** (necesarias para FASE 10). Requiere `supabase login`:
    ```bash
    supabase functions deploy invitar-usuario    --project-ref obxedjpnusceyizcdbvc
    supabase functions deploy actualizar-usuario --project-ref obxedjpnusceyizcdbvc
    ```
-3. **Configurar SMTP propio** (Project Settings → Auth → SMTP). Sin esto el correo de
-   invitación no llega. Ver `docs/04-SETUP-SUPABASE.md`, paso 6.
+2. **Configurar SMTP propio** (Project Settings → Auth → SMTP). Sin esto el correo de
+   invitación no llega.
+3. **Datos de prueba:** crear dos empresas en `/admin/empresas` y un segundo usuario
+   asignado solo a una, para validar que el RLS aisla correctamente.
 
-Prueba mínima del panel: entrar como `super_admin` a `/admin`, ver los contadores, crear
-una empresa en `/admin/empresas` y editar un usuario en `/admin/usuarios`.
+FASE 12 se puede construir sin esto, pero sin SMTP y sin datos no se puede probar de
+verdad (verías un workspace vacío).
 
 ### Entregado hasta ahora
 

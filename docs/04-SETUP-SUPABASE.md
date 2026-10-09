@@ -12,22 +12,40 @@ Guía para ejecutar las migraciones en el proyecto recién creado.
 
 Las migraciones son **secuenciales**. Hay que ejecutarlas en orden:
 
-| # | Archivo | Qué crea |
-|---|---|---|
-| 1 | `0001_enums_e_identidad.sql` | 9 enums + `profiles`, `empresas`, `user_empresa` |
-| 2 | `0002_cuentas.sql` | `bancos`, `cuentas`, `movimientos` |
-| 3 | `0003_brokers.sql` | `brokers`, `movimientos_broker`, `activos_broker`, `precios_activo` |
-| 4 | `0004_wallets.sql` | `wallet_providers`, `wallets`, `wallet_saldos`, `movimientos_wallet` |
-| 5 | `0005_jobs_vistas.sql` | `import_jobs` + 7 vistas |
-| 6 | `0006_rls.sql` | Funciones helper + policies |
-| 7 | `0007_triggers_storage.sql` | Triggers, realtime, bucket, cron |
-| 8 | `0008_empresa_borrada_sin_acceso.sql` | El acceso se deriva del estado de la empresa (D19) |
+| # | Archivo | Qué crea | Verificado |
+|---|---|---|---|
+| 1 | `0001_enums_e_identidad.sql` | 9 enums + `profiles`, `empresas`, `user_empresa` | ✓ FASE 1 |
+| 2 | `0002_cuentas.sql` | `bancos`, `cuentas`, `movimientos` | ✓ FASE 1 |
+| 3 | `0003_brokers.sql` | `brokers`, `movimientos_broker`, `activos_broker`, `precios_activo` | ✓ FASE 1 |
+| 4 | `0004_wallets.sql` | `wallet_providers`, `wallets`, `wallet_saldos`, `movimientos_wallet` | ✓ FASE 1 |
+| 5 | `0005_jobs_vistas.sql` | `import_jobs` + 7 vistas | ✓ FASE 1 |
+| 6 | `0006_rls.sql` | Funciones helper + policies | ✓ FASE 1 |
+| 7 | `0007_triggers_storage.sql` | Triggers, realtime, bucket, cron | ✓ FASE 1 |
+| 8 | `0008_empresa_borrada_sin_acceso.sql` | El acceso se deriva del estado de la empresa (D19) | ✓ FASE 11 |
 
-> Las migraciones 1-7 ya están aplicadas en el proyecto. La **0008** la añadió la
-> FASE 11 y **está pendiente de aplicar**: sin ella, borrar una empresa la oculta del
-> panel pero no retira el acceso a sus datos financieros a los usuarios asignados.
-> Es un `create or replace function` de dos funciones, así que se puede ejecutar
-> por separado y sin riesgo.
+### Verificación de integridad (ejecutada en FASE 11)
+
+```sql
+select count(*) as tablas from pg_tables where schemaname = 'public';
+-- Resultado: 15 ✓
+
+select count(*) as vistas from information_schema.views where table_schema = 'public';
+-- Resultado: 7 ✓
+
+select count(*) as enums from pg_type t
+join pg_namespace n on n.oid = t.typnamespace
+where n.nspname = 'public' and t.typtype = 'e';
+-- Resultado: 9 ✓
+
+select tablename, rowsecurity from pg_tables
+where schemaname = 'public' order by 1;
+-- Resultado: todas con rowsecurity = true ✓
+```
+
+> Las migraciones 1-7 ya estaban aplicadas en el proyecto. La **0008** la añadió la
+> FASE 11 y ya se ha aplicado en Supabase. Sin ella, borrar una empresa la ocultaba
+> del panel pero no retiraba el acceso a sus datos financieros a los usuarios asignados.
+> Es un `create or replace function` de dos funciones, sin riesgo.
 
 Todos los archivos son **idempotentes** donde es posible: se pueden volver a ejecutar sin
 romper nada (`create table if not exists`, `drop policy if exists`, guardas en los enums).
