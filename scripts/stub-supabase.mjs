@@ -1,9 +1,9 @@
 /**
- * Doble del cliente de Supabase para las pruebas de humo (FASE 15).
+ * Doble del cliente de Supabase para las pruebas de humo (módulo de brokers).
  *
  * `src/lib/brokers-datos.js` importa `@/lib/supabase`, que exige
  * `import.meta.env` (no existe en Node) y una anon key real. El empaquetador
- * sustituye ese módulo por este doble (ver `scripts/humo-brokers.mjs`).
+ * sustituye ese módulo por este doble (ver `scripts/brokers-humo.mjs`).
  *
  * El doble no es un mock de comportamiento: es un **espía**. Graba cada
  * consulta que la capa de datos construye —tabla, operación, columnas del
@@ -36,7 +36,7 @@ export function limpiarRespuestas() {
 /**
  * Fuerza las FILAS que devuelve una tabla, no solo el error.
  *
- * Lo necesita la FASE 16: `recalcularSaldosWallet()` no se puede probar solo
+ * Lo necesita el módulo de wallets: `recalcularSaldosWallet()` no se puede probar solo
  * mirando la consulta que construye — su gracia está en qué hace con los datos
  * (recalcular por moneda y negarse a escribir un saldo negativo). Sin esto, la
  * prueba no podría distinguir esa guarda de un `return` vacío.
@@ -159,7 +159,7 @@ export const supabase = {
     const c = nuevaConsulta(tabla, 'select')
     return cadena(c)
   },
-  // `suscribir()` de db.js usa channel(); la FASE 15 no lo necesita, pero sin
+  // `suscribir()` de db.js usa channel(); el módulo de brokers no lo necesita, pero sin
   // esto un import futuro reventaría con un TypeError confuso.
   channel() {
     return {

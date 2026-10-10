@@ -1,4 +1,4 @@
--- FASE 20: Admin Config y Configuración del Sistema
+-- FinanzAdmin Pro — Configuración del sistema
 
 -- Tabla de configuración dinámica del sistema
 CREATE TABLE admin_config (

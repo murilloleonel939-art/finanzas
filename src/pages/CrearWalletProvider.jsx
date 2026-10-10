@@ -25,7 +25,7 @@ import { AlertCircle, Loader2, ChevronLeft, Sparkles } from 'lucide-react'
  * Columnas reales de `wallet_providers` (migración 0004): `tipo` y
  * `nombre_proveedor`. **No existe `proveedor_nombre`** — ese nombre es el alias
  * que la vista `wallets_view` le pone a `nombre_proveedor`, no una columna de la
- * tabla. Es justo el tipo de confusión que costó la FASE 14.
+ * tabla. Es justo el tipo de confusión que costó una versión anterior.
  *
  * `tipo` es el enum `tipo_proveedor` con **tres** valores (`cripto` / `fiat` /
  * `ambos`), no una lista abierta. Con un proveedor del catálogo se deduce solo;

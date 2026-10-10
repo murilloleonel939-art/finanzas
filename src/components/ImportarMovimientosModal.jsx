@@ -1,5 +1,5 @@
 /**
- * FASE 17: Modal de importación para CUENTAS
+ * Modal de importación de extractos para CUENTAS.
  * Permite seleccionar un PDF y lanzar la importación
  */
 

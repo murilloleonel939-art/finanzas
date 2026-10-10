@@ -1,5 +1,5 @@
 -- =====================================================================
--- FinanzAdmin Pro — FASE 1: Enums + Identidad
+-- FinanzAdmin Pro — Enums e identidad
 -- Archivo: supabase/migrations/0001_enums_e_identidad.sql
 -- =====================================================================
 -- Crea: extensiones, todos los enums del sistema, y las 3 tablas de
@@ -19,7 +19,7 @@
 -- ---------------------------------------------------------------------
 -- gen_random_uuid() es nativo desde PG13, pero pgcrypto se declara por
 -- claridad y porque otras migraciones pueden usarlo (digest para hashes
--- de deduplicación en la FASE 2).
+-- de deduplicación de la migración 0002).
 create extension if not exists pgcrypto;
 
 
@@ -42,7 +42,7 @@ do $$ begin
   create type public.rol_empresa as enum ('contador', 'cliente');
 exception when duplicate_object then null; end $$;
 
--- Enums de los módulos financieros. Se declaran aquí, en la fase 1,
+-- Enums de los módulos financieros. Se declaran aquí,
 -- para que las migraciones 0002-0004 los referencien sin ALTER TYPE.
 do $$ begin
   create type public.tipo_cuenta as enum ('ahorros', 'corriente');
@@ -70,7 +70,7 @@ exception when duplicate_object then null; end $$;
 -- ---------------------------------------------------------------------
 -- 2. Utilidad: trigger de updated_at
 -- ---------------------------------------------------------------------
--- Se define aquí (en vez de la FASE 7) para que cada migración de tabla
+-- Se define aquí (en vez de la 0007) para que cada migración de tabla
 -- pueda engancharlo de inmediato.
 create or replace function public.set_updated_at()
 returns trigger
@@ -86,7 +86,7 @@ $$;
 -- ---------------------------------------------------------------------
 -- 3. Tabla: profiles
 -- ---------------------------------------------------------------------
--- Extiende auth.users (1:1). El registro lo crea el trigger de la FASE 7
+-- Extiende auth.users (1:1). El registro lo crea el trigger de la 0007
 -- a partir de raw_user_meta_data de la invitación.
 create table if not exists public.profiles (
   id          uuid primary key references auth.users(id) on delete cascade,

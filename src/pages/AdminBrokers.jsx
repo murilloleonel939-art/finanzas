@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Plus, RefreshCw } from 'lucide-react'
 
 /**
- * Panel de gestión de brokers (FASE 20)
+ * Panel de gestión de brokers 
  * Permite CRUD de brokers por empresa
  */
 export default function AdminBrokers() {

@@ -1,5 +1,5 @@
 -- =====================================================================
--- FinanzAdmin Pro — FASE 23: el borrado lógico ya no se autorrechaza
+-- FinanzAdmin Pro — El borrado lógico ya no se autorrechaza
 -- Archivo: supabase/migrations/0015_empresas_select_permite_borradas.sql
 -- =====================================================================
 -- SÍNTOMA: borrar una empresa desde el panel devuelve
@@ -94,4 +94,4 @@ comment on policy empresas_select on public.empresas is
 --      select public.has_empresa_access('<uuid>');                  -- true
 --
 -- 4) Un usuario NO super_admin sigue sin ver empresas ajenas ni borradas:
---      (repetir la prueba de dos usuarios de docs/04-SETUP-SUPABASE.md)
+--      (repetir la prueba de dos usuarios de docs/DESPLIEGUE.md)

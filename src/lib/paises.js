@@ -1,5 +1,5 @@
 /**
- * Países para `empresas.pais` (FASE 11).
+ * Países para `empresas.pais` .
  *
  * `pais` es texto libre en la base (PRD §2), así que esta lista solo alimenta
  * el selector: no hay FK ni validación en el esquema, a propósito. Una empresa
@@ -8,7 +8,7 @@
  *
  * Se usa ISO 3166-1 alpha-2 en mayúsculas, que es el mismo formato que usa
  * `bancos.pais` (migración 0002) y que el catálogo de bancos por país de la
- * FASE 13 (`bancosPorPais.js`). Si los dos usaran formatos distintos, cruzar
+ * `bancosPorPais.js`. Si los dos usaran formatos distintos, cruzar
  * "país de la empresa" con "país del banco" exigiría una tabla de traducción.
  */
 export const PAISES = [

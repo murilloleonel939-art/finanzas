@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * FASE 18: Orquestador de pruebas.
+ * Orquestador de las pruebas de precios.
  *
  * Ejecuta:
  *   1. Pruebas de humo (motor de sincronización).
@@ -19,11 +19,11 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 const PRUEBAS = [
   {
     nombre: 'Humo (motor de sincronización)',
-    script: 'scripts/humo-fase18.mjs',
+    script: 'scripts/precios-pruebas.mjs',
   },
   {
     nombre: 'Integración (Edge Function)',
-    script: 'scripts/integracion-fase18.mjs',
+    script: 'scripts/precios-integracion.mjs',
   },
 ]
 
@@ -34,7 +34,7 @@ let fallidos = 0
 const resultados = []
 
 console.log('═'.repeat(70))
-console.log('FASE 18: SUITE DE PRUEBAS')
+console.log('PRECIOS: SUITE DE PRUEBAS')
 console.log('═'.repeat(70))
 console.log()
 
@@ -80,10 +80,10 @@ console.log('RESUMEN')
 console.log('═'.repeat(70))
 console.log()
 
-let tituloStatus = '✅ FASE 18: TODAS LAS PRUEBAS PASARON'
+let tituloStatus = '✅ PRECIOS: TODAS LAS PRUEBAS PASARON'
 let statusColor = '\x1b[32m' // Green
 if (fallidos > 0) {
-  tituloStatus = `❌ FASE 18: ${fallidos} PRUEBA(S) FALLARON`
+  tituloStatus = `❌ PRECIOS: ${fallidos} PRUEBA(S) FALLARON`
   statusColor = '\x1b[31m' // Red
 }
 
@@ -140,7 +140,6 @@ for (const [módulo, aspectos] of Object.entries(cobertura)) {
 
 const reporteJSON = {
   timestamp: new Date().toISOString(),
-  fase: 18,
   total: totalTests,
   pasadas: pasados,
   fallidas: fallidos,
@@ -150,9 +149,9 @@ const reporteJSON = {
 
 // `reports/` no está en el repo: sin esto, un clon limpio falla al escribir.
 mkdirSync('reports', { recursive: true })
-writeFileSync('reports/fase18-pruebas.json', JSON.stringify(reporteJSON, null, 2))
+writeFileSync('reports/precios-pruebas.json', JSON.stringify(reporteJSON, null, 2))
 
-console.log('📄 Reporte guardado en: reports/fase18-pruebas.json')
+console.log('📄 Reporte guardado en: reports/precios-pruebas.json')
 console.log()
 
 process.exit(fallidos > 0 ? 1 : 0)

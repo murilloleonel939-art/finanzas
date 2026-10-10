@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * FASE 18: Verificación final de integridad.
+ * Verificación final de integridad del módulo de precios.
  *
  * Valida que todos los archivos existan, el código sea legible,
  * y las pruebas pasen.
@@ -11,7 +11,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 
 console.log('═'.repeat(80))
-console.log('FASE 18: VERIFICACIÓN FINAL DE INTEGRIDAD')
+console.log('PRECIOS: VERIFICACIÓN FINAL DE INTEGRIDAD')
 console.log('═'.repeat(80))
 console.log()
 
@@ -38,18 +38,18 @@ const archivos = [
   },
 
   // Pruebas
-  { ruta: 'scripts/humo-fase18.mjs', tipo: 'Pruebas (humo)' },
+  { ruta: 'scripts/precios-pruebas.mjs', tipo: 'Pruebas (humo)' },
   {
-    ruta: 'scripts/integracion-fase18.mjs',
+    ruta: 'scripts/precios-integracion.mjs',
     tipo: 'Pruebas (integración)',
   },
   {
-    ruta: 'scripts/suite-fase18.mjs',
+    ruta: 'scripts/precios-suite.mjs',
     tipo: 'Suite orquestadora',
   },
 
   // Documentación
-  { ruta: 'FASE18.md', tipo: 'Documentación técnica' },
+  { ruta: 'docs/DECISIONES.md', tipo: 'Decisiones (D30/D31)' },
 ]
 
 console.log('📁 Verificando archivos:')
@@ -87,9 +87,9 @@ console.log('═'.repeat(80))
 console.log()
 
 const pruebas = [
-  { script: 'scripts/humo-fase18.mjs', nombre: 'Humo' },
+  { script: 'scripts/precios-pruebas.mjs', nombre: 'Humo' },
   {
-    script: 'scripts/integracion-fase18.mjs',
+    script: 'scripts/precios-integracion.mjs',
     nombre: 'Integración',
   },
 ]
@@ -175,7 +175,7 @@ if (todoBien) {
   console.log('   Pruebas:         ' + pruebasOK + '/' + pruebas.length)
   console.log('   Build:           OK')
   console.log()
-  console.log('🎉 FASE 18 LISTO PARA PRODUCCIÓN')
+  console.log('🎉 PRECIOS: LISTO')
 } else {
   console.log('❌ ALGUNOS VERIFICADORES FALLARON')
   console.log()

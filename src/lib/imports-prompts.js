@@ -1,5 +1,5 @@
 /**
- * FASE 17: Prompts y reglas de proveedores
+ * Prompts y reglas de proveedores para la importación de extractos.
  * Sistema extensible de instrucciones para extracción de PDFs con LLM
  */
 

@@ -1,7 +1,7 @@
 /**
- * Empaquetador de la prueba de humo de la FASE 16 (módulo wallets + Earn).
+ * Empaquetador de la prueba de humo del módulo de wallets (módulo wallets + Earn).
  *
- * Mismo motivo y mismo patrón que `humo-brokers.mjs` (FASE 15), y la misma
+ * Mismo motivo y mismo patrón que `brokers-humo.mjs` (módulo de brokers), y la misma
  * advertencia: **es un archivo aparte y no una copia**. `wallets-datos.js`
  * importa `@/lib/supabase`, que lee `import.meta.env` y exige una anon key real;
  * en Node no existe ninguna de las dos cosas. esbuild compila el código REAL
@@ -11,7 +11,7 @@
  * prueba mirando una copia que se queda obsoleta sin avisar. Aquí se compila el
  * original, así que si `wallets-datos.js` cambia, la prueba cambia con él.
  *
- * Uso:  node scripts/humo-wallets.mjs   (o `npm run humo:fase16`)
+ * Uso:  node scripts/wallets-humo.mjs   (o `npm run pruebas:wallets`)
  */
 import { build } from 'esbuild'
 import { fileURLToPath } from 'node:url'
@@ -19,7 +19,7 @@ import { dirname, resolve, join } from 'node:path'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 
-// Igual que en la FASE 15: en UTC, "hoy local" y "hoy UTC" coinciden y una
+// Igual que en el módulo de brokers: en UTC, "hoy local" y "hoy UTC" coinciden y una
 // prueba de fecha mal escrita pasaría sin que nadie lo note. Se fija Bogotá
 // (UTC-5), la zona del proyecto, antes de que nada construya un `Date`.
 process.env.TZ = 'America/Bogota'
@@ -30,7 +30,7 @@ const RAIZ = resolve(AQUI, '..')
 const salida = join(mkdtempSync(join(tmpdir(), 'humo16-')), 'humo.mjs')
 
 await build({
-  entryPoints: [join(AQUI, 'humo-fase16.mjs')],
+  entryPoints: [join(AQUI, 'wallets-pruebas.mjs')],
   bundle: true,
   outfile: salida,
   format: 'esm',

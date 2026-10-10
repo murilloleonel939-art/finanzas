@@ -1,5 +1,5 @@
 /**
- * FASE 17: Modal de importación para WALLETS
+ * Modal de importación de extractos para WALLETS.
  * Permite importar movimientos de wallets cripto
  */
 

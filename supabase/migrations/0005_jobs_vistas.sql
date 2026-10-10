@@ -1,5 +1,5 @@
 -- =====================================================================
--- FinanzAdmin Pro — FASE 5: Import jobs + vistas
+-- FinanzAdmin Pro — Import jobs y vistas
 -- Archivo: supabase/migrations/0005_jobs_vistas.sql
 -- =====================================================================
 -- Crea: import_jobs y las vistas que resuelven D8 (devolver los campos
@@ -7,7 +7,7 @@
 --
 -- Las vistas son el contrato con el frontend: los componentes siguen
 -- leyendo `empresa_nombre`, `banco_nombre`, `cuenta_numero`, etc. como si
--- fueran columnas. El adaptador src/lib/db.js (FASE 13) apunta aquí.
+-- fueran columnas. El adaptador src/lib/db.js apunta aquí.
 -- =====================================================================
 
 -- ---------------------------------------------------------------------

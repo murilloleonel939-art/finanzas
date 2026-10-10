@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * FASE 18: Worker de precios.
+ * Worker de precios.
  *
  * Corre en EC2/Coolify como proceso aparte del frontend. Hace dos cosas, en
  * dos ritmos distintos:

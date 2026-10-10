@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * FASE 19: Verificación Final
+ * Verificación del módulo de exportación de datos.
  * 
- * Checklist PRD §9 para FASE 19:
+ * Checklist del PRD §9 para exportación de datos:
  * 9.1 Exportación en CSV, Excel, PDF
  * 9.2 Cron job a las 4 PM hora Colombia
  * 9.3 Variables de entorno configuradas
@@ -33,11 +33,11 @@ const MANIFEST = {
     'src/pages/BrokerDetail.jsx',
     'worker-precios.mjs',
     'scripts/cron-setup.sh',
-    'FASE19.md',
+    'docs/DECISIONES.md',
   ],
   scripts: [
-    'npm run test:fase19',
-    'npm run verificar:fase19',
+    'npm run pruebas:exportacion',
+    'npm run verificar:exportacion',
   ],
   requisitos: [
     '9.1: Exportación CSV en ExportButtons',
@@ -76,7 +76,7 @@ function fileContains(ruta, patron) {
   }
 }
 
-console.log(`${colors.blue}✅ FASE 19: Verificación Final${colors.reset}\n`)
+console.log(`${colors.blue}✅ Exportación de datos: verificación${colors.reset}\n`)
 
 // ============================================================================
 // ARCHIVOS REQUERIDOS
@@ -129,11 +129,11 @@ console.log()
 // ============================================================================
 
 console.log(`${colors.blue}📚 Documentación${colors.reset}`)
-check('FASE19.md existe', fileExists('FASE19.md'))
-check('Documentación de CSV', fileContains('FASE19.md', 'CSV'))
-check('Documentación de Excel', fileContains('FASE19.md', 'Excel'))
-check('Documentación de PDF', fileContains('FASE19.md', 'PDF'))
-check('Documentación de Cron', fileContains('FASE19.md', '4 PM') || fileContains('FASE19.md', '16:00'))
+check('la documentación de exportación existe', fileExists('docs/DECISIONES.md'))
+check('Documentación de CSV', fileContains('docs/PRD.md', 'CSV'))
+check('Documentación de Excel', fileContains('docs/PRD.md', 'Excel'))
+check('Documentación de PDF', fileContains('docs/PRD.md', 'PDF'))
+check('Documentación de Cron', fileContains('docs/DECISIONES.md', '16:00'))
 console.log()
 
 // ============================================================================
@@ -142,8 +142,8 @@ console.log()
 
 console.log(`${colors.blue}📦 Scripts npm${colors.reset}`)
 const packageJson = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf-8'))
-check('npm run test:fase19 existe', packageJson.scripts?.['test:fase19'] !== undefined)
-check('npm run verificar:fase19 existe', packageJson.scripts?.['verificar:fase19'] !== undefined)
+check('npm run pruebas:exportacion existe', packageJson.scripts?.['pruebas:exportacion'] !== undefined)
+check('npm run verificar:exportacion existe', packageJson.scripts?.['verificar:exportacion'] !== undefined)
 console.log()
 
 // ============================================================================
@@ -161,15 +161,15 @@ console.log(`  Estado: ${estado}`)
 console.log()
 
 if (cumplidas === verificaciones) {
-  console.log(`${colors.green}✅ FASE 19 completada exitosamente${colors.reset}`)
+  console.log(`${colors.green}✅ Exportación de datos: todo correcto${colors.reset}`)
   console.log()
   console.log('Próximos pasos:')
-  console.log('  1. git add -A && git commit -m "FASE 19: Exportación de datos y cron"')
+  console.log('  1. git add -A && git commit -m "exportación de datos y cron"')
   console.log('  2. git push origin main')
   console.log('  3. En producción: bash scripts/cron-setup.sh')
   process.exit(0)
 } else {
-  console.log(`${colors.red}❌ FASE 19 incompleta${colors.reset}`)
+  console.log(`${colors.red}❌ Exportación de datos: revisar${colors.reset}`)
   console.log()
   console.log('Verifica los puntos fallidos arriba.')
   process.exit(1)

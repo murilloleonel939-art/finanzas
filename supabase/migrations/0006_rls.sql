@@ -1,5 +1,5 @@
 -- =====================================================================
--- FinanzAdmin Pro — FASE 6: Row-Level Security
+-- FinanzAdmin Pro — Row-Level Security
 -- Archivo: supabase/migrations/0006_rls.sql
 -- =====================================================================
 -- Implementa D14: RLS real en todas las tablas.
@@ -129,7 +129,7 @@ create policy profiles_update on public.profiles
   with check (id = auth.uid() or public.is_super_admin());
 
 -- Nadie inserta ni borra profiles desde el cliente: lo hace el trigger
--- handle_new_user() con privilegios elevados (FASE 7).
+-- handle_new_user() con privilegios elevados (0007).
 drop policy if exists profiles_delete on public.profiles;
 create policy profiles_delete on public.profiles
   for delete to authenticated
@@ -145,7 +145,7 @@ set search_path = public
 as $$
 begin
   -- Sin contexto de usuario (service_role, dashboard o trigger interno como
-  -- sync_profile_email de la FASE 7) no hay nada que proteger: el llamante
+  -- sync_profile_email de la 0007) no hay nada que proteger: el llamante
   -- ya es de confianza.
   if auth.uid() is null then
     return new;

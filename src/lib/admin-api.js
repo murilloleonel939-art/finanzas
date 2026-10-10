@@ -194,7 +194,7 @@ export async function updateAdminConfig(clave, valor, tipo = 'string') {
 }
 
 /**
- * Enviar un email (FASE 21).
+ * Enviar un email .
  * Si se pasa `tipo` con una plantilla conocida, no hace falta asunto ni cuerpo.
  */
 export async function enviarEmail({ tipo, destinatario, asunto, cuerpo, variables }) {
@@ -224,7 +224,7 @@ export async function enviarEmail({ tipo, destinatario, asunto, cuerpo, variable
 }
 
 /**
- * Historial de notificaciones enviadas (FASE 21).
+ * Historial de notificaciones enviadas .
  */
 export async function listNotificaciones({ estado = null, limit = 50, offset = 0 } = {}) {
   try {
@@ -247,7 +247,7 @@ export async function listNotificaciones({ estado = null, limit = 50, offset = 0
 }
 
 /**
- * Plantillas de email disponibles (FASE 21).
+ * Plantillas de email disponibles .
  */
 export async function listPlantillas() {
   try {

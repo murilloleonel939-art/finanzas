@@ -1,5 +1,5 @@
 /**
- * Adaptador de datos con forma del SDK de Base44 (FASE 13, decisión D8).
+ * Adaptador de datos con forma del SDK de Base44 .
  *
  * D8 eliminó los campos desnormalizados (`empresa_nombre`, `banco_nombre`,
  * `cuenta_numero`, `wallet_direccion`…) y los reemplazó por vistas que hacen el
@@ -212,7 +212,7 @@ export async function crear(nombre, datos) {
 
 /**
  * Inserta varios registros de una vez. Es lo que usa la importación de PDFs
- * (FASE 17), donde una sola llamada por movimiento multiplicaría la latencia
+ * , donde una sola llamada por movimiento multiplicaría la latencia
  * por el número de filas del extracto.
  */
 export async function crearMuchos(nombre, filas) {
@@ -282,7 +282,7 @@ export async function contar(nombre, filtros) {
  * cierra la pestaña.
  *
  * Avisa si la tabla no está en la publicación `supabase_realtime`, en vez de
- * devolver un canal que nunca emite (es el fallo que tuvo la FASE 12 al
+ * devolver un canal que nunca emite (es el fallo que apareció al
  * suscribirse a `ramas`, una tabla que ni existe).
  */
 export function suscribir(nombre, callback) {

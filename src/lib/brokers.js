@@ -1,7 +1,7 @@
 /**
- * Catálogo de brokers (FASE 15, PRD §5).
+ * Catálogo de brokers .
  *
- * Igual que `bancosPorPais.js` (FASE 13, D21): `brokers.nombre_broker` es texto
+ * Igual que `bancosPorPais.js` : `brokers.nombre_broker` es texto
  * libre en la base, así que esto solo alimenta el selector. Un broker que no
  * esté aquí se guarda escribiendo el nombre, o eligiendo «Otro».
  *

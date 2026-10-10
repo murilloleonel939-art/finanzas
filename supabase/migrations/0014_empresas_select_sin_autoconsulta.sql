@@ -1,5 +1,5 @@
 -- =====================================================================
--- FinanzAdmin Pro — FASE 22: arreglo del INSERT de empresas (RETURNING)
+-- FinanzAdmin Pro — Arreglo del INSERT de empresas (RETURNING)
 -- Archivo: supabase/migrations/0014_empresas_select_sin_autoconsulta.sql
 -- =====================================================================
 -- SÍNTOMA: crear una empresa desde el panel devuelve

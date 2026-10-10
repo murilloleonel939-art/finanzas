@@ -5,22 +5,14 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 /**
- * Marco del panel de administración.
- *
- * NOTA DE FASE: en la FASE 10 solo se construye lo mínimo para hospedar
- * UsuariosPage con navegación real. Las entradas Dashboard y Empresas
- * apuntan a las rutas que ya existen (con su Placeholder) y se completan
- * en la FASE 11, junto con el contenido del dashboard. Se hace así para no
- * entregar la gestión de usuarios como una página suelta sin forma de
- * volver a ningún sitio.
- * 
- * FASE 20: Se agregan nuevas rutas para super admin panel.
+ * Marco del panel de administración: cabecera, navegación lateral y el
+ * `Outlet` donde se montan las páginas de cada ruta.
  */
 const enlaces = [
   { to: '/admin', end: true, icono: LayoutDashboard, texto: 'Dashboard' },
   { to: '/admin/empresas', icono: Building2, texto: 'Empresas' },
   { to: '/admin/usuarios', icono: Users, texto: 'Usuarios' },
-  // FASE 20: Super Admin
+  // Super Admin
   { to: '/admin/admin-empresas', icono: Building2, texto: 'Admin Empresas' },
   { to: '/admin/admin-brokers', icono: Briefcase, texto: 'Admin Brokers' },
   { to: '/admin/jobs', icono: Zap, texto: 'Jobs' },

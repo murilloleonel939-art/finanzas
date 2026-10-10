@@ -1,5 +1,5 @@
 /**
- * Capa de datos de la gestión de usuarios (FASE 10).
+ * Capa de datos de la gestión de usuarios .
  *
  * Aísla aquí las dos cosas que el resto de la app no debería saber:
  *   1. Que invitar y editar usuarios pasa por Edge Functions (necesitan la

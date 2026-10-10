@@ -476,9 +476,9 @@ export default function WalletDetail() {
                 variant="outline"
                 disabled
                 className="gap-2"
-                title="La importación de extractos desde PDF llega en la FASE 17"
+                title="La importación de extractos desde PDF todavía no está disponible"
               >
-                Importar extracto (FASE 17)
+                Importar extracto
               </Button>
             </div>
 

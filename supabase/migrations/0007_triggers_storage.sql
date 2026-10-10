@@ -1,5 +1,5 @@
 -- =====================================================================
--- FinanzAdmin Pro — FASE 7: Triggers, realtime y storage
+-- FinanzAdmin Pro — Triggers, realtime y storage
 -- Archivo: supabase/migrations/0007_triggers_storage.sql
 -- =====================================================================
 -- Cierra el backend: alta automática de usuarios (D10), publicación de
@@ -177,7 +177,7 @@ begin
   end loop;
 end $$;
 
--- NOTA: Realtime respeta RLS. Con las policies de la FASE 6, un usuario
+-- NOTA: Realtime respeta RLS. Con las policies de la 0006, un usuario
 -- solo recibe eventos de sus empresas. Sin RLS, Realtime filtraría mal.
 
 
@@ -274,7 +274,7 @@ create policy extractos_delete on storage.objects
 -- 5. Cron de precios
 -- ---------------------------------------------------------------------
 -- El PRD §18.2 decía que cron requería plan pago. En Supabase Cloud pg_cron
--- está disponible. La programación real se hace en la FASE 18, cuando exista
+-- está disponible. La programación real se hace en el worker de precios, cuando exista
 -- el worker al que llamar; aquí solo se habilita la extensión.
 --
 -- Se envuelve en un bloque tolerante porque `create extension` puede requerir
@@ -286,7 +286,7 @@ exception when others then
   raise notice 'pg_cron no se pudo crear automáticamente. Actívala en Database → Extensions.';
 end $$;
 
--- Se descomenta en la FASE 18, tras desplegar el worker:
+-- Se descomenta tras desplegar el worker de precios:
 --
 --   create extension if not exists pg_net;
 --   select cron.schedule(

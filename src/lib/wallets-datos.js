@@ -1,8 +1,8 @@
 /**
- * Capa de datos del módulo de wallets (FASE 16, PRD §6 y §7).
+ * Capa de datos del módulo de wallets .
  *
  * COLUMNAS REALES (migraciones 0004 y 0005) — comprobadas contra las
- * migraciones antes de escribir una línea, que es lo que la FASE 14 no hizo:
+ * migraciones antes de escribir una línea, que es lo que una revisión anterior no hizo:
  *
  *   wallet_providers   id, empresa_id, tipo, nombre_proveedor, created_by,
  *                      created_at, updated_at, deleted_at
@@ -46,7 +46,7 @@ import { esInteres } from '@/lib/earnConfig'
  * Proveedores de la empresa, con sus wallets y el saldo agregado (D8).
  *
  * `proveedor_nombre` sale de la vista: la tabla solo tiene
- * `nombre_proveedor`, y confundirlos es exactamente el error que la FASE 14
+ * `nombre_proveedor`, y confundirlos es exactamente el error que una versión anterior
  * pagó caro.
  */
 export async function listarProveedores(empresaId) {

@@ -1,6 +1,6 @@
 # Edge Functions — despliegue
 
-FASE 10. Dos funciones, `invitar-usuario` y `actualizar-usuario`.
+Dos funciones, `invitar-usuario` y `actualizar-usuario`.
 
 ## Por qué son Edge Functions y no código del frontend
 
@@ -27,7 +27,7 @@ de verificar que quien llama es un `super_admin` activo.
 3. **SMTP propio configurado** (decisión D10). Sin esto las invitaciones no
    llegan: el correo integrado de Supabase está limitado a ~2/hora y solo
    entrega de forma fiable a miembros del equipo. Ver
-   `docs/04-SETUP-SUPABASE.md`, paso 6.
+   `docs/DESPLIEGUE.md`, paso 6.
 
 ## Despliegue
 

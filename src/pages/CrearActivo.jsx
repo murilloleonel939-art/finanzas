@@ -208,7 +208,7 @@ export default function CrearActivo() {
               <div>
                 <Label htmlFor="valor">Valor unitario *</Label>
                 <p className="text-xs text-muted-foreground mb-2">
-                  Precio de entrada. La FASE 18 lo actualizará desde la API de mercado.
+                  Precio de entrada. El worker de precios lo actualizará desde la API de mercado.
                 </p>
                 <Input
                   id="valor"

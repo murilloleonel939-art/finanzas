@@ -1,5 +1,5 @@
 /**
- * Clasificación y métricas de productos Earn (FASE 13, PRD §7).
+ * Clasificación y métricas de productos Earn .
  *
  * El PRD define dos mecanismos para saber si un movimiento es Earn:
  *
@@ -38,7 +38,7 @@ export function esProveedorEarn(nombreProveedor) {
  * Palabras clave del mecanismo 1 (PRD §7).
  *
  * Se añaden las variantes en español de cada una porque la extracción de PDFs
- * (FASE 17) devuelve la descripción tal como está en el documento, y varios
+ *  devuelve la descripción tal como está en el documento, y varios
  * proveedores de la región emiten extractos en español. Sin ellas, un extracto
  * que diga "Suscripción a producto Earn" se leería como un egreso normal y
  * «Total invertido» daría cero. Las variantes del PRD se mantienen literales.

@@ -1,6 +1,6 @@
-# Cómo aplicar el esquema en Supabase
+# Despliegue — esquema de Supabase
 
-Guía para ejecutar las migraciones en el proyecto recién creado.
+Guía para aplicar el esquema en un proyecto de Supabase nuevo, paso a paso.
 
 ## Requisitos
 
@@ -14,16 +14,33 @@ Las migraciones son **secuenciales**. Hay que ejecutarlas en orden:
 
 | # | Archivo | Qué crea | Verificado |
 |---|---|---|---|
-| 1 | `0001_enums_e_identidad.sql` | 9 enums + `profiles`, `empresas`, `user_empresa` | ✓ FASE 1 |
-| 2 | `0002_cuentas.sql` | `bancos`, `cuentas`, `movimientos` | ✓ FASE 1 |
-| 3 | `0003_brokers.sql` | `brokers`, `movimientos_broker`, `activos_broker`, `precios_activo` | ✓ FASE 1 |
-| 4 | `0004_wallets.sql` | `wallet_providers`, `wallets`, `wallet_saldos`, `movimientos_wallet` | ✓ FASE 1 |
-| 5 | `0005_jobs_vistas.sql` | `import_jobs` + 7 vistas | ✓ FASE 1 |
-| 6 | `0006_rls.sql` | Funciones helper + policies | ✓ FASE 1 |
-| 7 | `0007_triggers_storage.sql` | Triggers, realtime, bucket, cron | ✓ FASE 1 |
-| 8 | `0008_empresa_borrada_sin_acceso.sql` | El acceso se deriva del estado de la empresa (D19) | ✓ FASE 11 |
+| 1 | `0001_enums_e_identidad.sql` | 9 enums + `profiles`, `empresas`, `user_empresa` | ✓ |
+| 2 | `0002_cuentas.sql` | `bancos`, `cuentas`, `movimientos` | ✓ |
+| 3 | `0003_brokers.sql` | `brokers`, `movimientos_broker`, `activos_broker`, `precios_activo` | ✓ |
+| 4 | `0004_wallets.sql` | `wallet_providers`, `wallets`, `wallet_saldos`, `movimientos_wallet` | ✓ |
+| 5 | `0005_jobs_vistas.sql` | `import_jobs` + 7 vistas | ✓ |
+| 6 | `0006_rls.sql` | Funciones helper + policies | ✓ |
+| 7 | `0007_triggers_storage.sql` | Triggers, realtime, bucket, cron | ✓ |
+| 8 | `0008_empresa_borrada_sin_acceso.sql` | El acceso se deriva del estado de la empresa (D19) | ✓ |
+| 9 | `0009_precios_jobs.sql` | `precios_jobs` — cola de actualización de precios | ✓ |
+| 10 | `0010_barrido_precios.sql` | `precios_barridos` — registro del barrido diario | ✓ |
+| 11 | `0011_admin_logs.sql` | `admin_logs` + enum `admin_accion` | ✓ |
+| 12 | `0012_admin_config.sql` | `admin_config` — configuración del sistema | ✓ |
+| 13 | `0013_notificaciones.sql` | `notificaciones`, `notif_plantillas` y sus enums | ✓ |
+| 14 | `0014_empresas_select_sin_autoconsulta.sql` | Arreglo: crear empresa fallaba con 42501 | ✓ |
+| 15 | `0015_empresas_select_permite_borradas.sql` | Arreglo: borrar empresa fallaba con 42501 | revisar tras aplicar* |
 
-### Verificación de integridad (ejecutada en FASE 11)
+> Las migraciones **0014** y **0015** corrigen dos fallos de RLS que solo aparecen con
+> PostgREST. PostgREST evalúa la policy de SELECT sobre la fila resultante de un INSERT
+> o UPDATE; si esa policy consulta la propia tabla, la fila que se está escribiendo aún
+> no es visible y la sentencia aborta con `42501`. Al crear una empresa, la policy la
+> consultaba a través de `has_empresa_access(id)` (0014); al borrarla, exigía
+> `deleted_at is null` sobre la fila que el propio borrado acababa de marcar (0015).
+> Ejecútalas en orden, después de la 0013.
+>
+> \* La 0015 está escrita y razonada a partir de la misma causa que la 0014 (medida en producción variando el cuerpo del PATCH), pero el borrado real con la policy nueva todavía no se ha ejecutado para confirmarlo: hazlo contra una empresa de prueba antes de darlo por cerrado.
+
+### Verificación de integridad
 
 ```sql
 select count(*) as tablas from pg_tables where schemaname = 'public';
@@ -42,10 +59,9 @@ where schemaname = 'public' order by 1;
 -- Resultado: todas con rowsecurity = true ✓
 ```
 
-> Las migraciones 1-7 ya estaban aplicadas en el proyecto. La **0008** la añadió la
-> FASE 11 y ya se ha aplicado en Supabase. Sin ella, borrar una empresa la ocultaba
-> del panel pero no retiraba el acceso a sus datos financieros a los usuarios asignados.
-> Es un `create or replace function` de dos funciones, sin riesgo.
+> Sin la **0008**, borrar una empresa la ocultaba del panel pero no retiraba el acceso a
+> sus datos financieros a los usuarios asignados. Es un `create or replace function` de
+> dos funciones, sin riesgo.
 
 Todos los archivos son **idempotentes** donde es posible: se pueden volver a ejecutar sin
 romper nada (`create table if not exists`, `drop policy if exists`, guardas en los enums).
@@ -56,10 +72,13 @@ romper nada (`create table if not exists`, `drop policy if exists`, guardas en l
 
 En el dashboard de Supabase: **SQL Editor → New query**.
 
-### 2. Ejecutar las migraciones 0001 a 0007
+### 2. Ejecutar las migraciones 0001 a 0015
 
 Una por una, en orden, pegando el contenido completo de cada archivo y pulsando **Run**.
 No las ejecutes todas de golpe en un solo query: si una falla, quieres saber cuál.
+
+Las migraciones **0014** y **0015** redefinen la policy `empresas_select`; la 0015 es la
+que sustituye a la 0014, así que hay que ejecutar ambas y en ese orden.
 
 ### 3. Verificar que el esquema quedó bien
 

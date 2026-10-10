@@ -1,18 +1,18 @@
 /**
- * Empaquetador de la prueba de humo de la FASE 15.
+ * Empaquetador de la prueba de humo del módulo de brokers.
  *
  * POR QUÉ: la capa de datos importa `@/lib/supabase`, que lee
  * `import.meta.env` y exige una anon key real. En Node nada de eso existe. El
  * proyecto no tiene runner de tests, así que se sigue el patrón que ya se usó
- * en la FASE 13: esbuild compila el código REAL (sin copiarlo ni reescribirlo)
+ * en un intento anterior: esbuild compila el código REAL (sin copiarlo ni reescribirlo)
  * sustituyendo solo el cliente de Supabase por un doble, y el bundle se
  * ejecuta en Node.
  *
  * La alternativa —copiar `brokers-datos.js` a /tmp y parchear el import— fue lo
- * que se hizo en la FASE 13, y tiene el defecto de que la prueba puede quedarse
+ * que se hizo en un intento anterior, y tiene el defecto de que la prueba puede quedarse
  * mirando una copia obsoleta del archivo. Aquí se compila el original.
  *
- * Uso:  node scripts/humo-brokers.mjs
+ * Uso:  node scripts/brokers-humo.mjs
  */
 import { build } from 'esbuild'
 import { fileURLToPath } from 'node:url'
@@ -32,7 +32,7 @@ const RAIZ = resolve(AQUI, '..')
 const salida = join(mkdtempSync(join(tmpdir(), 'humo-')), 'humo.mjs')
 
 await build({
-  entryPoints: [join(AQUI, 'humo-fase15.mjs')],
+  entryPoints: [join(AQUI, 'brokers-pruebas.mjs')],
   bundle: true,
   outfile: salida,
   format: 'esm',

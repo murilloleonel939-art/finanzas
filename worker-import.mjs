@@ -1,5 +1,5 @@
 /**
- * FASE 17: Worker de importación
+ * Worker de importación
  * Procesa jobs de importación con GPT-6 Luna
  * 
  * Flujo:

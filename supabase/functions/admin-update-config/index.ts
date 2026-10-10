@@ -1,5 +1,5 @@
 // =====================================================================
-// FASE 20: Leer y actualizar configuración (Edge Function `admin-config`)
+// Leer y actualizar configuración (Edge Function `admin-config`)
 // =====================================================================
 // GET  /admin-config          -> todas las claves, agrupadas
 // GET  /admin-config?clave=X  -> una sola

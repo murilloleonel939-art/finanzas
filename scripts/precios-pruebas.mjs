@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * FASE 18: Pruebas de humo — motor de sincronización de precios.
+ * Pruebas de humo del motor de sincronización de precios.
  *
  * Valida:
  *   - `agruparActivosUnicos()` desambigua por (tipo, ticker)
@@ -10,7 +10,7 @@
  *   - Fallos por ticker no abortan el ciclo
  *
  * POR QUÉ ES AQUÍ Y NO EN JEST:
- * El proyecto no tiene runner de tests. Se sigue el patrón FASE 15/17.
+ * El proyecto no tiene runner de tests. Se sigue el mismo patrón que en los demás módulos.
  *
  * Este script carga `precios-sync.js` directamente sin bundles, porque no
  * toca el navegador ni necesita Supabase real.
@@ -252,5 +252,5 @@ test('mensajeDeError: null/undefined', () => {
 // FIN
 // ============================================================================
 
-console.log('\n✅ Todas las pruebas pasaron (FASE 18 — humo)')
+console.log('\n✅ Todas las pruebas pasaron (humo)')
 process.exit(0)

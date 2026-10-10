@@ -1,5 +1,5 @@
 -- =====================================================================
--- FinanzAdmin Pro — FASE 18: registro del barrido diario de precios
+-- FinanzAdmin Pro — Registro del barrido diario de precios
 -- Archivo: supabase/migrations/0010_barrido_precios.sql
 -- =====================================================================
 -- Crea: precios_barridos.

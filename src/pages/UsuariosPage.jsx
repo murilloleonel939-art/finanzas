@@ -10,7 +10,7 @@ import { listarUsuarios, reenviarInvitacion } from '@/lib/usuarios'
 import { formatFecha } from '@/lib/utils'
 
 /**
- * Gestión de usuarios (FASE 10, §11.3 del PRD).
+ * Gestión de usuarios .
  *
  * La lista se trae completa y se filtra en memoria. Es deliberado: el panel
  * es de uso interno y tiene decenas de usuarios, no miles, y así el buscador
@@ -225,7 +225,7 @@ export default function UsuariosPage() {
       <p className="mt-4 text-xs text-muted-foreground">
         Los usuarios se crean por invitación: no se puede asignar una contraseña
         desde aquí. Si el correo no llega, revisa el SMTP configurado en Supabase
-        (ver <code>docs/04-SETUP-SUPABASE.md</code>, paso 6).
+        (ver <code>docs/DESPLIEGUE.md</code>, paso 6).
       </p>
 
       <UsuarioDialog

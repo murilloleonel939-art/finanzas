@@ -1,5 +1,5 @@
 /**
- * Catálogo de proveedores de wallet (FASE 13, PRD §6 y §14).
+ * Catálogo de proveedores de wallet .
  *
  * `wallet_providers.nombre_proveedor` es texto libre y `tipo` es un enum
  * (`cripto` / `fiat` / `ambos`). Este archivo solo alimenta el selector:

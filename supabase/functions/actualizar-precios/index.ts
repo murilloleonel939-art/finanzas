@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 import { requireSuperAdmin, type AdminCtx } from '../_shared/auth.ts'
 
 /**
- * FASE 18: Edge Function `actualizar-precios`
+ * Edge Function `actualizar-precios`
  *
  * **Propósito (PRD §8):** botón de «actualizar precios ahora» en el frontend.
  * El usuario es un super_admin que quiere refrescar los precios de sus activos

@@ -1,5 +1,5 @@
 /**
- * Consultas de agregación del panel de administración (FASE 11).
+ * Consultas de agregación del panel de administración .
  *
  * PRINCIPIO: el dashboard cuenta, no suma dinero. Nunca cruza montos entre
  * empresas — hacerlo exigiría convertir monedas y D4 lo prohíbe. Un "total

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * Verificación de FASE 20 (panel super admin) y FASE 21 (notificaciones).
+ * Verificación del panel super admin y notificaciones.
  *
  * Comprueba que los archivos existen Y que su contenido apunta al esquema
- * real del proyecto. Lo segundo importa más: la primera versión de la FASE 20
+ * real del proyecto. Lo segundo importa más: una primera versión de este panel
  * pasaba un chequeo de existencia dando por buenas referencias a una tabla
  * `admin_roles` que no existe y a columnas que no están en el esquema.
  */
@@ -56,13 +56,15 @@ function ausente(archivos, aguja, nombre) {
   }
 }
 
-console.log('\n🗄️  Migraciones (FASE 20 + 21)')
+console.log('\n🗄️  Migraciones ')
 existe('supabase/migrations/0011_admin_logs.sql', '0011 admin_logs')
 existe('supabase/migrations/0012_admin_config.sql', '0012 admin_config')
 existe('supabase/migrations/0013_notificaciones.sql', '0013 notificaciones')
 existe('supabase/migrations/0014_empresas_select_sin_autoconsulta.sql', '0014 empresas_select sin autoconsulta')
+existe('supabase/migrations/0015_empresas_select_permite_borradas.sql', '0015 empresas_select permite borradas')
 ausente(
-  ['supabase/migrations/0014_empresas_select_sin_autoconsulta.sql'],
+  ['supabase/migrations/0014_empresas_select_sin_autoconsulta.sql',
+   'supabase/migrations/0015_empresas_select_permite_borradas.sql'],
   'has_empresa_access(id)',
   'empresas_select no autoconsulta la fila (rompia el RETURNING del INSERT)'
 )
@@ -73,7 +75,7 @@ ausente(
   'sin referencias a la tabla inexistente admin_roles'
 )
 
-console.log('\n⚡ Edge Functions (FASE 20 + 21)')
+console.log('\n⚡ Edge Functions ')
 for (const [dir, nombre] of [
   ['admin-get-stats', 'admin-get-stats'],
   ['admin-list-jobs', 'admin-list-jobs'],
@@ -105,7 +107,7 @@ console.log('\n🧩 Componentes')
 for (const c of ['ConfigForm', 'StatsCard', 'LogsViewer', 'JobsTable']) {
   existe(`src/components/admin/${c}.jsx`, c)
 }
-existe('src/components/ui/dropdown-menu.jsx', 'dropdown-menu (faltaba desde la FASE 19)')
+existe('src/components/ui/dropdown-menu.jsx', 'dropdown-menu')
 
 console.log('\n📄 Páginas')
 for (const p of ['AdminDashboard', 'AdminJobs', 'AdminLogs', 'AdminConfig',

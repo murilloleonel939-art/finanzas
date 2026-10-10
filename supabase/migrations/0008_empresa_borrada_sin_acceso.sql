@@ -1,5 +1,5 @@
 -- =====================================================================
--- FinanzAdmin Pro — FASE 11: acceso derivado del estado de la empresa
+-- FinanzAdmin Pro — El acceso se deriva del estado de la empresa
 -- Archivo: supabase/migrations/0008_empresa_borrada_sin_acceso.sql
 -- =====================================================================
 -- CORRIGE UN HUECO DE LA 0006, no cambia ninguna decisión.

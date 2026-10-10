@@ -1,5 +1,5 @@
 /**
- * FASE 18: motor de actualización de precios.
+ * Motor de actualización de precios.
  *
  * Este módulo es el **único** sitio donde vive la lógica de «leer activos →
  * pedir precios → escribir `precios_activo` → copiar a `valor_unitario`». Lo

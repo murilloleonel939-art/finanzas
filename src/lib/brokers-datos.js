@@ -1,5 +1,5 @@
 /**
- * Capa de datos del módulo de brokers (FASE 15, PRD §5).
+ * Capa de datos del módulo de brokers .
  *
  * Todas las lecturas pasan por las vistas de la migración 0005, que resuelven
  * los nombres desnormalizados (D8): `movimientos_broker_view` trae
@@ -183,7 +183,7 @@ export async function listarActivos(brokerId) {
 
 /**
  * Crea una posición. `valor_unitario` es el precio de entrada: lo actualizará
- * la función de precios de la FASE 18, no este formulario.
+ * la función de precios, no este formulario.
  */
 export async function crearActivo({
   empresaId,
@@ -250,7 +250,7 @@ export async function borrarActivo(id) {
 /**
  * Historial de precios de un broker (pestaña «Precios»).
  *
- * Solo lectura: en esta fase los precios los escribe la función de la FASE 18.
+ * Solo lectura: los precios los escribe el worker de precios.
  * A diferencia de las otras tres, la tabla `precios_activo` no está en la
  * publicación de realtime (0007), así que la pestaña no se autoactualiza.
  */

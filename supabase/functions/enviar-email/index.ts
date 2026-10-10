@@ -1,5 +1,5 @@
 // =====================================================================
-// FASE 21: Envío de emails (Edge Function `enviar-email`)
+// Envío de emails (Edge Function `enviar-email`)
 // =====================================================================
 // Lee la configuración SMTP desde admin_config, renderiza la plantilla y
 // envía. Registra el resultado en `notificaciones` (éxito o error) para que

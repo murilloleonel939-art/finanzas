@@ -1,5 +1,5 @@
 -- =====================================================================
--- FinanzAdmin Pro — FASE 18: Cola de actualización de precios
+-- FinanzAdmin Pro — Cola de actualización de precios
 -- Archivo: supabase/migrations/0009_precios_jobs.sql
 -- =====================================================================
 -- Crea: precios_jobs.
@@ -108,7 +108,7 @@ create policy precios_jobs_delete on public.precios_jobs
 -- 3. Realtime
 -- ---------------------------------------------------------------------
 -- Para que la UI vea el paso de 'pendiente' a 'hecho' sin recargar, igual que
--- la importación de PDFs (FASE 17).
+-- la importación de PDFs.
 do $$ begin
   alter publication supabase_realtime add table public.precios_jobs;
 exception

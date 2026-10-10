@@ -1,8 +1,8 @@
 /**
- * Capa de datos de empresas (FASE 11).
+ * Capa de datos de empresas .
  *
  * Igual que `lib/usuarios.js` aísla las Edge Functions, aquí se aísla el
- * único sitio donde se decide qué es "borrar una empresa". Desde la FASE 11
+ * único sitio donde se decide qué es "borrar una empresa". Desde el principio
  * (migración 0008) eso es un `deleted_at`, y el acceso a sus datos se deriva
  * de ahí: no hay que recorrer bancos, cuentas y movimientos.
  */

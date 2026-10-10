@@ -315,7 +315,7 @@ empresa.
 **Por qué:** `fecha` es una columna `date` y llega como `'2026-10-01'`. `new Date()` la
 interpreta como medianoche **UTC**; en Colombia (UTC-5) `toLocaleDateString` devolvería el
 **30 de septiembre** y el movimiento aparecería en el mes equivocado —el mismo problema que
-`formatFecha()` de la FASE 8 evita en el otro sentido. Un `date` no tiene hora: cortarlo
+`formatFecha()` evita el problema en el otro sentido. Un `date` no tiene hora: cortarlo
 como texto es exacto y no depende de la zona del navegador.
 
 ## D23 — `db.js`: adaptador que lanza y filtra el borrado por ti
@@ -342,7 +342,7 @@ pedirlo a una vista fallaría.
 - `borrar()` es lógico por defecto; físico donde la tabla no tiene la columna
   (`wallet_saldos`, `import_jobs`).
 - `suscribir()` **avisa por consola** si la tabla no está en la publicación
-  `supabase_realtime`. Es el fallo exacto que tuvo la FASE 12 al suscribirse a `ramas`: un
+  `supabase_realtime`. Es el fallo exacto que apareció al suscribirse a `ramas`: un
   canal que nunca emite y no dice por qué.
 
 ## D24 — Las tres ramas no existen: son constantes en el sidebar
@@ -360,7 +360,7 @@ el código.
 los tres tipos de cambios en `bancos`, `brokers` y `wallet_providers` (y es la que usa
 `EmpresaLayout`).
 
-**Consecuencia:** no hay «crear rama nueva». Las ramas no se crean; existen. La FASE 14 empieza
+**Consecuencia:** no hay «crear rama nueva». Las ramas no se crean; existen. El trabajo sobre ramas empieza
 a poblar las tres.
 
 ## D25 — Validar el CHECK en el cliente y lanzar; nunca "arreglar" el dato
@@ -412,9 +412,9 @@ junto porque el proyecto ya lo había resuelto dos veces y volvió a aparecer:
 
 | Dónde | Sentido | Qué se rompía | Decisión |
 |---|---|---|---|
-| `formatFecha()` (FASE 8) | leer | un alta de las 20:00 se mostraba con la fecha del día siguiente | corta el ISO y usa `Intl` |
-| `MonthFilter.claveMes()` (FASE 13) | agrupar | `new Date('2026-10-01')` es medianoche UTC; en Bogotá el movimiento caía en septiembre | D22: cortar el string, sin `Date` |
-| `hoyLocal()` (FASE 15) | **escribir** | el formulario precargaba la fecha de mañana | D26: componentes locales |
+| `formatFecha()` | leer | un alta de las 20:00 se mostraba con la fecha del día siguiente | corta el ISO y usa `Intl` |
+| `MonthFilter.claveMes()` | agrupar | `new Date('2026-10-01')` es medianoche UTC; en Bogotá el movimiento caía en septiembre | D22: cortar el string, sin `Date` |
+| `hoyLocal()` | **escribir** | el formulario precargaba la fecha de mañana | D26: componentes locales |
 
 **Por qué es el peor de los tres:** los dos primeros mostraban mal un dato correcto. Este
 **guarda un dato incorrecto**, y una `date` sin hora no se puede corregir después sin saber
@@ -449,7 +449,7 @@ La importación de extractos bancarios corre en un **worker Node.js en EC2/Cooli
 
 ## D28 — Precios de mercado: Yahoo Finance + worker polling
 
-La actualización de precios (FASE 18) usa **Yahoo Finance API** con un **worker en Node.js en EC2/Coolify**.
+La actualización de precios usa **Yahoo Finance API** con un **worker en Node.js en EC2/Coolify**.
 
 **Por qué Yahoo Finance:**
 - Acciones, ETFs y criptos en un solo endpoint
@@ -649,4 +649,4 @@ BARRIDO_TZ=America/Bogota
 ```
 
 **Dónde vive:** `scripts/cron-setup.sh`, `deploy/worker-precios.{service,timer}`, documentación
-en `FASE19.md`.
+en `docs/DECISIONES.md`.

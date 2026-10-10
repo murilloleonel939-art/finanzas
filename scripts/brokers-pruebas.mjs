@@ -1,14 +1,14 @@
-// Prueba de humo de la FASE 15 (módulo brokers).
+// Prueba de humo del módulo de brokers.
 //
 // Ejecuta la ruta REAL del navegador: `src/lib/brokers-datos.js` importa
 // `@/lib/supabase` (que exige `import.meta.env` y una anon key real, cosas que
-// no existen en Node), así que `scripts/humo-brokers.mjs` compila el código
+// no existen en Node), así que `scripts/brokers-humo.mjs` compila el código
 // original con esbuild sustituyendo solo ese import por un doble.
 //
 // Lo que comprueba, y por qué `npm run build` no lo ve: las columnas de
 // PostgREST son strings en runtime, así que una columna inventada compila sin
 // queja y solo revienta en el navegador con `column does not exist`. La primera
-// versión de la FASE 14 hizo exactamente eso.
+// versión de una revisión anterior hizo exactamente eso.
 import assert from 'node:assert/strict'
 
 import {
@@ -95,7 +95,7 @@ const COLUMNAS = {
 }
 
 // Nombres que NO existen en el esquema: los que inventó la primera versión de
-// la FASE 14 (y alguno de la 15). Si reaparecen, esto falla.
+// una revisión anterior. Si reaparecen, esto falla.
 const INVENTADAS = [
   'saldo_actual',
   'saldo_resultante',
@@ -109,7 +109,7 @@ const INVENTADAS = [
 const TABLAS_CON_BORRADO = ['brokers', 'movimientos_broker', 'activos_broker', 'precios_activo']
 
 // ---------------------------------------------------------------------
-// Fase 1: catálogo puro
+// Bloque 1: catálogo puro
 // ---------------------------------------------------------------------
 console.log('\n-- catálogo de brokers (src/lib/brokers.js) --')
 
@@ -165,7 +165,7 @@ await t('etiquetaTipoActivo tolera valores fuera del enum', () => {
 })
 
 // ---------------------------------------------------------------------
-// Fase 2: cálculos puros del PRD §5
+// Bloque 2: cálculos puros del PRD §5
 // ---------------------------------------------------------------------
 console.log('\n-- calcularTotalesBroker (PRD §5) --')
 
@@ -255,7 +255,7 @@ await t('sin argumentos devuelve []', () => {
 })
 
 // ---------------------------------------------------------------------
-// Fase 3: fecha local frente a UTC
+// Bloque 3: fecha local frente a UTC
 // ---------------------------------------------------------------------
 console.log('\n-- fecha local (no UTC) --')
 
@@ -273,7 +273,7 @@ await t('hoyLocal rellena mes y día a dos dígitos', () => {
 })
 
 // ---------------------------------------------------------------------
-// Fase 4: capa de datos contra el doble de Supabase
+// Bloque 4: capa de datos contra el doble de Supabase
 // ---------------------------------------------------------------------
 console.log('\n-- capa de datos contra el doble de Supabase --')
 
@@ -469,7 +469,7 @@ await t('borrarActivo es lógico', () => {
 })
 
 // ---------------------------------------------------------------------
-// Fase 5: verificación estructural de TODO lo consultado
+// Bloque 5: verificación estructural de TODO lo consultado
 // (va al final: necesita que la capa de datos ya haya corrido)
 // ---------------------------------------------------------------------
 console.log('\n-- esquema: lo que el código consulta existe de verdad --')

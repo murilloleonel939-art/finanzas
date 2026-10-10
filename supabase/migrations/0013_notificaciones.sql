@@ -1,4 +1,4 @@
--- FASE 21: Notificaciones por email
+-- FinanzAdmin Pro — Notificaciones por email
 
 CREATE TYPE notif_estado AS ENUM ('pendiente', 'enviado', 'error');
 

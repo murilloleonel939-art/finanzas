@@ -1,11 +1,11 @@
-// Prueba de humo de la FASE 16 (módulo wallets + Earn).
+// Prueba de humo del módulo de wallets (módulo wallets + Earn).
 //
 // Ejecuta la ruta REAL del navegador: `src/lib/wallets-datos.js` importa
 // `@/lib/supabase` (que exige `import.meta.env` y una anon key real), así que
-// `scripts/humo-wallets.mjs` compila el código original con esbuild sustituyendo
+// `scripts/wallets-humo.mjs` compila el código original con esbuild sustituyendo
 // solo ese import por un doble.
 //
-// Lo que comprueba, y por qué `npm run build` no lo ve: igual que en la FASE 15,
+// Lo que comprueba, y por qué `npm run build` no lo ve: igual que en el módulo de brokers,
 // las columnas de PostgREST son strings en runtime, así que una columna inventada
 // compila sin queja y solo revienta en el navegador.
 import assert from 'node:assert/strict'
@@ -71,7 +71,7 @@ const marca = () => consultas.length
 const desde = (m) => consultas.slice(m)
 
 // =====================================================================
-// Esquema esperado (FASES 4, 5, 13)
+// Esquema esperado de la base
 // =====================================================================
 const COLUMNAS = {
   wallet_providers: [
@@ -100,7 +100,7 @@ const COLUMNAS = {
   ],
 }
 
-// Columnas inventadas que la FASE 14 dejó pasar. Si reaparecen, esto falla.
+// Columnas inventadas que una revisión anterior dejó pasar. Si reaparecen, esto falla.
 const INVENTADAS = [
   'saldo_actual',
   'saldo_resultante',
@@ -115,7 +115,7 @@ const TABLAS_CON_BORRADO = [
 ]
 
 // =====================================================================
-// Fase 1: catálogos puros
+// Bloque 1: catálogos puros
 // =====================================================================
 console.log('\n-- catálogos de wallets (src/lib/walletProviders.js) --')
 
@@ -166,7 +166,7 @@ await t('el centinela «Otro» nunca se guarda tal cual', () => {
 })
 
 // =====================================================================
-// Fase 2: Earn (PRD §7)
+// Bloque 2: Earn (PRD §7)
 // =====================================================================
 console.log('\n-- clasificación Earn (src/lib/earnConfig.js) --')
 
@@ -247,7 +247,7 @@ await t('activosConSaldo filtra solo los con algún valor distinto de cero', () 
 })
 
 // =====================================================================
-// Fase 3: cálculos puros
+// Bloque 3: cálculos puros
 // =====================================================================
 console.log('\n-- cálculos puros (wallets-datos.js) --')
 
@@ -290,7 +290,7 @@ await t('analizarWallet filtra por período sin perder el saldo inicial real', (
 })
 
 // =====================================================================
-// Fase 4: capa de datos contra el doble de Supabase
+// Bloque 4: capa de datos contra el doble de Supabase
 // =====================================================================
 console.log('\n-- capa de datos contra el doble de Supabase --')
 
@@ -432,7 +432,7 @@ await t('recalcularSaldosWallet detecta saldos negativos sin inventar ceros', as
 })
 
 // =====================================================================
-// Fase 5: verificación estructural
+// Bloque 5: verificación estructural
 // =====================================================================
 console.log('\n-- esquema: lo que el código consulta existe de verdad --')
 

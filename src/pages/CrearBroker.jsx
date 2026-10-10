@@ -23,7 +23,7 @@ import { AlertCircle, Loader2, ChevronLeft } from 'lucide-react'
  *
  * Columnas reales de `brokers` (migración 0003): `nombre_broker` y `moneda`.
  * No hay `api_key`, `token` ni `url`: el PRD no los pide y el esquema no los
- * tiene — la conexión con APIs de mercado es la FASE 18 y vive en el servidor
+ * tiene — la conexión con APIs de mercado es el worker de precios y vive en el servidor
  * (decisión D11/D13), no como credencial por broker en el navegador.
  *
  * La moneda es la divisa base de la CAJA. Al elegir un broker del catálogo se

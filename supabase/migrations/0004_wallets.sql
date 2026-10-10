@@ -1,5 +1,5 @@
 -- =====================================================================
--- FinanzAdmin Pro — FASE 4: Wallets
+-- FinanzAdmin Pro — Wallets
 -- Archivo: supabase/migrations/0004_wallets.sql
 -- =====================================================================
 -- Crea: wallet_providers, wallets, wallet_saldos, movimientos_wallet.
@@ -11,7 +11,7 @@
 --    (una fila por moneda).
 --  * D8 — sin proveedor_nombre/wallet_direccion; se resuelven con vistas.
 --  * El filtro de proveedores "todo es Earn" (Coindepo) NO se modela en la
---    base: vive en src/lib/earnConfig.js (FASE 13) porque es una regla de
+--    base: vive en src/lib/earnConfig.js porque es una regla de
 --    presentación que cambia sin migración.
 -- =====================================================================
 
@@ -93,7 +93,7 @@ comment on table public.wallet_saldos is
   'es una tabla de valores, no una entidad. Resuelve que una wallet tenga BTC+ETH+USDT.';
 
 -- Nota: NO lleva empresa_id. El RLS lo resuelve con un EXISTS contra wallets
--- (ver FASE 6), que es aceptable aquí porque la tabla es pequeña y la PK ya
+-- (ver 0006), que es aceptable aquí porque la tabla es pequeña y la PK ya
 -- la mantiene acotada.
 
 drop trigger if exists trg_wallet_saldos_updated_at on public.wallet_saldos;
@@ -128,7 +128,7 @@ create table if not exists public.movimientos_wallet (
 
 comment on table public.movimientos_wallet is
   'Movimiento de wallet. tipo_moneda es por fila, no heredada de la wallet. '
-  'La clasificación Earn se hace por descripción en el frontend (FASE 16).';
+  'La clasificación Earn se hace por descripción en el frontend.';
 
 create unique index if not exists movimientos_wallet_dedupe_idx
   on public.movimientos_wallet (wallet_id, external_id)

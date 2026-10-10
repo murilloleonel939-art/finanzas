@@ -1,5 +1,5 @@
 /**
- * MonthFilter — filtro de mes compartido (FASE 13, PRD §9).
+ * MonthFilter — filtro de mes compartido .
  *
  * Lo usan CuentaDetail, WalletDetail, WalletEarn y BrokerDetail. Por eso vive
  * en `components/shared/` y no dentro de una página: con cuatro copias, cada

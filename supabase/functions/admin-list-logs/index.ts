@@ -1,5 +1,5 @@
 // =====================================================================
-// FASE 20: Visor de logs (Edge Function `admin-list-logs`)
+// Visor de logs (Edge Function `admin-list-logs`)
 // =====================================================================
 // Los logs viven en admin_logs (migración 0011). Se leen con service_role
 // tras requireSuperAdmin, que es la única forma de ver los de todos los

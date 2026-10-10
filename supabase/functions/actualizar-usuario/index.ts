@@ -1,7 +1,7 @@
 // =====================================================================
 // Edge Function: actualizar-usuario
 // =====================================================================
-// FASE 10. Cambia `app_role`, `estado`, `full_name` y la asignación de
+// Cambia `app_role`, `estado`, `full_name` y la asignación de
 // empresas de un usuario ya existente, y permite reenviar la invitación.
 //
 // POR QUÉ NO LO HACE EL FRONTEND DIRECTAMENTE:

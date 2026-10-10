@@ -1,5 +1,5 @@
 /**
- * Verificador de columnas (FASE 14).
+ * Verificador de columnas.
  *
  * POR QUÉ EXISTE: `npm run build` solo valida sintaxis. Las columnas de
  * PostgREST son strings (`select('saldo_actual')`) y no hay tipos que las
@@ -8,7 +8,7 @@
  *
  * Este script lee las migraciones (fuente de verdad del esquema) y comprueba
  * contra ellas cada columna que el código menciona. No sustituye a probar la
- * app contra Supabase, pero cierra el agujero que dejó pasar la FASE 14.
+ * app contra Supabase, pero cierra el agujero que dejó pasar una revisión anterior.
  *
  * Uso:  node scripts/verificar-columnas.mjs
  */

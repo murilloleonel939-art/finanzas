@@ -1,8 +1,8 @@
 /**
- * Capa de datos y cálculos del módulo de cuentas (FASE 14, PRD §4).
+ * Capa de datos y cálculos del módulo de cuentas .
  *
  * COLUMNAS REALES (migraciones 0002 y 0005) — esto es lo que corrigió la
- * FASE 14 después de su primera versión, que inventó `saldo_actual`:
+ * una revisión de este módulo, que inventó `saldo_actual`:
  *
  *   cuentas        id, empresa_id, banco_id, numero_cuenta, tipo_cuenta,
  *                  tipo_moneda, monto, created_by, created_at, updated_at,

@@ -1,5 +1,5 @@
 // =====================================================================
-// FASE 20: Listar jobs de precios (Edge Function `admin-list-jobs`)
+// Listar jobs de precios (Edge Function `admin-list-jobs`)
 // =====================================================================
 // Tabla real: precios_jobs (migración 0009). Estado del enum estado_job
 // ('pendiente','procesando','hecho','error'), fechas started_at/finished_at

@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { RefreshCw, Send, Mail } from 'lucide-react'
 
 /**
- * Panel de notificaciones por email (FASE 21).
+ * Panel de notificaciones por email .
  *
  * Dos mitades: arriba el formulario de envío (probando o real), abajo el
  * historial. El historial es la fuente de verdad de si algo salió o no,

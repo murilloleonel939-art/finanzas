@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Plus, RefreshCw } from 'lucide-react'
 
 /**
- * Panel de gestión de empresas (FASE 20)
+ * Panel de gestión de empresas 
  * Permite CRUD de empresas del sistema
  */
 export default function AdminEmpresas() {

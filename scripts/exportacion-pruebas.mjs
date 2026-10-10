@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * FASE 19: Pruebas de Exportación de Datos
+ * Pruebas del módulo de exportación de datos.
  * 
  * Valida:
  * - Componente ExportButtons existe y tiene la estructura correcta
@@ -53,7 +53,7 @@ function fileContains(ruta, patron) {
   return contenido.includes(patron)
 }
 
-console.log(`${colors.blue}🧪 FASE 19: Exportación de Datos${colors.reset}\n`)
+console.log(`${colors.blue}🧪 Exportación de datos${colors.reset}\n`)
 
 // ============================================================================
 // SUITE 1: Componente ExportButtons
@@ -174,24 +174,24 @@ console.log()
 
 console.log(`${colors.blue}📚 Suite 4: Documentación${colors.reset}`)
 
-test('FASE19.md existe', () => {
-  assert(fileExists('FASE19.md'), 'Archivo no encontrado')
+test('la documentación de exportación existe', () => {
+  assert(fileExists('docs/DECISIONES.md'), 'Archivo no encontrado')
 })
 
-test('FASE19.md documenta exportación CSV', () => {
-  assert(fileContains('FASE19.md', 'CSV'), 'Exportación CSV no documentada')
+test('el PRD documenta la exportación CSV', () => {
+  assert(fileContains('docs/PRD.md', 'CSV'), 'Exportación CSV no documentada')
 })
 
-test('FASE19.md documenta exportación Excel', () => {
-  assert(fileContains('FASE19.md', 'Excel'), 'Exportación Excel no documentada')
+test('el PRD documenta la exportación Excel', () => {
+  assert(fileContains('docs/PRD.md', 'Excel'), 'Exportación Excel no documentada')
 })
 
-test('FASE19.md documenta exportación PDF', () => {
-  assert(fileContains('FASE19.md', 'PDF'), 'Exportación PDF no documentada')
+test('el PRD documenta la exportación PDF', () => {
+  assert(fileContains('docs/PRD.md', 'PDF'), 'Exportación PDF no documentada')
 })
 
-test('FASE19.md documenta cron a las 4 PM', () => {
-  assert(fileContains('FASE19.md', '4 PM') || fileContains('FASE19.md', '16:00'), 'Cron no documentado')
+test('DECISIONES documenta el barrido de las 16:00', () => {
+  assert(fileContains('docs/DECISIONES.md', '16:00'), 'Cron no documentado')
 })
 
 console.log()

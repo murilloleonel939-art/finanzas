@@ -1,5 +1,5 @@
 /**
- * Catálogo de monedas cripto y fiat (FASE 13, PRD §14).
+ * Catálogo de monedas cripto y fiat .
  *
  * La moneda es un atributo de cada entidad y **no se convierte** entre
  * monedas: los resúmenes muestran una línea por moneda (decisión D4). Por eso

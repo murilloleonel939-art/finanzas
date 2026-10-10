@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * FASE 17: Prueba de humo - Importación de PDFs
+ * Prueba de humo del módulo de importación de PDFs.
  * 
  * Comprueba:
  * 1. Estructura de imports-datos.js
@@ -10,7 +10,7 @@
  * 4. Lógica de deduplicación
  * 5. Creación de movimientos desde importación
  * 
- * Ejecutar: npm run humo:fase17
+ * Ejecutar: npm run pruebas:importacion
  */
 
 import fs from 'fs';
@@ -42,7 +42,7 @@ function assert(condition, message) {
 // LEER ARCHIVOS Y VERIFICAR ESTRUCTURA
 // ============================================================================
 
-console.log('📋 FASE 17: Prueba de humo - Importación de PDFs\n');
+console.log('📋 Importación de PDFs: prueba de humo\n');
 
 // 1. Verificar imports-datos.js
 console.log('1️⃣  Archivo imports-datos.js');
@@ -174,7 +174,7 @@ if (failCount > 0) {
   });
   process.exit(1);
 } else {
-  console.log('✅ FASE 17 lista para deploy\n');
+  console.log('✅ Importación de PDFs: lista\n');
   console.log('Próximos pasos:');
   console.log('  1. Desplegar Edge Function: supabase functions deploy crear-import-job');
   console.log('  2. Iniciar worker en EC2/Coolify: PATEWAY_API_KEY=... node worker-import.mjs');

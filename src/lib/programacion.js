@@ -1,5 +1,5 @@
 /**
- * FASE 18: programación del barrido diario de precios.
+ * Programación del barrido diario de precios.
  *
  * **Por qué existe este módulo:** el barrido tiene que caer a las 16:00 de
  * Colombia con independencia de la zona del servidor. El contenedor de EC2

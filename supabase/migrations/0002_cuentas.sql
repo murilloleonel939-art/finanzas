@@ -1,15 +1,15 @@
 -- =====================================================================
--- FinanzAdmin Pro — FASE 2: Cuentas bancarias
+-- FinanzAdmin Pro — Cuentas bancarias
 -- Archivo: supabase/migrations/0002_cuentas.sql
 -- =====================================================================
 -- Crea: bancos, cuentas, movimientos.
 --
 -- Notas de diseño:
 --  * D8 — SIN campos desnormalizados (empresa_nombre, banco_nombre,
---    cuenta_numero). Se resuelven con vistas en la FASE 5.
+--    cuenta_numero). Se resuelven con vistas en la 0005.
 --  * empresa_id SÍ se conserva en las tres tablas, aunque sea derivable
 --    por JOIN. Es la excepción a D8 y es deliberada: las policies de RLS
---    (FASE 6) lo necesitan para filtrar sin joins recursivos, y sin él
+--    (0006) lo necesitan para filtrar sin joins recursivos, y sin él
 --    cada SELECT pagaría dos JOINs solo para evaluar permisos.
 --  * banco_id NO se duplica en movimientos: es derivable vía cuenta_id.
 --  * D9 — external_id + índice único para deduplicar importaciones.

@@ -1,5 +1,5 @@
 /**
- * FASE 18: Cliente de Yahoo Finance.
+ * Cliente de Yahoo Finance.
  *
  * ---------------------------------------------------------------------
  * Por qué el endpoint `v8/finance/chart` y no `v7/finance/quote`

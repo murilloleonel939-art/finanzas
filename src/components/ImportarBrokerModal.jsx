@@ -1,5 +1,5 @@
 /**
- * FASE 17: Modal de importación para BROKERS
+ * Modal de importación de extractos para BROKERS.
  * Permite importar movimientos y activos
  */
 

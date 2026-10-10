@@ -1,5 +1,5 @@
 // =====================================================================
-// FASE 20: Estadísticas del sistema (Edge Function `admin-get-stats`)
+// Estadísticas del sistema (Edge Function `admin-get-stats`)
 // =====================================================================
 // Los nombres salen del esquema real (migraciones 0001-0010), no de un
 // supuesto: precios_jobs usa `estado` del enum estado_job

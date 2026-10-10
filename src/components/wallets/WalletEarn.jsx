@@ -15,7 +15,7 @@ import { Loader2, Plus, Trash2, Sparkles, TrendingUp } from 'lucide-react'
  * porque en la variante A la pantalla entera ya es Earn y una pestaña homónima
  * sería el mismo contenido dos veces.
  *
- * Las métricas salen de `resumenEarn()` (FASE 13), que aplica las definiciones
+ * Las métricas salen de `resumenEarn()` , que aplica las definiciones
  * del PRD tal como quedaron al resolver su propia contradicción §8.2/§8.3:
  * invertido = egresos con «subscription», recompensas = ingresos con
  * «interest», redimido = ingresos con «redemption». «Intereses ganados» es una
@@ -153,10 +153,10 @@ export default function WalletEarn({
               variant="outline"
               disabled
               className="gap-2"
-              title="La importación de extractos llega en la FASE 17"
+              title="La importación de extractos todavía no está disponible"
             >
               <Plus className="w-4 h-4" />
-              Importar extracto (FASE 17)
+              Importar extracto
             </Button>
           </div>
         ) : (

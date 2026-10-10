@@ -18,7 +18,7 @@ import { nombrePais } from '@/lib/paises'
 import { formatFecha } from '@/lib/utils'
 
 /**
- * CRUD de empresas (FASE 11, §11.3 del PRD).
+ * CRUD de empresas .
  * Escritura solo para super_admin — lo garantiza el RLS (0006), no esta página.
  */
 export default function EmpresasPage() {

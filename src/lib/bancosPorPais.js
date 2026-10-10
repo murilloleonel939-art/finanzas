@@ -1,5 +1,5 @@
 /**
- * Catálogo de bancos por país (FASE 13, PRD §4).
+ * Catálogo de bancos por país .
  *
  * Alimenta el selector de `CrearBanco`. `bancos.pais` y `bancos.nombre_banco`
  * son texto libre en la base (migración 0002): este catálogo **no valida ni

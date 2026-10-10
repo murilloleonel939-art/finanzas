@@ -1,5 +1,5 @@
 /**
- * FASE 18: Capa de datos para precios.
+ * Capa de datos de precios.
  *
  * **Por qué es una fábrica y no un módulo con el cliente incrustado:**
  * el worker de precios corre en Node (`worker-precios.mjs`), donde

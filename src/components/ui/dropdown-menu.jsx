@@ -2,8 +2,8 @@ import { forwardRef } from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
 import { cn } from '@/lib/utils'
 
-// Menú desplegable. Se añadió en la FASE 21 junto con ExportButtons, que lo
-// usaba desde la FASE 19 sin que el componente existiera: el build nunca
+// Menú desplegable. Se añadió en el panel de administración junto con ExportButtons, que lo
+// usaba desde la exportación de datos sin que el componente existiera: el build nunca
 // llegó a compilarse hasta ahora.
 const DropdownMenu = DropdownMenuPrimitive.Root
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger

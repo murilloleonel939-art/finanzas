@@ -16,7 +16,7 @@ import { Wallet } from 'lucide-react'
  *
  * El enlace de la invitación llega con un token; al abrirlo Supabase crea la
  * sesión y el usuario establece su contraseña. Ese flujo se construye en la
- * FASE 10, junto con la Edge Function de invitación.
+ * La Edge Function de invitación hace el alta real.
  */
 export default function Register() {
   return (

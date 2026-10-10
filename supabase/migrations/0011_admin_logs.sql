@@ -1,4 +1,4 @@
--- FASE 20: Admin Logs y Auditoría
+-- FinanzAdmin Pro — Logs y auditoría
 
 -- Enum para tipos de acciones
 CREATE TYPE admin_accion AS ENUM (
@@ -48,7 +48,7 @@ CREATE INDEX idx_admin_logs_created_at ON admin_logs(created_at DESC);
 CREATE INDEX idx_admin_logs_composite ON admin_logs(admin_id, accion, created_at DESC);
 
 -- Particionamiento por fecha (opcional, para tablas muy grandes)
--- Para FASE 20, sin particionamiento. Se puede agregar en FASE 21+
+-- Sin particionamiento por ahora; se puede añadir si la tabla crece.
 
 -- RLS: Solo super_admin puede ver todos los logs
 -- Los demás solo ven logs de sus propias acciones

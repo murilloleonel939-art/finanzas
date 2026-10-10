@@ -1,7 +1,7 @@
 // =====================================================================
 // Edge Function: invitar-usuario
 // =====================================================================
-// FASE 10. Implementa el paso 1-2 del flujo de D10:
+// Implementa los pasos 1-2 del flujo de D10:
 //   1. Valida que quien llama es super_admin.
 //   2. auth.admin.inviteUserByEmail(email, { data: {...} }).
 //   3. El trigger `handle_new_user` (migración 0007) crea el profile y los

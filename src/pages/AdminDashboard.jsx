@@ -21,13 +21,13 @@ import { getAdminStats } from '@/lib/admin-api'
 import { formatearTiempoRelativo } from '@/lib/admin-utils'
 
 /**
- * Dashboard del panel de administración (FASE 11, §11 del PRD + FASE 20).
+ * Dashboard del panel de administración .
  *
  * Muestra CUENTOS, no sumas de dinero (el plan lo pedía explícitamente: "conteos,
  * no sumas de dinero"). No es una limitación técnica, es D4: sumar el saldo de
  * una cuenta en COP con una wallet en USDT daría un número sin significado.
  * 
- * FASE 20: Se agregan estadísticas de super admin con stats de sistema.
+ * panel de administración: Se agregan estadísticas de super admin con stats de sistema.
  */
 export default function AdminDashboard() {
   const { data: stats, isLoading, error } = useQuery({
@@ -40,7 +40,7 @@ export default function AdminDashboard() {
     queryFn: () => empresasRecientes(5),
   })
 
-  // FASE 20: Stats de super admin
+  // panel de administración: Stats de super admin
   const [superAdminStats, setSuperAdminStats] = useState(null)
   const [loadingSuperAdmin, setLoadingSuperAdmin] = useState(false)
   const [ultimaActualizacion, setUltimaActualizacion] = useState(null)
@@ -100,7 +100,7 @@ export default function AdminDashboard() {
         )}
       </header>
 
-      {/* FASE 20: Salud del sistema */}
+      {/* panel de administración: Salud del sistema */}
       {superAdminStats?.salud && (
         <div className="mb-6">
           <Card className={`p-4 border-l-4 ${

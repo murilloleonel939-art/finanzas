@@ -1,11 +1,11 @@
 -- =====================================================================
--- FinanzAdmin Pro — FASE 3: Brokers
+-- FinanzAdmin Pro — Brokers
 -- Archivo: supabase/migrations/0003_brokers.sql
 -- =====================================================================
 -- Crea: brokers, movimientos_broker, activos_broker, precios_activo.
 --
 -- Notas de diseño:
---  * D8 — sin broker_nombre/empresa_nombre; se resuelven con vistas (FASE 5).
+--  * D8 — sin broker_nombre/empresa_nombre; se resuelven con vistas (0005).
 --    empresa_id sí se conserva por RLS. broker_id también se conserva en
 --    activos y precios porque el JOIN es menos directo que en cuentas.
 --  * D3 — precios y cantidades en numeric.
@@ -110,7 +110,7 @@ create table if not exists public.activos_broker (
 );
 
 comment on table public.activos_broker is
-  'Posición abierta. valor_unitario lo actualiza la función de precios (FASE 18). '
+  'Posición abierta. valor_unitario lo actualiza el worker de precios. '
   'moneda es la del activo y puede diferir de brokers.moneda (la de la caja).';
 
 -- El mismo ticker no se repite dentro de un broker (case-insensitive:
@@ -133,7 +133,7 @@ create trigger trg_activos_broker_updated_at
 -- ---------------------------------------------------------------------
 -- 4. Tabla: precios_activo
 -- ---------------------------------------------------------------------
--- Historial de precios. Escritura solo super_admin (FASE 6), lectura abierta
+-- Historial de precios. Escritura solo super_admin (0006), lectura abierta
 -- a quien tenga acceso a la empresa — resuelve la contradicción del PRD
 -- original entre §6.4 (admin-only) y §6.5 (pestaña visible a todos).
 create table if not exists public.precios_activo (

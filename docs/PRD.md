@@ -6,7 +6,7 @@
 SaaS multi-tenant para gestión administrativa y financiera de múltiples empresas. Un super
 administrador gestiona empresas y usuarios; cada empresa tiene bancos, cuentas, brokers con
 activos y precios, y wallets cripto/fiat con movimientos. Todo se importa desde PDFs mediante
-IA. **En esta versión se reconstruye sobre Supabase Cloud** (ver `01-DECISIONES.md`).
+IA. **En esta versión se reconstruye sobre Supabase Cloud** (ver `DECISIONES.md`).
 
 ---
 
@@ -352,7 +352,7 @@ SHIB, LTC.
 ## 17. Pendientes de decidir
 
 - **Borrado destructivo:** ¿lo puede hacer `cliente` o solo `contador` + `super_admin`? (D6)
-- **Proveedor de IA** para la extracción de PDFs (bloquea FASE 17).
-- **API de mercado** para precios (bloquea FASE 18).
+- **Proveedor de IA** para la extracción de PDFs.
+- **API de mercado** para precios.
 - **Plan de Supabase:** Free no tiene backups y pausa el proyecto por inactividad — inviable
   con datos financieros reales. Decidir antes de cargar datos.

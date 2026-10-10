@@ -48,8 +48,8 @@ const POR_PAGINA = 20
  * `valor_unitario` (el CHECK de la 0003 obliga a que vengan juntos).
  *
  * La pestaña de precios no se autoactualiza: `precios_activo` no está en la
- * publicación de realtime (migración 0007), y en esta fase la escribe la
- * función de la FASE 18.
+ * publicación de realtime (migración 0007), y en esta versión la escribe la
+ * worker de precios.
  */
 export default function BrokerDetail() {
   const { empresaId, brokerId } = useParams()
@@ -526,7 +526,7 @@ export default function BrokerDetail() {
               <div className="p-8 text-center">
                 <p className="text-muted-foreground mb-2">Sin historial de precios</p>
                 <p className="text-xs text-muted-foreground">
-                  Los precios los actualiza la función programada de la FASE 18.
+                  Los precios los actualiza el worker de precios, una vez al día.
                 </p>
               </div>
             ) : (

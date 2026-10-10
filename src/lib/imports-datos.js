@@ -1,5 +1,5 @@
 /**
- * FASE 17: Importación de PDFs
+ * Importación de extractos en PDF.
  * Capa de datos para jobs de importación y movimientos extraídos
  */
 

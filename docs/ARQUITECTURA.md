@@ -1,8 +1,8 @@
-# CONTEXTO — FinanzAdmin Pro (handoff entre chats)
+# ARQUITECTURA — FinanzAdmin Pro
 
-> **Este archivo es el punto de entrada.** Si abres un chat nuevo, pega este documento
-> completo como primer mensaje. Contiene todo lo necesario para continuar sin releer
-> el PRD ni reconstruir las decisiones ya tomadas.
+> **Este archivo es el punto de entrada.** Contiene lo necesario para entender el
+> proyecto sin releer el PRD ni reconstruir las decisiones ya tomadas: qué se está
+> construyendo, dónde vive cada pieza y qué reglas están cerradas.
 
 ---
 
@@ -18,9 +18,10 @@ productos **Earn** (staking/savings) tienen tratamiento especial con reglas por 
 
 ## 2. Estado actual
 
-**Se construye desde cero.** El workspace estaba vacío al iniciar. La app original descrita
-en el PRD vive en Base44 (`https://fin-core-admin.base44.app`) y **no se migra**: se
-reconstruye. No hay datos que preservar.
+La aplicación está construida y desplegada en `finanzas.zottagroup.com`. El esquema de
+base de datos va por la migración `0015` (ver `supabase/migrations/`). La app original
+descrita en el PRD vive en Base44 y **no se migra**: se reconstruyó desde cero, sin datos
+que preservar.
 
 ## 3. Arquitectura decidida
 
@@ -32,7 +33,7 @@ reconstruye. No hay datos que preservar.
 | Realtime | Supabase Cloud — requiere añadir tablas a la publicación |
 | Edge Functions | Supabase Cloud — solo tareas cortas |
 | **Frontend (React + Vite)** | **EC2 + Coolify** |
-| **Worker de IA** (extracción PDFs) | **EC2 + Coolify** — NO en Edge Functions |
+| **Workers** (importación de PDFs, precios) | **EC2 + Coolify** — NO en Edge Functions |
 
 **Frontend:** React 18 + Vite + Tailwind CSS + shadcn/ui + lucide-react.
 **Routing:** react-router-dom v6. **Data:** @tanstack/react-query + supabase-js.
@@ -40,7 +41,7 @@ reconstruye. No hay datos que preservar.
 ## 4. Decisiones tomadas (no volver a preguntar)
 
 Estas ya se discutieron y están cerradas. El detalle y el razonamiento están en
-`docs/01-DECISIONES.md`.
+`docs/DECISIONES.md`, que llega hasta D35.
 
 1. **Se reconstruye desde cero**, no se migra Base44.
 2. **Supabase Cloud** para datos/auth/storage. EC2/Coolify solo para frontend y worker IA.
@@ -95,9 +96,9 @@ El PRD original tiene inconsistencias internas. Estas son las resoluciones adopt
 
 ## 7. Cómo continuar
 
-Ver `docs/02-PLAN.md` para la lista de fases y cuál es la siguiente.
-Ver `docs/03-PROMPT-CONTINUACION.md` para el texto exacto que hay que pegar en un chat nuevo.
+El estado del proyecto vive en el código y en `docs/DECISIONES.md`, no en un documento
+aparte: cada decisión cerrada queda ahí con su razonamiento, y el esquema se lee de
+`supabase/migrations/`.
 
-**Regla de trabajo:** construir por fases pequeñas. Al terminar cada fase, actualizar
-`docs/02-PLAN.md` marcándola como completada, y añadir cualquier decisión nueva a
-`docs/01-DECISIONES.md`.
+**Regla de trabajo:** cambios pequeños y verificables. Al cerrar uno, añade la decisión
+nueva a `docs/DECISIONES.md` y aplica la migración correspondiente en Supabase.

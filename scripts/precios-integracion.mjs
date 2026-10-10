@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * FASE 18: Pruebas de integración — Edge Function `actualizar-precios`.
+ * Pruebas de integración de la Edge Function `actualizar-precios`.
  *
  * Valida que:
  *   1. Solo super_admin puede llamarla.
@@ -11,7 +11,7 @@
  *
  * POR QUÉ stub de Supabase:
  *   - La Edge Function no toca BD realmente en tests.
- *   - El stub que usan FASE 15/17 es reutilizable.
+ *   - El stub compartido con las demás pruebas es reutilizable.
  */
 
 import { strict as assert } from 'node:assert'
@@ -360,4 +360,4 @@ async function simularEdgeFunctionCall({ headers = {}, body = {}, supabase } = {
 // FIN
 // ============================================================================
 
-console.log('\n✅ Todas las pruebas de integración pasaron (FASE 18)')
+console.log('\n✅ Todas las pruebas de integración pasaron ')
