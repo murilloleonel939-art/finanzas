@@ -15,6 +15,13 @@ import AdminDashboard from './pages/AdminDashboard.jsx'
 import EmpresasPage from './pages/EmpresasPage.jsx'
 import UsuariosPage from './pages/UsuariosPage.jsx'
 
+// FASE 20: Super Admin Panel
+import AdminEmpresas from './pages/AdminEmpresas.jsx'
+import AdminBrokers from './pages/AdminBrokers.jsx'
+import AdminJobs from './pages/AdminJobs.jsx'
+import AdminLogs from './pages/AdminLogs.jsx'
+import AdminConfig from './pages/AdminConfig.jsx'
+
 // Workspace y empresa (FASE 12)
 import Workspace from './pages/Workspace.jsx'
 import EmpresaOverview from './pages/EmpresaOverview.jsx'
@@ -63,7 +70,7 @@ export default function App() {
         </ProtectedRoute>
       } />
 
-      {/* --- Panel de administración (FASES 10-11) --- */}
+      {/* --- Panel de administración (FASES 10-11 + FASE 20) --- */}
       {/* La guarda soloAdmin va en el layout: así toda la sección /admin
           queda protegida de una vez y no ruta por ruta. */}
       <Route path="/admin" element={
@@ -74,6 +81,12 @@ export default function App() {
         <Route index element={<AdminDashboard />} />
         <Route path="empresas" element={<EmpresasPage />} />
         <Route path="usuarios" element={<UsuariosPage />} />
+        {/* FASE 20: Super Admin Routes */}
+        <Route path="admin-empresas" element={<AdminEmpresas />} />
+        <Route path="admin-brokers" element={<AdminBrokers />} />
+        <Route path="jobs" element={<AdminJobs />} />
+        <Route path="logs" element={<AdminLogs />} />
+        <Route path="config" element={<AdminConfig />} />
       </Route>
 
       {/* --- Empresa (FASES 12-16) --- */}

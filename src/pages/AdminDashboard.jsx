@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import {
   AlertTriangle,
   Building2,
@@ -7,20 +8,26 @@ import {
   ShieldCheck,
   UserCog,
   Users,
+  RefreshCw,
+  Zap,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { buttonVariants } from '@/components/ui/button'
+import { buttonVariants, Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { estadisticasAdmin, empresasRecientes } from '@/lib/admin'
 import { nombrePais } from '@/lib/paises'
 import { formatFecha, cn } from '@/lib/utils'
+import { getAdminStats } from '@/lib/admin-api'
+import { formatearTiempoRelativo } from '@/lib/admin-utils'
 
 /**
- * Dashboard del panel de administración (FASE 11, §11 del PRD).
+ * Dashboard del panel de administración (FASE 11, §11 del PRD + FASE 20).
  *
  * Muestra CUENTOS, no sumas de dinero (el plan lo pedía explícitamente: "conteos,
  * no sumas de dinero"). No es una limitación técnica, es D4: sumar el saldo de
  * una cuenta en COP con una wallet en USDT daría un número sin significado.
+ * 
+ * FASE 20: Se agregan estadísticas de super admin con stats de sistema.
  */
 export default function AdminDashboard() {
   const { data: stats, isLoading, error } = useQuery({
@@ -32,6 +39,30 @@ export default function AdminDashboard() {
     queryKey: ['admin', 'empresas-recientes'],
     queryFn: () => empresasRecientes(5),
   })
+
+  // FASE 20: Stats de super admin
+  const [superAdminStats, setSuperAdminStats] = useState(null)
+  const [loadingSuperAdmin, setLoadingSuperAdmin] = useState(false)
+  const [ultimaActualizacion, setUltimaActualizacion] = useState(null)
+
+  useEffect(() => {
+    cargarSuperAdminStats()
+    const intervalo = setInterval(cargarSuperAdminStats, 30000)
+    return () => clearInterval(intervalo)
+  }, [])
+
+  const cargarSuperAdminStats = async () => {
+    try {
+      setLoadingSuperAdmin(true)
+      const datos = await getAdminStats()
+      setSuperAdminStats(datos)
+      setUltimaActualizacion(new Date())
+    } catch (err) {
+      console.error('Error cargando super admin stats:', err)
+    } finally {
+      setLoadingSuperAdmin(false)
+    }
+  }
 
   if (isLoading) {
     return <p className="p-8 text-sm text-muted-foreground">Cargando panel…</p>
@@ -49,13 +80,49 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-6 lg:p-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Panel</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Estado general de la plataforma. Los importes no se consolidan entre
-          monedas (decisión D4), por eso aquí solo hay recuentos.
-        </p>
+      <header className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Panel</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Estado general de la plataforma. Los importes no se consolidan entre
+            monedas (decisión D4), por eso aquí solo hay recuentos.
+          </p>
+        </div>
+        {ultimaActualizacion && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={cargarSuperAdminStats}
+            disabled={loadingSuperAdmin}
+          >
+            <RefreshCw className={`h-4 w-4 ${loadingSuperAdmin ? 'animate-spin' : ''}`} />
+          </Button>
+        )}
       </header>
+
+      {/* FASE 20: Salud del sistema */}
+      {superAdminStats?.salud && (
+        <div className="mb-6">
+          <Card className={`p-4 border-l-4 ${
+            superAdminStats.salud.estado === 'ok' 
+              ? 'border-l-green-500 bg-green-50' 
+              : 'border-l-yellow-500 bg-yellow-50'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-sm">
+                  {superAdminStats.salud.estado === 'ok' ? '✅ Sistema OK' : '⚠️ Revisar'}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Último job: {superAdminStats.salud.ultimoJobHace}
+                  {superAdminStats.salud.erroresUltimo > 0 && ` • Errores: ${superAdminStats.salud.erroresUltimo}`}
+                </p>
+              </div>
+              <Zap className="h-6 w-6 text-yellow-600" />
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Aviso accionable: es la única tarjeta que exige hacer algo. */}
       {stats.usuarios.sinEmpresa > 0 && (

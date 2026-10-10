@@ -1,5 +1,5 @@
 import { NavLink, Outlet, Link } from 'react-router-dom'
-import { LayoutDashboard, Building2, Users, Wallet, LogOut } from 'lucide-react'
+import { LayoutDashboard, Building2, Users, Wallet, LogOut, Zap, FileText, Settings, Briefcase } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -13,11 +13,19 @@ import { cn } from '@/lib/utils'
  * en la FASE 11, junto con el contenido del dashboard. Se hace así para no
  * entregar la gestión de usuarios como una página suelta sin forma de
  * volver a ningún sitio.
+ * 
+ * FASE 20: Se agregan nuevas rutas para super admin panel.
  */
 const enlaces = [
   { to: '/admin', end: true, icono: LayoutDashboard, texto: 'Dashboard' },
   { to: '/admin/empresas', icono: Building2, texto: 'Empresas' },
   { to: '/admin/usuarios', icono: Users, texto: 'Usuarios' },
+  // FASE 20: Super Admin
+  { to: '/admin/admin-empresas', icono: Building2, texto: 'Admin Empresas' },
+  { to: '/admin/admin-brokers', icono: Briefcase, texto: 'Admin Brokers' },
+  { to: '/admin/jobs', icono: Zap, texto: 'Jobs' },
+  { to: '/admin/logs', icono: FileText, texto: 'Logs' },
+  { to: '/admin/config', icono: Settings, texto: 'Configuración' },
 ]
 
 export default function AdminLayout() {
