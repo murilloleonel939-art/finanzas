@@ -147,7 +147,67 @@ function fechaDeCotizacion(cotizacion, fechaRespaldo) {
 | Archivo | Cambios |
 |---------|---------|
 | `supabase/migrations/0009_precios_jobs.sql` | Tabla `precios_jobs` + RLS |
+| `supabase/migrations/0010_precios_barridos.sql` | Tabla `precios_barridos` + índice único por fecha |
 | `package.json` | Script `humo:fase18`. Sin dependencias nuevas |
+
+---
+
+## Barrido Diario Automático
+
+El sistema actualiza todos los precios **una sola vez al día**, a las 16:00 de Colombia (después del cierre de mercados de EE. UU.), sin intervención manual. La cola del botón se atiende cada 5 minutos.
+
+### Problema Resuelto
+
+Antes: El worker barría **todos los activos cada 5 minutos** (288 veces al día), escribiendo casi siempre el mismo precio. Desperdiciaba cuota de Yahoo Finance.
+
+Ahora: Un barrido completo al día a hora fija, más rápido y más eficiente.
+
+### Cómo Funciona
+
+1. **New Table**: `precios_barridos` registra una fila por día, con índice único por fecha. Si dos workers arrancan a la vez, el segundo choca con el índice.
+2. **Scheduler Puro**: Funciones en `src/lib/programacion.js` calculan la hora en `America/Bogota` usando `Intl` (no hardcodean desfase), y deciden si toca barrer.
+3. **Recuperación Automática**: Si el worker está apagado a las 16:00, el barrido no se pierde. En la primera vuelta después, detecta que pasó la hora y que hoy no se barrió, y lo hace.
+
+### Variables de Entorno
+
+```bash
+BARRIDO_HORA=16:00              # Hora del barrido (formato 24 h)
+BARRIDO_TZ=America/Bogota       # Zona IANA (resolida con Intl)
+POLL_INTERVAL_MS=300000         # Cada 5 minutos, revisar la cola
+SIN_BARRIDO=1                   # (Opcional) Solo cola, sin barrer
+SIN_COLA=1                      # (Opcional) Solo barrido, sin cola
+```
+
+### Deploy
+
+**Opción 1: Systemd** (recomendado)
+```bash
+sudo cp deploy/worker-precios.service /etc/systemd/system/
+sudo cp deploy/worker-precios.env.example /etc/worker-precios.env
+# Editar /etc/worker-precios.env con valores reales
+sudo chmod 600 /etc/worker-precios.env
+sudo systemctl daemon-reload
+sudo systemctl enable --now worker-precios
+```
+
+**Opción 2: Cron**
+```bash
+sudo cp deploy/worker-precios.cron /etc/cron.d/worker-precios
+sudo cp deploy/worker-precios.env.example /etc/worker-precios.env
+sudo chmod 600 /etc/worker-precios.env
+```
+
+**Nota**: El barrido lo decide el worker leyendo la hora correcta, **no el scheduler**. Por eso no hay una línea de cron «a las 16:00 barre» — evita contradicciones si el servidor cambia de zona horaria.
+
+### Ver Logs
+
+```bash
+# Systemd
+journalctl -u worker-precios -f
+
+# Cron
+tail -f /var/log/worker-precios.log
+```
 
 ---
 
@@ -317,6 +377,8 @@ CREATE INDEX idx_precios_jobs_empresa ON precios_jobs(empresa_id);
 
 - **PRD §8**: Botón de actualización de precios, solo super_admin.
 - **D27**: Patrón de jobs (import_jobs) — reutilizado aquí.
+- **D30**: Cola de jobs (precios_jobs).
+- **D31**: Barrido diario automático a las 16:00 Bogotá.
 - **Yahoo Finance API**: Documentación interna en `src/lib/yahoo-finance.js`.
 
 ---
@@ -325,3 +387,4 @@ CREATE INDEX idx_precios_jobs_empresa ON precios_jobs(empresa_id);
 **Estado**: ✅ Completado  
 **Pruebas**: 22/22 pasadas  
 **Build**: ✅ Sin errores  
+**Deploy**: Pendiente (Supabase migrate push + Edge Function + worker en EC2 + env vars)

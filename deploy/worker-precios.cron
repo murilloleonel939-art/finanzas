@@ -1,0 +1,48 @@
+# FinanzAdmin Pro — worker de precios vía cron
+#
+# Alternativa a systemd (deploy/worker-precios.service) si el EC2 ya usa cron
+# para todo. Instalación:
+#
+#   sudo cp deploy/worker-precios.cron /etc/cron.d/worker-precios
+#   sudo chmod 644 /etc/cron.d/worker-precios
+#   # los secretos van en /etc/worker-precios.env, no aquí:
+#   sudo chmod 600 /etc/worker-precios.env
+#
+# **Qué hace este archivo y qué NO hace:**
+#
+# El cron solo decide *cuándo despertar al worker*; no sabe nada del barrido
+# diario. Se despierta cada 5 minutos para atender la cola del botón (D30), que
+# es lo que necesita respuesta rápida.
+#
+# Quién decide si toca barrer es el propio worker, con `tocaBarrer()` (D31):
+# mira la hora de Bogotá y si `precios_barridos` ya tiene la fila de hoy. Por eso
+# este cron NO lleva una línea «a las 16:00 barre»: sería una segunda fuente de
+# verdad sobre la hora del barrido, y bastaría con que el servidor estuviera en
+# otra zona horaria para que las dos se contradijeran.
+#
+# Ventaja de dejarlo así: si el EC2 está apagado a las 16:00, el barrido no se
+# pierde. En la primera vuelta después del arranque el worker ve que ya pasó la
+# hora y que hoy no se ha barrido, y lo hace.
+
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+# TZ solo para las marcas de tiempo del log; el barrido usa 'America/Bogota'
+# explícito vía Intl y no depende de esta variable.
+TZ=America/Bogota
+
+# Cola del botón: cada 5 minutos, una vuelta y salir.
+#
+# `UNA_VEZ=1` no significa «barrer cada 5 minutos»: el barrido sigue siendo uno
+# al día porque el worker consulta `precios_barridos` antes de barrer. Un
+# proceso nuevo sin memoria en RAM lo resuelve con la fila de la base.
+#
+# Tres detalles que hay que respetar en esta línea:
+#   - `set -a; . env; set +a` — un `. archivo` a secas define las variables pero
+#     NO las exporta, así que node no las vería y el worker saldría con
+#     «Faltan variables de entorno: SUPABASE_URL».
+#   - `env UNA_VEZ=1 node …` — `flock` ejecuta un binario, no una orden de
+#     shell, así que `UNA_VEZ=1` tiene que ir por `env` y no delante de flock.
+#   - `flock -n` evita solapes: si una vuelta tarda más de 5 minutos (un barrido
+#     de cientos de activos puede hacerlo), la siguiente se descarta en vez de
+#     duplicar las peticiones a Yahoo.
+*/5 * * * * root set -a; . /etc/worker-precios.env; set +a; flock -n /var/lock/worker-precios.lock /usr/bin/env UNA_VEZ=1 /usr/bin/node /opt/finanzadmin/worker-precios.mjs >> /var/log/worker-precios.log 2>&1

@@ -535,3 +535,46 @@ devuelve el job. El worker de EC2 hace el trabajo.
 Reutiliza el patrón ya probado en D27 (`import_jobs`).
 
 **Dónde vive:** `supabase/migrations/0009_precios_jobs.sql`, `supabase/functions/actualizar-precios/index.ts`, `worker-precios.mjs`.
+
+## D31 — El barrido de precios es diario, no cada vuelta
+
+El worker actualiza **todos los activos una sola vez al día** a las 16:00 de Colombia (después
+del cierre de mercados de EE. UU., en cualquier horario de verano/invierno). La cola del botón
+(D30) se atiende cada 5 minutos.
+
+**Problema anterior:** El worker barría **cada 5 minutos** (~288 barridos al día), escribiendo casi
+siempre el mismo precio. Desperdiciaba cuota de Yahoo Finance.
+
+**Solución:**
+1. **Nueva tabla `precios_barridos`** (migración 0010): Una fila por día con índice único por fecha.
+   Si dos workers arrancan a la vez, el segundo choca con el índice y se retira.
+2. **Funciones puras en `src/lib/programacion.js`**: Calculan la hora en `America/Bogota` usando
+   `Intl` (no hardcodean desfase), y deciden si toca barrer: `partesEnZona()`, `tocaBarrer()`.
+3. **Recuperación automática**: Si el worker está apagado a las 16:00, el barrido no se pierde. En
+   la primera vuelta después, detecta que pasó la hora y que hoy no hay fila en `precios_barridos`,
+   y retoma el trabajo.
+
+**Variables de entorno nuevas:**
+```bash
+BARRIDO_HORA=16:00           # Hora del barrido (formato 24 h)
+BARRIDO_TZ=America/Bogota    # Zona IANA (resuelta con Intl)
+SIN_BARRIDO=1                # (Opcional) Solo atiende cola
+SIN_COLA=1                   # (Opcional) Solo barre
+```
+
+**Deploy:**
+- Systemd: `deploy/worker-precios.service` + `/etc/worker-precios.env` (recomendado).
+- Cron: `deploy/worker-precios.cron` + `/etc/worker-precios.env` (alternativa).
+
+**Importante:** El barrido lo decide el worker leyendo la hora en la zona correcta, **no el
+scheduler (cron/systemd)**. Por eso no hay una línea «a las 16:00 barre» en el cron — evita
+contradicciones si el servidor cambia de zona horaria. El cron solo despierta al worker cada 5
+minutos; es el worker quien mira si toca barrer.
+
+**Recuperación de fallos:** Un barrido que muere deja la fila en `procesando`. En la siguiente
+vuelta (5 min después), `recuperarBarridosColgados()` borra filas de hace 30+ minutos en estado
+`procesando`, liberando espacio para reintentar.
+
+**Dónde vive:** `src/lib/programacion.js`, `src/lib/precios-datos.js` (métodos nuevos),
+`worker-precios.mjs` (lógica de `intentarBarrido()` y guard en `vuelta()`),
+`supabase/migrations/0010_precios_barridos.sql`, `deploy/worker-precios.{service,cron,env.example}`.

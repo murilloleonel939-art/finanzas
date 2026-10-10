@@ -251,6 +251,100 @@ export function crearPreciosDatos(supabase) {
     return unicos
   }
 
+  // ========================================================================
+  // BARRIDO DIARIO (D31)
+  // ========================================================================
+
+  /**
+   * Fecha del último barrido **completado**, o null si nunca ha habido uno.
+   *
+   * Solo cuentan los `hecho`: un barrido que falló no debe contar como «ya se
+   * barrió hoy», porque entonces un error dejaría a todas las empresas sin
+   * precios hasta el día siguiente.
+   *
+   * @returns {Promise<string|null>} 'YYYY-MM-DD'
+   */
+  async function obtenerUltimoBarridoHecho() {
+    const { data, error } = await supabase
+      .from('precios_barridos')
+      .select('fecha')
+      .eq('estado', 'hecho')
+      .order('fecha', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (error) throw new Error(`Error leyendo el último barrido: ${error.message}`)
+    return data?.fecha ?? null
+  }
+
+  /**
+   * Aparta el barrido de una fecha. Devuelve false si esa fecha ya está tomada.
+   *
+   * Se inserta la fila **antes** de barrer, en estado `procesando`, y se confía
+   * en el índice único para la exclusión: si dos workers arrancan a la misma
+   * hora, el segundo recibe el choque y se retira sin llamar a Yahoo. Comprobar
+   * «¿existe ya?» y luego insertar tendría una carrera entre ambas consultas.
+   *
+   * Ojo: esto no es una transacción de Postgres entre el insert y el barrido.
+   * Si el worker muere a mitad, la fila queda en `procesando` y bloquea el día
+   * entero — lo destapa `recuperarBarridosColgados()`.
+   *
+   * @param {string} fecha 'YYYY-MM-DD' en la zona del negocio
+   * @returns {Promise<boolean>} true si este proceso se queda con el barrido
+   */
+  async function apartarBarrido(fecha) {
+    const { error } = await supabase
+      .from('precios_barridos')
+      .insert({ fecha, estado: 'procesando' })
+
+    if (!error) return true
+
+    // 23505 = unique_violation: otro worker ya apartó el barrido de hoy.
+    if (error.code === '23505') return false
+
+    throw new Error(`Error apartando el barrido: ${error.message}`)
+  }
+
+  /**
+   * Cierra el registro del barrido del día.
+   * @param {string} fecha
+   * @param {Object} campos
+   */
+  async function cerrarBarrido(fecha, campos) {
+    const { error } = await supabase
+      .from('precios_barridos')
+      .update({ ...campos, finished_at: new Date().toISOString() })
+      .eq('fecha', fecha)
+
+    if (error) throw new Error(`Error cerrando el barrido: ${error.message}`)
+  }
+
+  /**
+   * Libera los barridos que quedaron en `procesando` demasiado tiempo.
+   *
+   * Sin esto, un worker que muere a mitad de barrido deja la fila de hoy en
+   * `procesando` y `obtenerUltimoBarridoHecho()` no la ve como hecha, pero el
+   * índice único impide volver a apartarla: el barrido no correría nunca más.
+   * Borrar la fila es lo correcto frente a marcarla `error`, porque permite
+   * rehacer el barrido del día en la siguiente vuelta.
+   *
+   * @param {number} [minutos] antigüedad mínima para considerarlo colgado
+   * @returns {Promise<number>} cuántos liberó
+   */
+  async function recuperarBarridosColgados(minutos = 30) {
+    const limite = new Date(Date.now() - minutos * 60 * 1000).toISOString()
+
+    const { data, error } = await supabase
+      .from('precios_barridos')
+      .delete()
+      .eq('estado', 'procesando')
+      .lt('started_at', limite)
+      .select('fecha')
+
+    if (error) throw new Error(`Error recuperando barridos colgados: ${error.message}`)
+    return data?.length ?? 0
+  }
+
   return {
     obtenerPrecioActual,
     obtenerHistorialPrecios,
@@ -260,6 +354,10 @@ export function crearPreciosDatos(supabase) {
     obtenerActivosParaActualizar,
     obtenerTodosActivosParaActualizar,
     obtenerTickersUnicos,
+    obtenerUltimoBarridoHecho,
+    apartarBarrido,
+    cerrarBarrido,
+    recuperarBarridosColgados,
   }
 }
 

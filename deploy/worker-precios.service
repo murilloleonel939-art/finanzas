@@ -1,0 +1,60 @@
+# FinanzAdmin Pro — worker de precios (systemd)
+#
+# Instalación en el EC2:
+#   1. Copiar este archivo a /etc/systemd/system/worker-precios.service
+#   2. Crear /etc/worker-precios.env con SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY
+#      (chmod 600, dueño root: los secretos no van en este archivo, que sí se
+#      versiona)
+#   3. systemctl daemon-reload
+#   4. systemctl enable --now worker-precios
+#
+# Ver los logs:
+#   journalctl -u worker-precios -f
+
+[Unit]
+Description=FinanzAdmin — worker de precios (cola + barrido diario)
+Documentation=https://github.com/murilloleonel939-art/finanzas
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/finanzadmin
+
+# Los secretos viven fuera del repo. `EnvironmentFile` los inyecta sin que
+# aparezcan en `systemctl show` ni en el historial del shell.
+EnvironmentFile=/etc/worker-precios.env
+
+# TZ solo afecta a la legibilidad de los logs y a la fecha de hoyLocal(). El
+# cálculo del barrido NO depende de esto: usa `Intl` con 'America/Bogota'
+# explícito (src/lib/programacion.js). Se pone igual para que un
+# `journalctl -u worker-precios` muestre horas de Bogotá y no UTC.
+Environment=TZ=America/Bogota
+
+# Hora del barrido diario, en la zona de arriba. Se puede cambiar sin tocar el
+# código: BARRIDO_HORA=15:30
+Environment=BARRIDO_HORA=16:00
+Environment=BARRIDO_TZ=America/Bogota
+
+# El worker atiende la cola del botón cada 5 minutos.
+Environment=POLL_INTERVAL_MS=300000
+
+ExecStart=/usr/bin/node worker-precios.mjs
+
+# Si el proceso muere (OOM, caída de red, excepción no capturada), systemd lo
+# levanta. Con esto, un barrido que se pierde a las 16:00 se recupera en cuanto
+# el proceso vuelve: `tocaBarrer()` mira «ya pasó la hora y hoy no se ha
+# barrido», no el minuto exacto.
+Restart=always
+RestartSec=10
+
+# El worker no necesita privilegios.
+NoNewPrivileges=true
+PrivateTmp=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=worker-precios
+
+[Install]
+WantedBy=multi-user.target
