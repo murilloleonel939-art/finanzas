@@ -23,7 +23,7 @@ de verificar que quien llama es un `super_admin` activo.
    ```
    El `<project-ref>` es el identificador que aparece en la URL del dashboard:
    `https://supabase.com/dashboard/project/<project-ref>`. En este repo el
-   proyecto apunta a `obxedjpnusceyizcdbvc` (está en `.env.local`).
+   proyecto apunta a `obxedjpnuscyeizcdbvc` (está en `.env.local`).
 3. **SMTP propio configurado** (decisión D10). Sin esto las invitaciones no
    llegan: el correo integrado de Supabase está limitado a ~2/hora y solo
    entrega de forma fiable a miembros del equipo. Ver
@@ -34,8 +34,8 @@ de verificar que quien llama es un `super_admin` activo.
 Desde la raíz del repo:
 
 ```bash
-supabase functions deploy invitar-usuario    --project-ref obxedjpnusceyizcdbvc
-supabase functions deploy actualizar-usuario --project-ref obxedjpnusceyizcdbvc
+supabase functions deploy invitar-usuario    --project-ref obxedjpnuscyeizcdbvc
+supabase functions deploy actualizar-usuario --project-ref obxedjpnuscyeizcdbvc
 ```
 
 O las dos de una vez, si el proyecto está enlazado:

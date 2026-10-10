@@ -60,6 +60,12 @@ console.log('\n🗄️  Migraciones (FASE 20 + 21)')
 existe('supabase/migrations/0011_admin_logs.sql', '0011 admin_logs')
 existe('supabase/migrations/0012_admin_config.sql', '0012 admin_config')
 existe('supabase/migrations/0013_notificaciones.sql', '0013 notificaciones')
+existe('supabase/migrations/0014_empresas_select_sin_autoconsulta.sql', '0014 empresas_select sin autoconsulta')
+ausente(
+  ['supabase/migrations/0014_empresas_select_sin_autoconsulta.sql'],
+  'has_empresa_access(id)',
+  'empresas_select no autoconsulta la fila (rompia el RETURNING del INSERT)'
+)
 ausente(
   ['supabase/migrations/0011_admin_logs.sql', 'supabase/migrations/0012_admin_config.sql',
    'supabase/migrations/0013_notificaciones.sql'],

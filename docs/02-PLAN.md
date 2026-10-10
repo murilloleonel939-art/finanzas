@@ -616,8 +616,8 @@ wallets:
 
 1. **Desplegar las Edge Functions** (necesarias para FASE 10). Requiere `supabase login`:
    ```bash
-   supabase functions deploy invitar-usuario    --project-ref obxedjpnusceyizcdbvc
-   supabase functions deploy actualizar-usuario --project-ref obxedjpnusceyizcdbvc
+   supabase functions deploy invitar-usuario    --project-ref obxedjpnuscyeizcdbvc
+   supabase functions deploy actualizar-usuario --project-ref obxedjpnuscyeizcdbvc
    ```
 2. **Configurar SMTP propio** (Project Settings → Auth → SMTP). Sin esto el correo de
    invitación no llega.
