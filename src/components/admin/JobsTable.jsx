@@ -1,76 +1,68 @@
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { formatearFecha, getEtiquetaEstado, getColorEstado } from '@/lib/admin-utils'
 
 /**
- * Tabla de jobs de precios
+ * Tabla de jobs de precios.
+ *
+ * Los campos son los de `precios_jobs` (migración 0009): `creado_en` /
+ * `terminado_en` vienen ya normalizados por la Edge Function `admin-list-jobs`,
+ * que traduce `created_at` / `finished_at`.
+ *
+ * Se usa una tabla HTML plana y no el componente `Table` de ui/: aquí hacen
+ * falta columnas de desglose (actualizados / total) y el wrapper añadía más
+ * ruido que ayuda.
  */
 export default function JobsTable({ jobs, loading }) {
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <p className="text-sm text-muted-foreground">Cargando jobs...</p>
-      </div>
-    )
+    return <p className="py-8 text-center text-sm text-muted-foreground">Cargando jobs…</p>
   }
 
   if (!jobs || jobs.length === 0) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <p className="text-sm text-muted-foreground">Sin jobs</p>
-      </div>
-    )
+    return <p className="py-8 text-center text-sm text-muted-foreground">Sin jobs.</p>
   }
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>ID</TableHead>
-            <TableHead>Empresa</TableHead>
-            <TableHead>Símbolo</TableHead>
-            <TableHead>Estado</TableHead>
-            <TableHead>Creado</TableHead>
-            <TableHead>Completado</TableHead>
-            <TableHead>Errores</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+    <div className="overflow-x-auto rounded-md border">
+      <table className="w-full text-sm">
+        <thead className="border-b bg-muted/40">
+          <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <th className="px-3 py-2 font-medium">Empresa</th>
+            <th className="px-3 py-2 font-medium">Estado</th>
+            <th className="px-3 py-2 font-medium">Actualizados</th>
+            <th className="px-3 py-2 font-medium">Errores</th>
+            <th className="px-3 py-2 font-medium">Creado</th>
+            <th className="px-3 py-2 font-medium">Terminado</th>
+          </tr>
+        </thead>
+        <tbody>
           {jobs.map((job) => (
-            <TableRow key={job.id}>
-              <TableCell className="font-mono text-xs">{job.id}</TableCell>
-              <TableCell className="text-sm">{job.empresa_nombre}</TableCell>
-              <TableCell className="font-mono text-sm">{job.simbolo}</TableCell>
-              <TableCell>
+            <tr key={job.id} className="border-b last:border-b-0">
+              <td className="px-3 py-2">{job.empresa_nombre}</td>
+              <td className="px-3 py-2">
                 <Badge className={getColorEstado(job.estado)}>
                   {getEtiquetaEstado(job.estado)}
                 </Badge>
-              </TableCell>
-              <TableCell className="text-xs text-muted-foreground">
-                {formatearFecha(job.creado_en)}
-              </TableCell>
-              <TableCell className="text-xs text-muted-foreground">
-                {job.completado_en ? formatearFecha(job.completado_en) : '-'}
-              </TableCell>
-              <TableCell>
-                {job.errores_count > 0 ? (
-                  <span className="font-semibold text-red-600">{job.errores_count}</span>
+              </td>
+              <td className="px-3 py-2 tabular-nums">
+                {job.activos_actualizados} / {job.activos_totales}
+              </td>
+              <td className="px-3 py-2 tabular-nums">
+                {job.errores > 0 ? (
+                  <span className="font-medium text-destructive">{job.errores}</span>
                 ) : (
-                  <span className="text-green-600">0</span>
+                  <span className="text-muted-foreground">0</span>
                 )}
-              </TableCell>
-            </TableRow>
+              </td>
+              <td className="px-3 py-2 text-xs text-muted-foreground">
+                {formatearFecha(job.creado_en)}
+              </td>
+              <td className="px-3 py-2 text-xs text-muted-foreground">
+                {job.terminado_en ? formatearFecha(job.terminado_en) : '—'}
+              </td>
+            </tr>
           ))}
-        </TableBody>
-      </Table>
+        </tbody>
+      </table>
     </div>
   )
 }

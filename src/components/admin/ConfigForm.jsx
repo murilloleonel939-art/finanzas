@@ -3,7 +3,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { useState } from 'react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 
 /**
  * Formulario para configuración del sistema
@@ -61,15 +60,15 @@ export default function ConfigForm({ config, onGuardar, guardando }) {
   return (
     <div className="space-y-6">
       {mensaje && (
-        <Alert className="bg-green-50 border-green-200">
-          <AlertDescription className="text-green-800">{mensaje}</AlertDescription>
-        </Alert>
+        <div className="rounded-md border border-ingreso/30 bg-ingreso/5 px-4 py-3 text-sm">
+          {mensaje}
+        </div>
       )}
       
       {error && (
-        <Alert className="bg-red-50 border-red-200">
-          <AlertDescription className="text-red-800">{error}</AlertDescription>
-        </Alert>
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
       )}
 
       {Object.entries(grupos).map(([grupo, items]) => (

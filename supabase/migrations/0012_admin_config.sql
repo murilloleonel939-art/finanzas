@@ -10,8 +10,8 @@ CREATE TABLE admin_config (
   grupo VARCHAR(100), -- sistema, email, cron, integraciones
   editable BOOLEAN DEFAULT TRUE,
   actualizado_por UUID REFERENCES auth.users(id),
-  updated_at TIMESTAMP DEFAULT NOW(),
-  created_at TIMESTAMP DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Índices
@@ -25,32 +25,24 @@ ALTER TABLE admin_config ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "super_admin_view_config" ON admin_config
   FOR SELECT
   USING (
-    auth.uid() IN (
-      SELECT user_id FROM admin_roles WHERE rol = 'super_admin'
-    )
+    public.is_super_admin()
   );
 
 CREATE POLICY "super_admin_update_config" ON admin_config
   FOR UPDATE
   USING (
-    auth.uid() IN (
-      SELECT user_id FROM admin_roles WHERE rol = 'super_admin'
-    )
+    public.is_super_admin()
     AND editable = TRUE
   )
   WITH CHECK (
-    auth.uid() IN (
-      SELECT user_id FROM admin_roles WHERE rol = 'super_admin'
-    )
+    public.is_super_admin()
     AND editable = TRUE
   );
 
 CREATE POLICY "super_admin_insert_config" ON admin_config
   FOR INSERT
   WITH CHECK (
-    auth.uid() IN (
-      SELECT user_id FROM admin_roles WHERE rol = 'super_admin'
-    )
+    public.is_super_admin()
   );
 
 -- No permitir eliminación de configuración
@@ -78,7 +70,7 @@ CREATE OR REPLACE FUNCTION update_config(
 RETURNS BOOLEAN AS $$
 BEGIN
   -- Verificar que el usuario sea super_admin
-  IF NOT (auth.uid() IN (SELECT user_id FROM admin_roles WHERE rol = 'super_admin')) THEN
+  IF NOT (public.is_super_admin()) THEN
     RAISE EXCEPTION 'Solo super_admin puede actualizar configuración';
   END IF;
 
@@ -105,7 +97,7 @@ RETURNS TABLE(
   descripcion TEXT,
   grupo VARCHAR(100),
   editable BOOLEAN,
-  updated_at TIMESTAMP
+  updated_at TIMESTAMPTZ
 ) AS $$
 BEGIN
   RETURN QUERY

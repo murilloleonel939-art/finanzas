@@ -424,7 +424,8 @@ export default function BrokerDetail() {
                 </Button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="border-b bg-muted/50">
                     <tr>
@@ -508,7 +509,11 @@ export default function BrokerDetail() {
                   <Plus className="w-4 h-4" />
                   Añadir activo
                 </Button>
-              </div>
+                </div>
+              </>
+            )}
+          </Card>
+        )}
 
         {/* ---- Precios ---- */}
         {pestana === 'precios' && (
@@ -525,7 +530,8 @@ export default function BrokerDetail() {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="border-b bg-muted/50">
                     <tr>
@@ -590,6 +596,10 @@ export default function BrokerDetail() {
                   disabled={precios.length === 0}
                 />
               </div>
+              </>
+            )}
+          </Card>
+        )}
       </div>
 
       <ConfirmDialog

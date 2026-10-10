@@ -96,9 +96,8 @@ export default function AdminJobs() {
             <option value="">Todos los estados</option>
             <option value="pendiente">Pendiente</option>
             <option value="procesando">Procesando</option>
-            <option value="completado">Completado</option>
+            <option value="hecho">Hecho</option>
             <option value="error">Error</option>
-            <option value="cancelado">Cancelado</option>
           </select>
         </div>
       </Card>
@@ -112,13 +111,13 @@ export default function AdminJobs() {
           </Card>
           <Card className="p-4">
             <p className="text-xs text-muted-foreground">Tasa de Éxito</p>
-            <p className="text-2xl font-bold mt-1 text-green-600">
+            <p className="text-2xl font-bold mt-1 text-ingreso">
               {estadisticas.exito_rate}%
             </p>
           </Card>
           <Card className="p-4">
             <p className="text-xs text-muted-foreground">Tasa de Error</p>
-            <p className="text-2xl font-bold mt-1 text-red-600">
+            <p className="text-2xl font-bold mt-1 text-destructive">
               {estadisticas.error_rate}%
             </p>
           </Card>

@@ -1,5 +1,5 @@
 import { NavLink, Outlet, Link } from 'react-router-dom'
-import { LayoutDashboard, Building2, Users, Wallet, LogOut, Zap, FileText, Settings, Briefcase } from 'lucide-react'
+import { LayoutDashboard, Building2, Users, Wallet, LogOut, Zap, FileText, Settings, Briefcase, Mail } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -25,6 +25,7 @@ const enlaces = [
   { to: '/admin/admin-brokers', icono: Briefcase, texto: 'Admin Brokers' },
   { to: '/admin/jobs', icono: Zap, texto: 'Jobs' },
   { to: '/admin/logs', icono: FileText, texto: 'Logs' },
+  { to: '/admin/notificaciones', icono: Mail, texto: 'Notificaciones' },
   { to: '/admin/config', icono: Settings, texto: 'Configuración' },
 ]
 

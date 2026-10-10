@@ -1,245 +1,118 @@
-import { createClient } from '@supabase/supabase-js'
+// =====================================================================
+// FASE 20: Leer y actualizar configuración (Edge Function `admin-config`)
+// =====================================================================
+// GET  /admin-config          -> todas las claves, agrupadas
+// GET  /admin-config?clave=X  -> una sola
+// POST /admin-config          -> { clave, valor } actualiza y audita
+//
+// Se usa service_role tras requireSuperAdmin porque admin_config tiene RLS:
+// una escritura desde el navegador fallaría aunque el usuario sea admin.
 
-const supabase = createClient(
-  Deno.env.get('SUPABASE_URL'),
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-)
+import { requireSuperAdmin } from '../_shared/auth.ts'
+import { json, corsHeaders } from '../_shared/cors.ts'
 
-// Verificar si el usuario es super_admin
-async function verificarSuperAdmin(authHeader) {
-  const token = authHeader.replace('Bearer ', '')
-  const { data: { user }, error } = await supabase.auth.getUser(token)
-  
-  if (error || !user) {
-    throw new Error('No autenticado')
-  }
-
-  const { data: adminRole, error: roleError } = await supabase
-    .from('admin_roles')
-    .select('rol')
-    .eq('user_id', user.id)
-    .eq('rol', 'super_admin')
-    .single()
-
-  if (roleError || !adminRole) {
-    throw new Error('Acceso denegado: requiere super_admin')
-  }
-
-  return user
-}
-
-// Validar tipos de datos
-function validarTipo(valor, tipo) {
+/** Comprueba que el valor encaja con el tipo declarado en la tabla. */
+function validarTipo(valor: string, tipo: string): string | null {
   switch (tipo) {
-    case 'string':
-      return typeof valor === 'string'
     case 'integer':
-      return Number.isInteger(Number(valor))
+      return Number.isInteger(Number(valor)) ? null : 'debe ser un número entero'
     case 'boolean':
-      return valor === 'true' || valor === 'false' || typeof valor === 'boolean'
+      return valor === 'true' || valor === 'false' ? null : 'debe ser true o false'
     case 'json':
       try {
-        JSON.parse(typeof valor === 'string' ? valor : JSON.stringify(valor))
-        return true
+        JSON.parse(valor)
+        return null
       } catch {
-        return false
+        return 'debe ser JSON válido'
       }
+    case 'string':
+      return valor.trim() === '' ? 'no puede estar vacío' : null
     default:
-      return true
+      return null
   }
 }
 
-// Obtener configuración
-async function getConfig(clave = null) {
-  try {
-    let query = supabase
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders })
+  }
+
+  const auth = await requireSuperAdmin(req)
+  if (!auth.ok) return json({ error: auth.mensaje }, auth.status)
+  const { admin, userId } = auth.ctx
+
+  const url = new URL(req.url)
+
+  if (req.method === 'GET') {
+    const clave = url.searchParams.get('clave')
+
+    // Dos consultas separadas y no una variable reasignada: `maybeSingle()`
+    // cambia el tipo de retorno y TypeScript no admite la reasignación.
+    const comun = admin
       .from('admin_config')
       .select('id, clave, valor, tipo, descripcion, grupo, editable, updated_at')
 
-    if (clave) {
-      query = query.eq('clave', clave).single()
-    } else {
-      query = query.order('grupo').order('clave')
-    }
+    const { data, error } = clave
+      ? await comun.eq('clave', clave).maybeSingle()
+      : await comun.order('grupo').order('clave')
 
-    const { data, error } = await query
+    if (error) return json({ error: `No se pudo leer la configuración: ${error.message}` }, 500)
+    if (clave && !data) return json({ error: `No existe la clave "${clave}".` }, 404)
 
-    if (error) {
-      throw error
-    }
-
-    return data
-  } catch (error) {
-    console.error('Error obteniendo config:', error)
-    throw error
+    return json({ datos: data, timestamp: new Date().toISOString() })
   }
-}
 
-// Actualizar configuración
-async function updateConfig(clave, valor, tipo, user) {
-  try {
-    // Obtener configuración actual
-    const { data: configActual, error: getError } = await supabase
+  if (req.method === 'POST' || req.method === 'PUT') {
+    let body: { clave?: string; valor?: unknown }
+    try {
+      body = await req.json()
+    } catch {
+      return json({ error: 'El cuerpo no es JSON válido.' }, 400)
+    }
+
+    const { clave } = body
+    if (!clave || body.valor === undefined || body.valor === null) {
+      return json({ error: 'Faltan "clave" y "valor".' }, 400)
+    }
+
+    const { data: actual, error: errLectura } = await admin
       .from('admin_config')
-      .select('*')
+      .select('id, valor, tipo, editable')
       .eq('clave', clave)
+      .maybeSingle()
+
+    if (errLectura) return json({ error: errLectura.message }, 500)
+    if (!actual) return json({ error: `No existe la clave "${clave}".` }, 404)
+    if (!actual.editable) {
+      return json({ error: `La clave "${clave}" es de solo lectura.` }, 400)
+    }
+
+    const valor = String(body.valor)
+    const problema = validarTipo(valor, actual.tipo)
+    if (problema) {
+      return json({ error: `Valor inválido para "${clave}": ${problema}.` }, 400)
+    }
+
+    const { data: actualizado, error: errEscritura } = await admin
+      .from('admin_config')
+      .update({ valor, actualizado_por: userId, updated_at: new Date().toISOString() })
+      .eq('clave', clave)
+      .select('id, clave, valor, tipo, updated_at')
       .single()
 
-    if (getError && getError.code !== 'PGRST116') { // PGRST116 = no rows
-      throw getError
-    }
+    if (errEscritura) return json({ error: errEscritura.message }, 500)
 
-    // Si no existe, crear
-    if (!configActual) {
-      const { data: newConfig, error: insertError } = await supabase
-        .from('admin_config')
-        .insert({
-          clave,
-          valor: String(valor),
-          tipo,
-          actualizado_por: user.id
-        })
-        .select()
-        .single()
-
-      if (insertError) throw insertError
-
-      // Registrar en logs
-      await supabase.from('admin_logs').insert({
-        admin_id: user.id,
-        accion: 'crear',
-        entidad: 'admin_config',
-        entidad_id: newConfig.id,
-        detalles: { clave, valor_anterior: null, valor_nuevo: valor },
-        estado: 'success'
-      })
-
-      return newConfig
-    }
-
-    // Si no es editable, error
-    if (!configActual.editable) {
-      throw new Error(`Configuración "${clave}" no es editable`)
-    }
-
-    // Actualizar
-    const { data: updated, error: updateError } = await supabase
-      .from('admin_config')
-      .update({
-        valor: String(valor),
-        tipo: tipo || configActual.tipo,
-        actualizado_por: user.id,
-        updated_at: new Date().toISOString()
-      })
-      .eq('clave', clave)
-      .select()
-      .single()
-
-    if (updateError) throw updateError
-
-    // Registrar en logs
-    await supabase.from('admin_logs').insert({
-      admin_id: user.id,
-      accion: 'actualizar',
+    await admin.from('admin_logs').insert({
+      admin_id: userId,
+      accion: 'cambiar_config',
       entidad: 'admin_config',
-      entidad_id: updated.id,
-      detalles: { clave, valor_anterior: configActual.valor, valor_nuevo: valor },
-      estado: 'success'
+      entidad_id: String(actualizado.id),
+      detalles: { clave, valor_anterior: actual.valor, valor_nuevo: valor },
+      estado: 'success',
     })
 
-    return updated
-  } catch (error) {
-    console.error('Error actualizando config:', error)
-    throw error
-  }
-}
-
-// Handler principal
-Deno.serve(async (req) => {
-  // CORS
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
-        'Access-Control-Allow-Headers': 'authorization, content-type',
-      },
-    })
+    return json({ mensaje: 'Configuración actualizada.', datos: actualizado })
   }
 
-  try {
-    // Verificar autenticación
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Authorization header requerido' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      })
-    }
-
-    const user = await verificarSuperAdmin(authHeader)
-    const url = new URL(req.url)
-
-    // GET: Obtener configuración
-    if (req.method === 'GET') {
-      const clave = url.searchParams.get('clave')
-      
-      // Registrar acceso
-      await supabase.from('admin_logs').insert({
-        admin_id: user.id,
-        accion: 'ver',
-        entidad: 'admin_config',
-        detalles: { clave },
-        estado: 'success'
-      })
-
-      const config = await getConfig(clave)
-      
-      return new Response(JSON.stringify({
-        datos: config,
-        timestamp: new Date().toISOString()
-      }), {
-        headers: { 'Content-Type': 'application/json' }
-      })
-    }
-
-    // POST/PUT: Actualizar configuración
-    if (req.method === 'POST' || req.method === 'PUT') {
-      const body = await req.json()
-      const { clave, valor, tipo } = body
-
-      if (!clave || valor === undefined) {
-        throw new Error('Parámetros requeridos: clave, valor')
-      }
-
-      if (!validarTipo(valor, tipo || 'string')) {
-        throw new Error(`Valor inválido para tipo ${tipo || 'string'}`)
-      }
-
-      const actualizado = await updateConfig(clave, valor, tipo, user)
-
-      return new Response(JSON.stringify({
-        mensaje: 'Configuración actualizada',
-        datos: actualizado,
-        timestamp: new Date().toISOString()
-      }), {
-        headers: { 'Content-Type': 'application/json' }
-      })
-    }
-
-    throw new Error(`Método ${req.method} no permitido`)
-  } catch (error) {
-    console.error('Error:', error.message)
-    
-    return new Response(JSON.stringify({ 
-      error: error.message,
-      timestamp: new Date().toISOString()
-    }), {
-      status: error.message.includes('Acceso denegado') ? 403 
-             : error.message.includes('no es editable') ? 400
-             : error.message.includes('no permitido') ? 405
-             : 500,
-      headers: { 'Content-Type': 'application/json' }
-    })
-  }
+  return json({ error: `Método ${req.method} no permitido.` }, 405)
 })

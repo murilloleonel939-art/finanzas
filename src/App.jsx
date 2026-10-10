@@ -22,6 +22,9 @@ import AdminJobs from './pages/AdminJobs.jsx'
 import AdminLogs from './pages/AdminLogs.jsx'
 import AdminConfig from './pages/AdminConfig.jsx'
 
+// FASE 21: Notificaciones por email
+import AdminNotificaciones from './pages/AdminNotificaciones.jsx'
+
 // Workspace y empresa (FASE 12)
 import Workspace from './pages/Workspace.jsx'
 import EmpresaOverview from './pages/EmpresaOverview.jsx'
@@ -87,6 +90,8 @@ export default function App() {
         <Route path="jobs" element={<AdminJobs />} />
         <Route path="logs" element={<AdminLogs />} />
         <Route path="config" element={<AdminConfig />} />
+        {/* FASE 21: Notificaciones */}
+        <Route path="notificaciones" element={<AdminNotificaciones />} />
       </Route>
 
       {/* --- Empresa (FASES 12-16) --- */}

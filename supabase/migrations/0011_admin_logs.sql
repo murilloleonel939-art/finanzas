@@ -23,14 +23,20 @@ CREATE TABLE admin_logs (
   admin_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE SET NULL,
   accion admin_accion NOT NULL,
   entidad VARCHAR(255) NOT NULL,
-  entidad_id BIGINT,
+  -- TEXT y no UUID/BIGINT: `entidad` es polimórfica y apunta a tablas con
+  -- claves de distinto tipo (empresas/precios_jobs usan uuid; notificaciones,
+  -- bigserial). Un tipo fijo haría fallar la mitad de los registros.
+  entidad_id TEXT,
   detalles JSONB,
   ip_address INET,
   user_agent TEXT,
   estado VARCHAR(50) DEFAULT 'success', -- success, error, pending
   mensaje_error TEXT,
   duracion_ms INTEGER,
-  created_at TIMESTAMP DEFAULT NOW()
+  -- timestamptz, no timestamp: el resto del esquema (0001-0010) usa
+  -- timestamptz. Con timestamp los logs quedarían en UTC sin marca de zona
+  -- y ordenarían mal frente al resto de tablas.
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Índices para búsquedas y análisis
@@ -51,18 +57,12 @@ ALTER TABLE admin_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "super_admin_view_all_logs" ON admin_logs
   FOR SELECT
   USING (
-    auth.uid() IN (
-      SELECT user_id FROM admin_roles WHERE rol = 'super_admin'
-    )
+    public.is_super_admin()
   );
 
-CREATE POLICY "auditor_view_all_logs" ON admin_logs
-  FOR SELECT
-  USING (
-    auth.uid() IN (
-      SELECT user_id FROM admin_roles WHERE rol = 'auditor'
-    )
-  );
+-- El rol 'auditor' se descartó: el proyecto solo define app_role
+-- ('super_admin','usuario') (decisión D6). Una política que consultara una
+-- tabla admin_roles inexistente no concedería acceso a nadie.
 
 CREATE POLICY "own_logs_view" ON admin_logs
   FOR SELECT
@@ -85,7 +85,7 @@ CREATE POLICY "no_delete_logs" ON admin_logs
 CREATE OR REPLACE FUNCTION registrar_admin_log(
   p_accion admin_accion,
   p_entidad VARCHAR(255),
-  p_entidad_id BIGINT DEFAULT NULL,
+  p_entidad_id TEXT DEFAULT NULL,
   p_detalles JSONB DEFAULT NULL,
   p_estado VARCHAR(50) DEFAULT 'success',
   p_mensaje_error TEXT DEFAULT NULL,
@@ -127,8 +127,8 @@ CREATE OR REPLACE FUNCTION get_admin_logs(
   p_accion admin_accion DEFAULT NULL,
   p_entidad VARCHAR(255) DEFAULT NULL,
   p_estado VARCHAR(50) DEFAULT NULL,
-  p_desde TIMESTAMP DEFAULT NULL,
-  p_hasta TIMESTAMP DEFAULT NULL,
+  p_desde TIMESTAMPTZ DEFAULT NULL,
+  p_hasta TIMESTAMPTZ DEFAULT NULL,
   p_limit INTEGER DEFAULT 100,
   p_offset INTEGER DEFAULT 0
 )
@@ -137,13 +137,13 @@ RETURNS TABLE(
   admin_id UUID,
   accion admin_accion,
   entidad VARCHAR(255),
-  entidad_id BIGINT,
+  entidad_id TEXT,
   detalles JSONB,
   ip_address INET,
   estado VARCHAR(50),
   mensaje_error TEXT,
   duracion_ms INTEGER,
-  created_at TIMESTAMP
+  created_at TIMESTAMPTZ
 ) AS $$
 BEGIN
   RETURN QUERY
@@ -166,9 +166,8 @@ BEGIN
     AND (p_desde IS NULL OR al.created_at >= p_desde)
     AND (p_hasta IS NULL OR al.created_at <= p_hasta)
     AND (
-      -- Super admin ve todo, otros solo sus logs
-      auth.uid() IN (SELECT user_id FROM admin_roles WHERE rol = 'super_admin')
-      OR auth.uid() IN (SELECT user_id FROM admin_roles WHERE rol = 'auditor')
+      -- Super admin ve todo; el resto, solo sus propias acciones.
+      public.is_super_admin()
       OR al.admin_id = auth.uid()
     )
   ORDER BY al.created_at DESC

@@ -1,104 +1,152 @@
 #!/usr/bin/env node
 
 /**
- * FASE 20: Script de verificación
- * Valida que todas las migraciones, Edge Functions y componentes estén en su lugar
+ * Verificación de FASE 20 (panel super admin) y FASE 21 (notificaciones).
+ *
+ * Comprueba que los archivos existen Y que su contenido apunta al esquema
+ * real del proyecto. Lo segundo importa más: la primera versión de la FASE 20
+ * pasaba un chequeo de existencia dando por buenas referencias a una tabla
+ * `admin_roles` que no existe y a columnas que no están en el esquema.
  */
 
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const rootDir = path.join(__dirname, '..')
+const rootDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 
-console.log('🔍 FASE 20: Verificación de integridad\n')
+let ok = 0
+let fallos = 0
 
-let testsPasados = 0
-let testsFallidos = 0
-
-// Utilidades
-function verificarArchivo(ruta, nombre) {
-  const rutaCompleta = path.join(rootDir, ruta)
-  if (fs.existsSync(rutaCompleta)) {
-    console.log(`✅ ${nombre}`)
-    testsPasados++
+function existe(ruta, nombre) {
+  if (fs.existsSync(path.join(rootDir, ruta))) {
+    console.log(`  ✅ ${nombre}`)
+    ok++
     return true
+  }
+  console.log(`  ❌ ${nombre} — falta: ${ruta}`)
+  fallos++
+  return false
+}
+
+/** Quita los comentarios SQL para no confundir prosa con código real. */
+function sinComentarios(sql) {
+  return sql.replace(/--[^\n]*/g, '')
+}
+
+/** Falla si algún archivo contiene `aguja` (referencia a algo inexistente). */
+function ausente(archivos, aguja, nombre) {
+  const culpables = archivos.filter((a) => {
+    const p = path.join(rootDir, a)
+    if (!fs.existsSync(p)) return false
+    // En .sql solo cuenta el código, no los comentarios que explican por qué
+    // se descartó algo: mencionar `admin_roles` al justificar su ausencia es
+    // correcto y no debe marcar el chequeo como fallo.
+    const texto = a.endsWith('.sql')
+      ? sinComentarios(fs.readFileSync(p, 'utf8'))
+      : fs.readFileSync(p, 'utf8')
+    return texto.includes(aguja)
+  })
+  if (culpables.length === 0) {
+    console.log(`  ✅ ${nombre}`)
+    ok++
   } else {
-    console.log(`❌ ${nombre} — NO ENCONTRADO: ${ruta}`)
-    testsFallidos++
-    return false
+    console.log(`  ❌ ${nombre} — aparece en: ${culpables.join(', ')}`)
+    fallos++
   }
 }
 
-function verificarDirectorio(ruta, nombre) {
-  const rutaCompleta = path.join(rootDir, ruta)
-  if (fs.existsSync(rutaCompleta) && fs.statSync(rutaCompleta).isDirectory()) {
-    console.log(`✅ ${nombre}`)
-    testsPasados++
-    return true
+console.log('\n🗄️  Migraciones (FASE 20 + 21)')
+existe('supabase/migrations/0011_admin_logs.sql', '0011 admin_logs')
+existe('supabase/migrations/0012_admin_config.sql', '0012 admin_config')
+existe('supabase/migrations/0013_notificaciones.sql', '0013 notificaciones')
+ausente(
+  ['supabase/migrations/0011_admin_logs.sql', 'supabase/migrations/0012_admin_config.sql',
+   'supabase/migrations/0013_notificaciones.sql'],
+  'admin_roles',
+  'sin referencias a la tabla inexistente admin_roles'
+)
+
+console.log('\n⚡ Edge Functions (FASE 20 + 21)')
+for (const [dir, nombre] of [
+  ['admin-get-stats', 'admin-get-stats'],
+  ['admin-list-jobs', 'admin-list-jobs'],
+  ['admin-list-logs', 'admin-list-logs'],
+  ['admin-update-config', 'admin-update-config'],
+  ['enviar-email', 'enviar-email'],
+]) {
+  existe(`supabase/functions/${dir}/index.ts`, nombre)
+}
+ausente(
+  ['supabase/functions/admin-get-stats/index.ts',
+   'supabase/functions/admin-list-jobs/index.ts',
+   'supabase/functions/admin-list-logs/index.ts',
+   'supabase/functions/admin-update-config/index.ts'],
+  'verificarSuperAdmin',
+  'las Edge Functions usan el requireSuperAdmin compartido'
+)
+ausente(
+  ['supabase/functions/admin-list-jobs/index.ts'],
+  "'completado'",
+  'admin-list-jobs usa el enum estado_job real (hecho, no completado)'
+)
+
+console.log('\n📚 Librerías del cliente')
+existe('src/lib/admin-api.js', 'admin-api.js')
+existe('src/lib/admin-utils.js', 'admin-utils.js')
+
+console.log('\n🧩 Componentes')
+for (const c of ['ConfigForm', 'StatsCard', 'LogsViewer', 'JobsTable']) {
+  existe(`src/components/admin/${c}.jsx`, c)
+}
+existe('src/components/ui/dropdown-menu.jsx', 'dropdown-menu (faltaba desde la FASE 19)')
+
+console.log('\n📄 Páginas')
+for (const p of ['AdminDashboard', 'AdminJobs', 'AdminLogs', 'AdminConfig',
+                 'AdminEmpresas', 'AdminBrokers', 'AdminNotificaciones']) {
+  existe(`src/pages/${p}.jsx`, p)
+}
+
+console.log('\n🔌 Dependencias declaradas')
+const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'))
+for (const dep of ['xlsx', '@radix-ui/react-dropdown-menu', 'nodemailer']) {
+  if (pkg.dependencies?.[dep] || pkg.devDependencies?.[dep]) {
+    console.log(`  ✅ ${dep} en package.json`)
+    ok++
   } else {
-    console.log(`❌ ${nombre} — NO ENCONTRADO: ${ruta}`)
-    testsFallidos++
-    return false
+    console.log(`  ❌ ${dep} NO está en package.json`)
+    fallos++
   }
 }
 
-// Suite 1: Migraciones SQL
-console.log('📊 Suite 1: Migraciones SQL (3 tests)\n')
-verificarArchivo('supabase/migrations/0011_admin_roles.sql', 'Migración 0011: admin_roles')
-verificarArchivo('supabase/migrations/0012_admin_logs.sql', 'Migración 0012: admin_logs')
-verificarArchivo('supabase/migrations/0013_admin_config.sql', 'Migración 0013: admin_config')
+console.log('\n🧭 Ruteo y navegación')
+ausente(['src/lib/admin-api.js'], "from('admin_roles')",
+        'admin-api.js lee el rol de profiles (fuente de verdad real)')
 
-// Suite 2: Edge Functions
-console.log('\n⚡ Suite 2: Edge Functions (4 tests)\n')
-verificarArchivo('supabase/functions/admin-get-stats/index.ts', 'Edge Function: admin-get-stats')
-verificarArchivo('supabase/functions/admin-list-jobs/index.ts', 'Edge Function: admin-list-jobs')
-verificarArchivo('supabase/functions/admin-list-logs/index.ts', 'Edge Function: admin-list-logs')
-verificarArchivo('supabase/functions/admin-update-config/index.ts', 'Edge Function: admin-update-config')
-
-// Suite 3: Librerías JavaScript
-console.log('\n📚 Suite 3: Librerías JavaScript (2 tests)\n')
-verificarArchivo('src/lib/admin-api.js', 'Librería: admin-api.js')
-verificarArchivo('src/lib/admin-utils.js', 'Librería: admin-utils.js')
-
-// Suite 4: Componentes compartidos
-console.log('\n🎨 Suite 4: Componentes compartidos (4 tests)\n')
-verificarArchivo('src/components/admin/ConfigForm.jsx', 'Componente: ConfigForm')
-verificarArchivo('src/components/admin/StatsCard.jsx', 'Componente: StatsCard')
-verificarArchivo('src/components/admin/LogsViewer.jsx', 'Componente: LogsViewer')
-verificarArchivo('src/components/admin/JobsTable.jsx', 'Componente: JobsTable')
-
-// Suite 5: Páginas admin
-console.log('\n📄 Suite 5: Páginas admin (5 tests)\n')
-verificarArchivo('src/pages/AdminDashboard.jsx', 'Página: AdminDashboard (actualizado)')
-verificarArchivo('src/pages/AdminJobs.jsx', 'Página: AdminJobs')
-verificarArchivo('src/pages/AdminLogs.jsx', 'Página: AdminLogs')
-verificarArchivo('src/pages/AdminConfig.jsx', 'Página: AdminConfig')
-verificarArchivo('src/pages/AdminEmpresas.jsx', 'Página: AdminEmpresas (placeholder)')
-verificarArchivo('src/pages/AdminBrokers.jsx', 'Página: AdminBrokers (placeholder)')
-
-// Suite 6: Configuración de ruteo
-console.log('\n🗺️ Suite 6: Configuración (2 tests)\n')
-verificarArchivo('src/App.jsx', 'App.jsx (rutas actualizadas)')
-verificarArchivo('src/components/AdminLayout.jsx', 'AdminLayout.jsx (navegación actualizada)')
-
-// Resumen
-console.log('\n' + '='.repeat(50))
-console.log(`\n📈 RESULTADOS:\n`)
-console.log(`✅ Tests pasados: ${testsPasados}`)
-console.log(`❌ Tests fallidos: ${testsFallidos}`)
-console.log(`📊 Total: ${testsPasados + testsFallidos}`)
-
-if (testsFallidos > 0) {
-  console.log('\n⚠️ Algunos archivos no se encontraron. Revisa los errores arriba.')
-  process.exit(1)
-} else {
-  console.log('\n✅ ¡FASE 20 verificación completada correctamente!')
-  console.log('\n🚀 Próximos pasos:')
-  console.log('1. Revisar migraciones SQL en supabase/migrations/')
-  console.log('2. Testear Edge Functions en local o staging')
-  console.log('3. Verificar componentes en navegador')
-  console.log('4. Probar flujos administrativos completos')
-  process.exit(0)
+const app = fs.readFileSync(path.join(rootDir, 'src/App.jsx'), 'utf8')
+for (const ruta of ['jobs', 'logs', 'config', 'notificaciones']) {
+  if (app.includes(`path="${ruta}"`)) {
+    console.log(`  ✅ ruta /admin/${ruta}`)
+    ok++
+  } else {
+    console.log(`  ❌ falta la ruta /admin/${ruta}`)
+    fallos++
+  }
 }
+
+const layout = fs.readFileSync(path.join(rootDir, 'src/components/AdminLayout.jsx'), 'utf8')
+for (const ruta of ['/admin/jobs', '/admin/logs', '/admin/config', '/admin/notificaciones']) {
+  if (layout.includes(ruta)) {
+    console.log(`  ✅ enlace a ${ruta}`)
+    ok++
+  } else {
+    console.log(`  ❌ falta el enlace a ${ruta}`)
+    fallos++
+  }
+}
+
+console.log('\n' + '─'.repeat(56))
+console.log(`\n✅ ${ok} comprobaciones correctas`)
+if (fallos) console.log(`❌ ${fallos} fallos`)
+console.log(`   Total: ${ok + fallos}\n`)
+process.exit(fallos ? 1 : 0)
