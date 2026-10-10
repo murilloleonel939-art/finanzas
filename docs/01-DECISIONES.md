@@ -446,3 +446,42 @@ La importación de extractos bancarios corre en un **worker Node.js en EC2/Cooli
 **Deduplicación:** por `external_id` (proveedor + número de movimiento), retorna conteo de duplicados evitados.
 
 **Reglas por proveedor:** `PROVIDER_RULES` en `imports-prompts.js` permite adaptar el prompt a Coindepo, Nomina, etc.
+
+## D28 — Precios de mercado: Yahoo Finance + worker polling
+
+La actualización de precios (FASE 18) usa **Yahoo Finance API** con un **worker en Node.js en EC2/Coolify**.
+
+**Por qué Yahoo Finance:**
+- Acciones, ETFs y criptos en un solo endpoint
+- Sin API key (público, rate limits generosos ~200 req/min)
+- Alternativas evaluadas:
+  - Finnhub: acciones y criptos, pero requiere API key ($)
+  - Alpha Vantage: acciones y forex, limitado a 5 req/min (free tier)
+  - Yahoo: mejor relación features/costo/disponibilidad
+
+**Arquitectura:**
+- **Worker Node.js:** corre en EC2/Coolify, polling cada 5 minutos
+- **Endpoint:** `https://query2.finance.yahoo.com/v7/finance/quote`
+- **Normalización:** tickers sin moneda (BTC → BTC-USD), case-insensitive
+- **Batch:** máx 50 tickers por request (recomendación Yahoo)
+- **Upsert:** registra precio solo si cambia; evita duplicados por (activo_id, fecha)
+- **Actualización en cascada:** cada nuevo precio actualiza `activos_broker.valor_unitario`
+
+**Tablas:**
+- `precios_activo`: historial de cierre, anterior, variación %
+- `activos_broker.valor_unitario`: el precio más reciente
+
+**Edge Function:** `actualizar-precios` (POST)
+- Trigger manual opcional de actualización
+- Devuelve estado y timestamp
+- Sin validación de APIs externas (el worker hace el trabajo real)
+
+**Recuperación de errores:**
+- Si un ticker falla, continúa con los demás (sin transacción bloqueante)
+- Logging de errores por ticker para diagnóstico
+- Reintento automático cada 5 minutos (polling natural)
+
+**Limitaciones conocidas:**
+- No hay cron SQL en Supabase Cloud (D13). El worker es el reemplazo.
+- Yahoo no documenta públicamente la API (ingeniería inversa), pero es estable en producción.
+- Requiere `@supabase/supabase-js@2.43.4+` en el worker.

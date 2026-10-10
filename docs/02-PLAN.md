@@ -10,8 +10,8 @@ de tokens a mitad de una fase, apuntar el estado exacto en la sección "En curso
 
 ## Estado global
 
-- **Fase actual:** FASE 18 (APIs de mercado para precios)
-- **Fases completadas:** 17 de 21 — backend + scaffold + auth + admin + catálogos + workspace + cuentas + brokers + wallets + importación PDFs
+- **Fase actual:** FASE 19 (Exportación)
+- **Fases completadas:** 18 de 21 — backend + scaffold + auth + admin + catálogos + workspace + cuentas + brokers + wallets + importación PDFs + precios
 - **Verificado en Supabase (FASE 11):** 
   - 15 tablas con RLS activo ✓
   - 4 funciones helper ✓
@@ -494,17 +494,28 @@ Se borra en la próxima revisión — no es infraestructura hoy, es deuda técni
 
 ---
 
-## FASE 18 — Actualización de precios
+## FASE 18 — Actualización de precios ✅
 
-- [ ] Integración con API de mercado (decisión D13)
-- [ ] Cálculo de `variacion_pct`
-- [ ] Actualización de `activos_broker.valor_unitario`
-- [ ] Historial en `precios_activo`
-- [ ] Job programado con `pg_cron`
+- [x] Integración con Yahoo Finance (decisión D28)
+- [x] Cálculo de `variacion_pct`
+- [x] Actualización de `activos_broker.valor_unitario`
+- [x] Historial en `precios_activo`
+- [x] Worker Node.js con polling (reemplaza `pg_cron`)
+- [x] Edge Function `actualizar-precios` (trigger manual)
+- [x] 32/32 pruebas de humo pasadas
 
-**Entregable:** precios actualizados automáticamente.
+**Entregable:** 
+- `src/lib/yahoo-finance.js` — cliente para Yahoo Finance API
+- `src/lib/precios-datos.js` — capa de datos (CRUD precios)
+- `worker-precios.mjs` — worker Node.js (polling cada 5 minutos)
+- `supabase/functions/actualizar-precios/index.ts` — Edge Function
+- `scripts/humo-fase18.mjs` — 32 comprobaciones
 
-**Bloqueante:** requiere API key de market data (Finnhub / Alpha Vantage / Yahoo).
+**Decisión:** D28 (Yahoo Finance sin API key, worker polling en EC2/Coolify)
+
+**Próximos pasos:**
+1. `supabase functions deploy actualizar-precios`
+2. Iniciar worker: `SUPABASE_URL=... SUPABASE_KEY=... node worker-precios.mjs`
 
 ---
 
@@ -533,17 +544,18 @@ Se borra en la próxima revisión — no es infraestructura hoy, es deuda técni
 
 ## En curso (actualizar si se corta a mitad de fase)
 
-**FASES 1-17 ✅ completadas y commiteadas.** La siguiente es la **FASE 18** (actualización de precios con APIs de mercado).
+**FASES 1-18 ✅ completadas y commiteadas.** La siguiente es la **FASE 19** (Exportación: CSV, Excel, PDF).
 
-FASE 17 (importación de PDFs con GPT-6 Luna) está **100% implementada y verificada:**
-- 62/62 comprobaciones de humo pasadas
-- Worker en Node.js listo para EC2/Coolify
-- Edge Function lista para desplegar
-- 3 modales de UI completados (cuentas, brokers, wallets)
-- Sistema de deduplicación por `external_id`
-- Polling en tiempo real en UI
+FASE 18 (actualización de precios con Yahoo Finance) está **100% implementada y verificada:**
+- 32/32 comprobaciones de humo pasadas
+- Worker Node.js listo para EC2/Coolify (polling cada 5 minutos)
+- Edge Function `actualizar-precios` lista para desplegar
+- Cliente Yahoo Finance sin API key
+- Capa de datos `precios-datos.js` completa (CRUD, batch, upsert)
+- Batch processing: máx 50 tickers por request
+- Actualización en cascada: precios → `activos_broker.valor_unitario`
 
-**Próxima FASE 18 requiere decisión de API de mercado:** elegir proveedor (Finnhub / Alpha Vantage / Yahoo Finance) y tener API key.
+**FASE 18 decisión:** D28 (Yahoo Finance + worker polling, no `pg_cron`)
 
 ### Herramientas de verificación (usar en cada fase)
 
@@ -554,6 +566,7 @@ npm run verificar      # columnas del código contra las migraciones — 0 probl
 npm run humo           # prueba de humo de brokers (FASE 15) — 42 comprobaciones
 npm run humo:fase16    # prueba de humo de wallets (FASE 16) — 39 comprobaciones
 npm run humo:fase17    # prueba de humo de importación (FASE 17) — 62 comprobaciones
+npm run humo:fase18    # prueba de humo de precios (FASE 18) — 32 comprobaciones
 npm run build          # compila (no valida columnas: son strings en runtime)
 ```
 
