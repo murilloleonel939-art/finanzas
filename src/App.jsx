@@ -2,7 +2,6 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import AdminLayout from './components/AdminLayout.jsx'
 import EmpresaLayout from './layouts/EmpresaLayout.jsx'
-import Placeholder from './pages/Placeholder.jsx'
 
 // Auth (FASE 9 — construidas)
 import Login from './pages/Login.jsx'
@@ -33,6 +32,13 @@ import CrearBroker from './pages/CrearBroker.jsx'
 import BrokerDetail from './pages/BrokerDetail.jsx'
 import CrearMovimientoBroker from './pages/CrearMovimientoBroker.jsx'
 import CrearActivo from './pages/CrearActivo.jsx'
+
+// Wallets + Earn (FASE 16)
+import WalletsPage from './pages/WalletsPage.jsx'
+import CrearWalletProvider from './pages/CrearWalletProvider.jsx'
+import CrearWallet from './pages/CrearWallet.jsx'
+import WalletDetail from './pages/WalletDetail.jsx'
+import CrearMovimientoWallet from './pages/CrearMovimientoWallet.jsx'
 
 // Mapa completo de rutas (§11.1 del PRD).
 // Las construidas apuntan a su componente real; las pendientes a un
@@ -92,19 +98,21 @@ export default function App() {
         <Route path="brokers/:brokerId/movimiento" element={<CrearMovimientoBroker />} />
         <Route path="brokers/:brokerId/activo" element={<CrearActivo />} />
 
-        {/* Wallets (FASE 16) */}
-        <Route path="wallets/crear-proveedor" element={
-          <Placeholder nombre="Crear proveedor de wallet" fase="16"
-            descripcion="Catálogo por tipo (cripto, fiat, ambos), con opción «Otro»." />
-        } />
-        <Route path="wallets/proveedor/:proveedorId/crear-wallet" element={
-          <Placeholder nombre="Crear wallet" fase="16"
-            descripcion="Etiqueta, dirección y moneda." />
-        } />
-        <Route path="wallets/proveedor/:proveedorId/wallet/:walletId" element={
-          <Placeholder nombre="Detalle de wallet" fase="16"
-            descripcion="Pantalla única para proveedores «todo es Earn»; pestañas para el resto." />
-        } />
+        {/* Wallets + Earn (FASE 16) */}
+        <Route path="wallets" element={<WalletsPage />} />
+        <Route path="wallets/crear-proveedor" element={<CrearWalletProvider />} />
+        <Route
+          path="wallets/proveedor/:proveedorId/crear-wallet"
+          element={<CrearWallet />}
+        />
+        <Route
+          path="wallets/proveedor/:proveedorId/wallet/:walletId"
+          element={<WalletDetail />}
+        />
+        <Route
+          path="wallets/proveedor/:proveedorId/wallet/:walletId/movimiento"
+          element={<CrearMovimientoWallet />}
+        />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "verificar": "node scripts/verificar-columnas.mjs",
-    "humo": "node scripts/humo-brokers.mjs"
+    "humo": "node scripts/humo-brokers.mjs",
+    "humo:fase16": "node scripts/humo-wallets.mjs"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.12",

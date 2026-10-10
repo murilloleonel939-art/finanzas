@@ -21,12 +21,28 @@ export const consultas = []
 /** Respuestas forzadas por tabla+operación, para simular errores de Postgres. */
 const respuestasForzadas = new Map()
 
+/** Filas forzadas por tabla+operación, para probar la lógica sobre los datos. */
+const datosForzados = new Map()
+
 export function responder(tabla, operacion, error) {
   respuestasForzadas.set(`${tabla}:${operacion}`, error)
 }
 
 export function limpiarRespuestas() {
   respuestasForzadas.clear()
+  datosForzados.clear()
+}
+
+/**
+ * Fuerza las FILAS que devuelve una tabla, no solo el error.
+ *
+ * Lo necesita la FASE 16: `recalcularSaldosWallet()` no se puede probar solo
+ * mirando la consulta que construye — su gracia está en qué hace con los datos
+ * (recalcular por moneda y negarse a escribir un saldo negativo). Sin esto, la
+ * prueba no podría distinguir esa guarda de un `return` vacío.
+ */
+export function responderConDatos(tabla, operacion, filas) {
+  datosForzados.set(`${tabla}:${operacion}`, filas)
 }
 
 /** Última consulta grabada. */
@@ -43,6 +59,7 @@ function nuevaConsulta(tabla, operacion) {
     orden: [],
     payload: null,
     single: null,
+    onConflict: null,
   }
   consultas.push(c)
   return c
@@ -52,9 +69,17 @@ function resolver(c) {
   const forzado = respuestasForzadas.get(`${c.tabla}:${c.operacion}`)
   if (forzado) return { data: null, error: forzado }
 
+  const filas = datosForzados.get(`${c.tabla}:${c.operacion}`)
+  if (filas !== undefined) {
+    if (c.single === 'single') return { data: filas[0] ?? null, error: null }
+    if (c.single === 'maybe') return { data: filas[0] ?? null, error: null }
+    return { data: filas, error: null }
+  }
+
   // Una fila mínima para que `.single()`/`.maybeSingle()` no fallen; el valor
   // no importa, lo que se afirma es la consulta, no la fila.
   if (c.operacion === 'insert') return { data: { id: 'nuevo-id' }, error: null }
+  if (c.operacion === 'upsert') return { data: null, error: null }
   if (c.single === 'single') return { data: { id: 'fila' }, error: null }
   if (c.single === 'maybe') return { data: { id: 'fila' }, error: null }
   return { data: [], error: null }
@@ -79,6 +104,17 @@ function cadena(c) {
     update(payload) {
       c.operacion = 'update'
       c.payload = payload
+      return api
+    },
+    // `wallet_saldos` NO tiene `id`: su clave es la PK compuesta
+    // (wallet_id, moneda), así que la capa de datos usa upsert con `onConflict`.
+    // El doble graba las opciones porque son justo lo que hay que afirmar: sin
+    // `onConflict` el SDK apuntaría a una columna que no existe y el upsert
+    // fallaría con un error de Postgres, no de JavaScript.
+    upsert(payload, opciones = {}) {
+      c.operacion = 'upsert'
+      c.payload = payload
+      c.onConflict = opciones.onConflict ?? null
       return api
     },
     delete() {
