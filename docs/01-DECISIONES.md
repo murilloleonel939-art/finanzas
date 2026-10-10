@@ -578,3 +578,75 @@ vuelta (5 min después), `recuperarBarridosColgados()` borra filas de hace 30+ m
 **Dónde vive:** `src/lib/programacion.js`, `src/lib/precios-datos.js` (métodos nuevos),
 `worker-precios.mjs` (lógica de `intentarBarrido()` y guard en `vuelta()`),
 `supabase/migrations/0010_precios_barridos.sql`, `deploy/worker-precios.{service,cron,env.example}`.
+
+---
+
+## D32 — Exportación de datos en CSV, Excel y PDF
+
+El usuario necesita extraer sus datos en múltiples formatos sin salir de la app. Cada página
+de detalle (cuentas, wallets, brokers) tiene un botón «Exportar» que abre un menú con tres
+opciones: CSV, Excel, PDF.
+
+**Componente `ExportButtons.jsx`:**
+- Props: `datos` (array), `columnas` (array de keys), `nombreArchivo` (string), `disabled` (bool)
+- Métodos:
+  - `exportarCSV()`: genera UTF-8 con BOM, descarga `*.csv`
+  - `exportarExcel()`: genera XLSX binario (con formato), descarga `*.xlsx`
+  - `exportarPDF()`: genera PDF con tabla, descarga `*.pdf`
+- Se deshabilita si no hay datos o si el usuario es `readonly`
+
+**Integración:**
+- `CuentaDetail.jsx`: exporta movimientos (columnas: fecha, concepto, monto, saldo)
+- `WalletDetail.jsx`: exporta transacciones de la wallet (columnas: fecha, tipo, cantidad, precio)
+- `BrokerDetail.jsx`: exporta posiciones (columnas: activo, cantidad, precio unitario, total)
+
+**Librerías:**
+- CSV: genera el contenido, no usa dependencias externas
+- Excel: usa `xlsx` (ya en `package.json` si no, instalar `npm install xlsx@latest`)
+- PDF: usa `pdfkit` o similar (alternativa: genera tabla HTML y usa `html2pdf`)
+
+**Nota:** Los formatos no incluyen gráficos; son tablas. Si en el futuro se necesitan gráficos
+en PDF, se añade una opción separada «Exportar informe» que incluye resúmenes y visuales.
+
+**Dónde vive:** `src/components/ExportButtons.jsx`, integraciones en `src/pages/{Cuenta,Wallet,Broker}Detail.jsx`.
+
+---
+
+## D33 — Programación de actualización automática con cron
+
+El barrido diario (D31) solo actualiza precios si el worker está corriendo. Para garantizar
+que se ejecuta a las 16:00 (4 PM, hora Colombia) todos los días, se usa **cron del sistema**
+(Linux) o **systemd timer** (alternativa moderna).
+
+**Opción A: Cron del sistema (más simple):**
+```
+0 21 * * * /usr/bin/node /home/ec2-user/finanzas/worker-precios.mjs
+```
+- `0 21` = 21:00 UTC = 16:00 UTC-5 (Colombia)
+- Se ejecuta **una sola vez al día**
+- Si se pierde (servidor apagado), no se recupera hasta mañana
+- Log a `/var/log/worker-precios.log` con `>>` redirect
+
+**Opción B: Systemd timer (recomendado):**
+- Archivo `deploy/worker-precios.service`: unidad que corre el worker
+- Archivo `deploy/worker-precios.timer`: triggers diarios a las 16:00 Colombia
+- `systemctl enable --now worker-precios.timer` lo deja permanente
+- Si el servidor estaba apagado a las 16:00, systemd recupera el barrido dentro de 5 minutos
+
+**Script setup:** `scripts/cron-setup.sh`
+- Detecta si ya existe un cron para `worker-precios.mjs`
+- Crea el directorio `logs/` si no existe
+- Añade o reemplaza la entrada cron
+- Imprime el comando para verificar: `crontab -l | grep worker-precios`
+
+**Variables de entorno requeridas:**
+```bash
+SUPABASE_URL=https://...
+SUPABASE_SERVICE_ROLE_KEY=...
+POLL_INTERVAL_MS=300000        # 5 minutos entre intentos de cola
+BARRIDO_HORA=16:00
+BARRIDO_TZ=America/Bogota
+```
+
+**Dónde vive:** `scripts/cron-setup.sh`, `deploy/worker-precios.{service,timer}`, documentación
+en `FASE19.md`.

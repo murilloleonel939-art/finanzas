@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import ExportButtons from '@/components/ExportButtons'
 import {
   Loader2,
   ChevronLeft,
@@ -453,7 +454,20 @@ export default function WalletDetail() {
               )}
             </Card>
 
-            <div className="flex gap-3 mt-4">
+            <div className="flex gap-3 mt-4 flex-wrap">
+              <ExportButtons
+                datos={movsVisibles}
+                columnas={[
+                  { key: 'fecha', label: 'Fecha' },
+                  { key: 'descripcion', label: 'Descripción' },
+                  { key: 'tipo_movimiento', label: 'Tipo' },
+                  { key: 'monto', label: 'Monto' },
+                  { key: 'moneda', label: 'Moneda' },
+                ]}
+                nombreArchivo={`movimientos_${wallet.nombre_wallet}_${periodo}`}
+                titulo={`Movimientos - ${wallet.nombre_wallet} (${periodo})`}
+                disabled={movsVisibles.length === 0}
+              />
               <Button onClick={() => navigate(rutaMovimiento)} className="gap-2">
                 <Plus className="w-4 h-4" />
                 Registrar movimiento

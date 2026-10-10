@@ -17,6 +17,7 @@ import MonthFilter from '@/components/shared/MonthFilter'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import ExportButtons from '@/components/ExportButtons'
 import {
   Loader2,
   ChevronLeft,
@@ -267,16 +268,32 @@ export default function BrokerDetail() {
                       ? 'Sin movimientos. Registra un depósito, retiro, compra o venta.'
                       : `Sin movimientos en ${periodo}.`}
                   </p>
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      navigate(`/empresa/${empresaId}/brokers/${brokerId}/movimiento`)
-                    }
-                    className="gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Registrar movimiento
-                  </Button>
+                  <div className="flex gap-2 flex-wrap justify-center">
+                    <ExportButtons
+                      datos={movsVisibles}
+                      columnas={[
+                        { key: 'fecha', label: 'Fecha' },
+                        { key: 'descripcion', label: 'Descripción' },
+                        { key: 'tipo_movimiento', label: 'Clase' },
+                        { key: 'monto', label: 'Monto' },
+                        { key: 'cantidad', label: 'Cantidad' },
+                        { key: 'valor_unitario', label: 'Valor unit.' },
+                      ]}
+                      nombreArchivo={`movimientos_${broker.nombre_broker}`}
+                      titulo={`Movimientos - ${broker.nombre_broker}`}
+                      disabled={movsVisibles.length === 0}
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        navigate(`/empresa/${empresaId}/brokers/${brokerId}/movimiento`)
+                      }
+                      className="gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Registrar movimiento
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -470,9 +487,28 @@ export default function BrokerDetail() {
                   </tfoot>
                 </table>
               </div>
-            )}
-          </Card>
-        )}
+              <div className="px-4 py-3 border-t flex gap-2 flex-wrap">
+                <ExportButtons
+                  datos={activos}
+                  columnas={[
+                    { key: 'nombre_activo', label: 'Activo' },
+                    { key: 'tipo_activo', label: 'Tipo' },
+                    { key: 'cantidad', label: 'Cantidad' },
+                    { key: 'valor_unitario', label: 'Valor unit.' },
+                    { key: 'valor_total', label: 'Valor total' },
+                  ]}
+                  nombreArchivo={`posiciones_${broker.nombre_broker}`}
+                  titulo={`Posiciones - ${broker.nombre_broker}`}
+                  disabled={activos.length === 0}
+                />
+                <Button
+                  onClick={() => navigate(`/empresa/${empresaId}/brokers/${brokerId}/activo`)}
+                  className="gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Añadir activo
+                </Button>
+              </div>
 
         {/* ---- Precios ---- */}
         {pestana === 'precios' && (
@@ -538,9 +574,22 @@ export default function BrokerDetail() {
                   </tbody>
                 </table>
               </div>
-            )}
-          </Card>
-        )}
+              <div className="px-4 py-3 border-t flex gap-2">
+                <ExportButtons
+                  datos={precios}
+                  columnas={[
+                    { key: 'fecha', label: 'Fecha' },
+                    { key: 'nombre_activo', label: 'Activo' },
+                    { key: 'tipo_activo', label: 'Tipo' },
+                    { key: 'precio_cierre', label: 'Cierre' },
+                    { key: 'precio_anterior', label: 'Anterior' },
+                    { key: 'variacion_pct', label: 'Variación %' },
+                  ]}
+                  nombreArchivo={`precios_${broker.nombre_broker}`}
+                  titulo={`Histórico de precios - ${broker.nombre_broker}`}
+                  disabled={precios.length === 0}
+                />
+              </div>
       </div>
 
       <ConfirmDialog

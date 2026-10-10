@@ -15,6 +15,8 @@ import MonthFilter from '@/components/shared/MonthFilter'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import ExportButtons from '@/components/ExportButtons'
+import { prepararMovimientosExportacion } from '@/lib/exportUtils'
 import {
   Loader2,
   ChevronLeft,
@@ -142,13 +144,28 @@ export default function CuentaDetail() {
               </p>
             </div>
           </div>
-          <Button
-            onClick={() => navigate(`/empresa/${empresaId}/cuentas/${cuentaId}/movimiento`)}
-            className="gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Movimiento
-          </Button>
+          <div className="flex gap-2 items-center flex-wrap justify-end">
+            <ExportButtons
+              datos={conSaldo}
+              columnas={[
+                { key: 'fecha', label: 'Fecha' },
+                { key: 'descripcion', label: 'Descripción' },
+                { key: 'tipo_movimiento', label: 'Tipo' },
+                { key: 'monto', label: 'Monto' },
+                { key: 'saldo_resultante', label: 'Saldo' },
+              ]}
+              nombreArchivo={`movimientos_${cuenta.numero_cuenta}_${periodo}`}
+              titulo={`Movimientos - ${cuenta.numero_cuenta} (${periodo})`}
+              disabled={conSaldo.length === 0}
+            />
+            <Button
+              onClick={() => navigate(`/empresa/${empresaId}/cuentas/${cuentaId}/movimiento`)}
+              className="gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Movimiento
+            </Button>
+          </div>
         </div>
 
         {/* Tarjetas */}
