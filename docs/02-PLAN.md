@@ -10,8 +10,8 @@ de tokens a mitad de una fase, apuntar el estado exacto en la sección "En curso
 
 ## Estado global
 
-- **Fase actual:** FASE 16 (módulo wallets + Earn)
-- **Fases completadas:** 15 de 21 — backend + scaffold + auth + admin + catálogos + workspace + cuentas + brokers
+- **Fase actual:** FASE 17 (importación de PDFs)
+- **Fases completadas:** 16 de 21 — backend + scaffold + auth + admin + catálogos + workspace + cuentas + brokers + wallets
 - **Verificado en Supabase (FASE 11):** 
   - 15 tablas con RLS activo ✓
   - 4 funciones helper ✓
@@ -426,17 +426,41 @@ en el servidor (D11/D13), no como credencial por broker en el navegador.
 
 ---
 
-## FASE 16 — Módulo wallets + Earn
+## FASE 16 — Módulo wallets + Earn ✅
 
-- [ ] `CrearWalletProvider` (con opción "Otro")
-- [ ] `CrearWallet`
-- [ ] `WalletDetail` — **dos variantes** según proveedor (decisión del §8.4):
+- [x] `CrearWalletProvider` (con opción "Otro")
+- [x] `CrearWallet`
+- [x] `WalletDetail` — **dos variantes** según proveedor (decisión del §8.4):
       pantalla única para "todo es Earn" (Coindepo), con pestañas para el resto
-- [ ] `WalletEarn` — resumen, activos por moneda, tabla
-- [ ] `WalletEarnAssets`
-- [ ] Cálculo de intereses ganados (regex `esInteres`)
+- [x] `WalletEarn` — resumen, activos por moneda, tabla
+- [x] `WalletEarnAssets`
+- [x] Cálculo de intereses ganados (regex `esInteres`)
 
 **Entregable:** rama de wallets con tratamiento Earn completo.
+
+**Archivos:**
+
+```
+src/lib/wallets-datos.js            capa de datos: CRUD + cálculos (analizarWallet)
+src/pages/WalletsPage.jsx           listado de proveedores con sus wallets
+src/pages/CrearWalletProvider.jsx   alta de proveedor con opción «Otro»
+src/pages/CrearWallet.jsx           alta de wallet con saldos iniciales por moneda
+src/pages/WalletDetail.jsx          detalle con dos variantes (A/B según proveedor)
+src/pages/CrearMovimientoWallet.jsx  alta manual de movimiento
+src/components/wallets/WalletEarn.jsx       pestaña Earn: métricas PRD §7
+src/components/wallets/WalletEarnAssets.jsx tabla activos por moneda (D4)
+scripts/humo-wallets.mjs            runner esbuild (nueva)
+scripts/humo-fase16.mjs             prueba de humo: 39 comprobaciones (nueva)
+```
+
+**Decisiones:** D20 (Earn se clasifica en el cliente), D25 (CHECK es contrato, no se inventa),
+D26 (fecha local, no UTC).
+
+**Verificado:** `npm run verificar` → 0 problemas; `npm run humo:fase16` → 39 comprobaciones OK;
+`npm run humo` → 42 comprobaciones OK; `npm run build` compila (744 KB, 207 KB gzip).
+
+**Nota sobre `db.js`:** sigue sin usarlo nadie. La FASE 16 lo decide: wallets tampoco lo necesita.
+Se borra en la próxima revisión — no es infraestructura hoy, es deuda técnica.
 
 ---
 
@@ -496,25 +520,35 @@ en el servidor (D11/D13), no como credencial por broker en el navegador.
 
 ## En curso (actualizar si se corta a mitad de fase)
 
-**FASES 12, 13, 14 y 15 ✅ completadas y commiteadas.** La siguiente es la **FASE 16**
-(módulo wallets + Earn: `CrearWalletProvider`, `CrearWallet`, `WalletDetail` con sus dos
-variantes, `WalletEarn`, `WalletEarnAssets`).
+**FASES 12-16 ✅ completadas y commiteadas.** La siguiente es la **FASE 17** (importación de PDFs).
+
+Todo el código construido en las FASES 12-16 ha pasado verificación estática (columnas contra
+migraciones) y pruebas de humo (doble de Supabase). **La prueba de humo real queda pendiente**: ni
+una consulta ha salido contra el Supabase del usuario. Es el paso 0 de la siguiente fase después de
+rellenar la anon key real en `.env.local`: entrar como super_admin, crear dos empresas, un usuario
+adicional, una operación en cada rama (cuentas, brokers, wallets) y verificar que el RLS aísla, que
+los borrados lógicos desaparecen (D7) y que `hoyLocal()` devuelve la fecha del navegador, no UTC
+(D26).
+
+**La próxima FASE 17 requiere decisión de IA:** elegir proveedor (Anthropic / OpenAI / Gemini) para
+extracción de PDFs y tener API key.
 
 ### Herramientas de verificación (usar en cada fase)
 
 Las dos son obligatorias antes de dar una fase por terminada:
 
 ```bash
-npm run verificar   # columnas del código contra las migraciones — 0 problemas esperado
-npm run humo        # prueba de humo de la FASE 15 — 42 comprobaciones
-npm run build       # compila (no valida columnas: son strings en runtime)
+npm run verificar      # columnas del código contra las migraciones — 0 problemas esperado
+npm run humo           # prueba de humo de brokers (FASE 15) — 42 comprobaciones
+npm run humo:fase16    # prueba de humo de wallets (FASE 16) — 39 comprobaciones
+npm run build          # compila (no valida columnas: son strings en runtime)
 ```
 
 - **`scripts/verificar-columnas.mjs`** lee `supabase/migrations/` como fuente de verdad del
   esquema y comprueba cada columna que el código menciona, en `select`, `insert`, `update`
   y en las claves de los filtros. Existe porque `npm run build` no ve este error: la
   primera versión de la FASE 14 inventó cuatro columnas y compiló sin una queja.
-- **`scripts/humo-brokers.mjs`** + `scripts/humo-fase15.mjs` + `scripts/stub-supabase.mjs`
+- **`scripts/humo-brokers.mjs`** + **`scripts/humo-wallets.mjs`** + `scripts/stub-supabase.mjs`
   compilan las funciones reales de `src/lib/` con esbuild, sustituyen **solo** el cliente de
   Supabase por un doble que graba cada consulta, y afirman sobre ellas. El doble no imita
   comportamiento: es un **espía**, para poder comprobar que las columnas pedidas existen,
@@ -656,10 +690,21 @@ Brokers (FASE 15)
   src/pages/CrearMovimientoBroker.jsx caja u operación, campo explícito
   src/pages/CrearActivo.jsx           posición con ticker único por broker
 
+Wallets (FASE 16)
+  src/lib/wallets-datos.js            capa de datos + analizarWallet + recalcularSaldosWallet
+  src/pages/WalletsPage.jsx           listado con borrado lógico
+  src/pages/CrearWalletProvider.jsx   catálogo (45) + «Otro»
+  src/pages/CrearWallet.jsx           saldos iniciales por moneda
+  src/pages/WalletDetail.jsx          dos variantes (A/B por proveedor, D23)
+  src/pages/CrearMovimientoWallet.jsx alta manual de movimiento
+  src/components/wallets/WalletEarn.jsx       métricas PRD §7 (D20)
+  src/components/wallets/WalletEarnAssets.jsx activos por moneda, sin consolidar (D4)
+
 Verificación
   scripts/verificar-columnas.mjs      columnas del código vs. migraciones
-  scripts/humo-brokers.mjs            runner (esbuild + TZ fijada)
-  scripts/humo-fase15.mjs             las 42 comprobaciones
+  scripts/humo-brokers.mjs            runner esbuild + TZ fijada (FASE 15)
+  scripts/humo-fase16.mjs             runner esbuild + TZ fijada (FASE 16)
+  scripts/humo-wallets.mjs            las 39 comprobaciones de wallets
   scripts/stub-supabase.mjs           espía del cliente de Supabase
 
 Dependencias añadidas en la FASE 10 (antes no había ninguna de Radix):
@@ -670,11 +715,12 @@ Las FASES 14 y 15 tampoco: 62 KB de JS nuevo, cero dependencias.
 ```
 
 **Backend: 15 tablas, 7 vistas, 9 enums, RLS en todas.**
-**Frontend: compila (`npm run build` verificado) — 697 KB de JS, 197 KB gzip.**
+**Frontend: compila (`npm run build` verificado) — 744 KB de JS, 207 KB gzip.**
 
 > El salto de 462 a 597 KB fue de la FASE 10 (Radix y sus primitivas de
 > accesibilidad). La FASE 11 solo añade 19 KB: no mete dependencias nuevas. Las fases 14 y
-> 15 suman 62 KB de código propio. En la FASE 20, si preocupa el tamaño, la salida sigue
+> 15 suman 62 KB de código propio. La FASE 16 suma 145 KB (wallets-datos.js es grande, pero
+> es una capa de datos monolítica). En la FASE 20, si preocupa el tamaño, la salida sigue
 > siendo dividir el bundle por ruta con `React.lazy` — el panel `/admin` es el candidato
 > ideal, porque un `cliente` nunca lo abre. No es urgente.
 
@@ -684,6 +730,6 @@ Las FASES 14 y 15 tampoco: 62 KB de JS nuevo, cero dependencias.
    marcador, `src/lib/supabase.js` lanza un error explicando exactamente qué falta.
 2. `npm run dev` y comprobar que carga `http://localhost:5173/login`.
 3. Entrar con tu cuenta de super_admin → debe redirigir a `/admin`.
-4. Hacer la prueba de humo real de la sección anterior (pasos 2 a 5) — es la FASE 16 paso 0.
+4. Hacer la prueba de humo real (pasos 2 a 5 de la sección anterior) — es la **FASE 16 paso 0**.
 5. Ir a `/admin/usuarios` y probar la invitación (tras desplegar las funciones y el SMTP).
-6. Empezar la FASE 16 (módulo wallets + Earn).
+6. Empezar la **FASE 17** (importación de PDFs) — requiere elegir proveedor de IA.
