@@ -428,3 +428,21 @@ correcta.
 **La columna `fecha` es `date`, no `timestamptz`:** no lleva hora ni zona. Guardar el día
 que ve el usuario es la única interpretación defendible, y es la que el PRD da por supuesta
 («el movimiento del 3 de octubre»).
+
+## D27 — Importación de PDFs con GPT-6 Luna en worker separado
+
+La importación de extractos bancarios corre en un **worker Node.js en EC2/Coolify**, no en la Edge Function.
+
+**Por qué:**
+- **Tiempo:** procesar PDF + llamar a GPT-6 Luna tarda >30s, límite de Deno en Supabase.
+- **Escalabilidad:** el worker puede reintentrar con backoff, sin bloquear al usuario.
+- **Arquitectura:** jobs en tabla `import_jobs` + polling en UI mantiene todo desacoplado.
+
+**Flujo:**
+1. Usuario sube PDF en UI → Edge Function crea job (estado: `pendiente`)
+2. Worker Lee jobs pendientes cada 10s → procesa PDF → actualiza `estado: hecho` o `error`
+3. UI polling muestra progreso en tiempo real
+
+**Deduplicación:** por `external_id` (proveedor + número de movimiento), retorna conteo de duplicados evitados.
+
+**Reglas por proveedor:** `PROVIDER_RULES` en `imports-prompts.js` permite adaptar el prompt a Coindepo, Nomina, etc.
