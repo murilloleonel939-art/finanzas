@@ -460,21 +460,26 @@ La actualización de precios (FASE 18) usa **Yahoo Finance API** con un **worker
   - Yahoo: mejor relación features/costo/disponibilidad
 
 **Arquitectura:**
-- **Worker Node.js:** corre en EC2/Coolify, polling cada 5 minutos
-- **Endpoint:** `https://query2.finance.yahoo.com/v7/finance/quote`
+- **Worker Node.js:** corre en EC2/Coolify, polling cada 5 minutos (`worker-precios.mjs`)
+- **Endpoint:** `https://query1.finance.yahoo.com/v8/finance/chart`
+  - Se descarta `v7/finance/quote` (D29): exige `crumb` + cookie de sesión, se rompe cada pocos meses
+  - **No hay batch:** `v8/chart` es un símbolo por petición. La concurrencia se limita a 5 con un pool propio
 - **Normalización:** tickers sin moneda (BTC → BTC-USD), case-insensitive
-- **Batch:** máx 50 tickers por request (recomendación Yahoo)
-- **Upsert:** registra precio solo si cambia; evita duplicados por (activo_id, fecha)
+- **Upsert:** registra precio por (activo_id, fecha); la fecha sale de la última vela de Yahoo, no del reloj
 - **Actualización en cascada:** cada nuevo precio actualiza `activos_broker.valor_unitario`
+
+**Cola de trabajos (D30):**
+- La Edge Function no sincroniza: solo encola en `precios_jobs`
+- El worker procesa la cola y el barrido periódico
 
 **Tablas:**
 - `precios_activo`: historial de cierre, anterior, variación %
 - `activos_broker.valor_unitario`: el precio más reciente
 
 **Edge Function:** `actualizar-precios` (POST)
-- Trigger manual opcional de actualización
-- Devuelve estado y timestamp
-- Sin validación de APIs externas (el worker hace el trabajo real)
+- Exige JWT válido y `is_super_admin()` (via `_shared/auth.ts`)
+- Valida que `empresa_id` exista y que `broker_id` pertenezca a la empresa
+- Encola el trabajo y devuelve el job; no llama a Yahoo
 
 **Recuperación de errores:**
 - Si un ticker falla, continúa con los demás (sin transacción bloqueante)
@@ -485,3 +490,48 @@ La actualización de precios (FASE 18) usa **Yahoo Finance API** con un **worker
 - No hay cron SQL en Supabase Cloud (D13). El worker es el reemplazo.
 - Yahoo no documenta públicamente la API (ingeniería inversa), pero es estable en producción.
 - Requiere `@supabase/supabase-js@2.43.4+` en el worker.
+
+---
+
+## D29 — El ticker no basta: hay que validar QUÉ es el activo
+
+`LINK` es **a la vez** Interlink Electronics (acción, ~$5) y Chainlink (cripto, ~$18).
+Un mismo ticker puede existir en dos mercados distintos, y Yahoo devuelve el que le
+parezca si no se le dice cuál se quiere.
+
+**La regla:** la clave de deduplicación es `(tipo_activo, ticker)`, nunca el ticker solo.
+`claveActivo(tipoActivo, ticker)` construye esa clave, y `validarTicker()` comprueba el
+`instrumentType` que devuelve Yahoo contra el `tipo_activo` guardado:
+
+| `tipo_activo` | `instrumentType` aceptado |
+|---|---|
+| `accion` | `EQUITY`, `ETF` |
+| `cripto` | `CRYPTOCURRENCY` |
+| `bono` | `BOND`, `MUTUALFUND` |
+
+Sin esta validación el sistema no falla: **escribe un precio equivocado** y la posición
+aparece valorada con el precio de otro activo. Es el error más caro de detectar después,
+porque nada avisa.
+
+**Dónde vive:** `src/lib/yahoo-finance.js` (`claveActivo`, `validarTicker`, `ErrorTicker`).
+
+---
+
+## D30 — Cola de trabajos en lugar de sincronizar dentro de la Edge Function
+
+El botón «actualizar precios ahora» **no actualiza nada**: encola un `precios_jobs` y
+devuelve el job. El worker de EC2 hace el trabajo.
+
+**Por qué:**
+- Las Edge Functions de Supabase cortan a ~150 s. Una empresa con 100+ activos no termina.
+- `v8/chart` es de un símbolo por petición (D28), así que el tiempo crece linealmente.
+- El worker no tiene límite de tiempo y puede reintentar.
+
+**Consecuencias:**
+- El usuario ve el progreso por Realtime, no en la respuesta HTTP.
+- El estado real vive en `precios_jobs.estado` (`pendiente` → `procesando` → `completado`/`error`).
+- El worker recupera jobs que quedaron colgados en `procesando` si se reinició a mitad.
+
+Reutiliza el patrón ya probado en D27 (`import_jobs`).
+
+**Dónde vive:** `supabase/migrations/0009_precios_jobs.sql`, `supabase/functions/actualizar-precios/index.ts`, `worker-precios.mjs`.

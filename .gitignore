@@ -8,6 +8,9 @@ dist/
 dist-ssr/
 *.local
 
+# Reportes de pruebas — se regeneran en cada corrida
+reports/
+
 # Entorno — NUNCA commitear las claves reales
 .env
 .env.local

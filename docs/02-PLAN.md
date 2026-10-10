@@ -502,14 +502,14 @@ Se borra en la próxima revisión — no es infraestructura hoy, es deuda técni
 - [x] Historial en `precios_activo`
 - [x] Worker Node.js con polling (reemplaza `pg_cron`)
 - [x] Edge Function `actualizar-precios` (trigger manual)
-- [x] 32/32 pruebas de humo pasadas
+- [x] 15/15 pruebas de humo pasadas + 7 de integración
 
 **Entregable:** 
 - `src/lib/yahoo-finance.js` — cliente para Yahoo Finance API
 - `src/lib/precios-datos.js` — capa de datos (CRUD precios)
 - `worker-precios.mjs` — worker Node.js (polling cada 5 minutos)
 - `supabase/functions/actualizar-precios/index.ts` — Edge Function
-- `scripts/humo-fase18.mjs` — 32 comprobaciones
+- `scripts/humo-fase18.mjs` — 15 comprobaciones
 
 **Decisión:** D28 (Yahoo Finance sin API key, worker polling en EC2/Coolify)
 
@@ -547,12 +547,12 @@ Se borra en la próxima revisión — no es infraestructura hoy, es deuda técni
 **FASES 1-18 ✅ completadas y commiteadas.** La siguiente es la **FASE 19** (Exportación: CSV, Excel, PDF).
 
 FASE 18 (actualización de precios con Yahoo Finance) está **100% implementada y verificada:**
-- 32/32 comprobaciones de humo pasadas
+- 15/15 comprobaciones de humo + 7/7 de integración (22 en total)
 - Worker Node.js listo para EC2/Coolify (polling cada 5 minutos)
 - Edge Function `actualizar-precios` lista para desplegar
 - Cliente Yahoo Finance sin API key
-- Capa de datos `precios-datos.js` completa (CRUD, batch, upsert)
-- Batch processing: máx 50 tickers por request
+- Capa de datos `precios-datos.js` completa (CRUD, upsert por activo+fecha)
+- Sin batch: `v8/chart` es un símbolo por petición; concurrencia limitada a 5
 - Actualización en cascada: precios → `activos_broker.valor_unitario`
 
 **FASE 18 decisión:** D28 (Yahoo Finance + worker polling, no `pg_cron`)
@@ -566,7 +566,7 @@ npm run verificar      # columnas del código contra las migraciones — 0 probl
 npm run humo           # prueba de humo de brokers (FASE 15) — 42 comprobaciones
 npm run humo:fase16    # prueba de humo de wallets (FASE 16) — 39 comprobaciones
 npm run humo:fase17    # prueba de humo de importación (FASE 17) — 62 comprobaciones
-npm run humo:fase18    # prueba de humo de precios (FASE 18) — 32 comprobaciones
+npm run humo:fase18    # prueba de humo de precios (FASE 18) — 15 comprobaciones
 npm run build          # compila (no valida columnas: son strings en runtime)
 ```
 

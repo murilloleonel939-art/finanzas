@@ -1,212 +1,312 @@
 #!/usr/bin/env node
 
 /**
- * FASE 18: Worker de actualización de precios
- * Corre en EC2/Coolify, polling cada X segundos
+ * FASE 18: Worker de precios.
+ *
+ * Corre en EC2/Coolify como proceso aparte del frontend. Hace dos cosas en cada
+ * vuelta:
+ *
+ *   1. **Cola** (D30): atiende los `precios_jobs` que encoló el botón del
+ *      PRD §8 desde la UI.
+ *   2. **Barrido**: refresca los precios de todos los activos, para que las
+ *      posiciones no se queden con el precio de hace una semana.
  *
  * Uso:
- *   SUPABASE_URL=https://... SUPABASE_KEY=... node worker-precios.mjs
+ *   SUPABASE_URL=https://xxx.supabase.co \
+ *   SUPABASE_SERVICE_ROLE_KEY=eyJ... \
+ *   node worker-precios.mjs
  *
- * Configuración:
- *   POLL_INTERVAL_MS = 300000 (5 minutos entre updates)
- *   MAX_TICKERS_POR_BATCH = 50 (Yahoo Finance límite recomendado)
+ * Variables:
+ *   SUPABASE_URL                (requerida)
+ *   SUPABASE_SERVICE_ROLE_KEY   (requerida — escribe sin sesión de usuario)
+ *   POLL_INTERVAL_MS            (opcional, 300000 = 5 min)
+ *   UNA_VEZ=1                   (opcional: una vuelta y salir — para cron externo)
+ *   SIN_BARRIDO=1               (opcional: solo atiende la cola, sin refrescar todo)
+ *
+ * **Por qué service_role y no la anon key:** el worker no tiene sesión de
+ * usuario, y las policies de `precios_activo` y `activos_broker` exigen
+ * `has_empresa_access()`. Con la anon key no escribiría ni una fila. La
+ * service_role se salta el RLS y por eso nunca sale del servidor.
+ *
+ * **Por qué un worker y no pg_cron:** ver D28/D30. El cron de Supabase ejecuta
+ * SQL dentro de Postgres; no puede llamar a la API de Yahoo ni leer su JSON.
  */
 
 import { createClient } from '@supabase/supabase-js'
-import { obtenerPreciosYahoo } from './src/lib/yahoo-finance.js'
-import {
-  obtenerTodosActivosParaActualizar,
-  registrarPrecio,
-  actualizarValorUnitarioActivo,
-} from './src/lib/precios-datos.js'
+import { crearPreciosDatos, hoyLocal } from './src/lib/precios-datos.js'
+import { sincronizarPrecios, mensajeDeError } from './src/lib/precios-sync.js'
 
 // ============================================================================
 // CONFIGURACIÓN
 // ============================================================================
 
 const SUPABASE_URL = process.env.SUPABASE_URL
-const SUPABASE_KEY = process.env.SUPABASE_KEY
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '300000', 10)
-const MAX_TICKERS_POR_BATCH = 50
+const UNA_VEZ = process.env.UNA_VEZ === '1'
+const SIN_BARRIDO = process.env.SIN_BARRIDO === '1'
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('❌ SUPABASE_URL y SUPABASE_KEY son requeridas')
+const faltantes = []
+if (!SUPABASE_URL) faltantes.push('SUPABASE_URL')
+if (!SUPABASE_SERVICE_ROLE_KEY) faltantes.push('SUPABASE_SERVICE_ROLE_KEY')
+
+if (faltantes.length > 0) {
+  console.error(`❌ Faltan variables de entorno: ${faltantes.join(', ')}`)
+  console.error(
+    '   El worker necesita la service_role key: escribe sin sesión de usuario,\n' +
+      '   así que el RLS lo bloquearía con la anon key.'
+  )
   process.exit(1)
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
+if (!Number.isFinite(POLL_INTERVAL_MS) || POLL_INTERVAL_MS < 1000) {
+  console.error('❌ POLL_INTERVAL_MS debe ser un número >= 1000')
+  process.exit(1)
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+})
+
+const datos = crearPreciosDatos(supabase)
 
 // ============================================================================
 // LOGGING
 // ============================================================================
 
-function log(msg, level = 'info') {
-  const timestamp = new Date().toISOString()
-  const prefix =
-    level === 'error'
-      ? '❌'
-      : level === 'warn'
-        ? '⚠️'
-        : level === 'success'
-          ? '✅'
-          : 'ℹ️'
-  console.log(`[${timestamp}] ${prefix} ${msg}`)
+function log(msg, nivel = 'info') {
+  const icono =
+    nivel === 'error' ? '❌' : nivel === 'warn' ? '⚠️' : nivel === 'ok' ? '✅' : 'ℹ️'
+  console.log(`[${new Date().toISOString()}] ${icono} ${msg}`)
 }
 
 // ============================================================================
-// ACTUALIZACIÓN DE PRECIOS
+// COLA DE JOBS (D30)
 // ============================================================================
 
 /**
- * Procesar un lote de tickers (batch)
+ * Activos de un job: toda la empresa, o solo los de un broker.
+ *
+ * Si el job apunta a un broker, se filtran sus activos en memoria. La capa de
+ * datos ya trae los de la empresa y una empresa tiene decenas de activos, no
+ * millones: una consulta más específica no compensa el método extra.
  */
-async function procesarBatchTickers(tickers, activos, fechaHoy) {
-  if (tickers.length === 0) return { exitosos: 0, errores: 0 }
+async function activosDelJob(job) {
+  const todos = await datos.obtenerActivosParaActualizar(job.empresa_id)
+  if (!job.broker_id) return todos
+  return todos.filter((a) => a.broker_id === job.broker_id)
+}
 
-  try {
-    log(`Consultando ${tickers.length} tickers...`)
-    const precios = await obtenerPreciosYahoo(tickers)
+/**
+ * Procesa un job de la cola.
+ *
+ * El estado se marca `procesando` ANTES de trabajar, para que un segundo
+ * worker (o una vuelta siguiente) no lo tome a la vez. Si el proceso muere a
+ * mitad, el job queda en `procesando` y lo recupera `recuperarJobsColgados()`.
+ */
+async function procesarJob(job) {
+  log(`Job ${job.id}: actualizando ${job.broker_id ? `broker ${job.broker_id}` : 'toda la empresa'}`)
 
-    let exitosos = 0
-    let errores = 0
+  const { error: errTomar } = await supabase
+    .from('precios_jobs')
+    .update({
+      estado: 'procesando',
+      started_at: new Date().toISOString(),
+      intentos: (job.intentos ?? 0) + 1,
+    })
+    .eq('id', job.id)
 
-    for (const ticker of tickers) {
-      const datoPrecio = precios[ticker]
-      if (!datoPrecio) {
-        log(`⚠️ No se obtuvo dato para ${ticker}`, 'warn')
-        errores++
-        continue
-      }
-
-      // Encontrar todos los activos con este ticker
-      const activosDelTicker = activos.filter(
-        (a) => a.nombre_activo.toUpperCase() === ticker.toUpperCase()
-      )
-
-      for (const activo of activosDelTicker) {
-        try {
-          // Registrar el precio
-          await registrarPrecio({
-            empresa_id: activo.empresa_id,
-            broker_id: activo.broker_id,
-            activo_id: activo.id,
-            fecha: fechaHoy,
-            precio_cierre: datoPrecio.precio_cierre,
-            precio_anterior: datoPrecio.precio_anterior,
-            variacion_pct: datoPrecio.variacion_pct,
-            moneda: activo.moneda,
-            userId: null, // Sistema
-          })
-
-          // Actualizar el valor_unitario del activo
-          if (datoPrecio.precio_cierre) {
-            await actualizarValorUnitarioActivo(
-              activo.id,
-              datoPrecio.precio_cierre
-            )
-          }
-
-          exitosos++
-        } catch (err) {
-          log(
-            `Error procesando activo ${activo.id} (${ticker}): ${err.message}`,
-            'error'
-          )
-          errores++
-        }
-      }
-    }
-
-    return { exitosos, errores }
-  } catch (err) {
-    log(`Error en batch de tickers: ${err.message}`, 'error')
-    return { exitosos: 0, errores: tickers.length }
+  if (errTomar) {
+    log(`Job ${job.id}: no se pudo marcar como procesando: ${errTomar.message}`, 'error')
+    return
   }
-}
-
-/**
- * Ciclo principal: obtener activos, agrupar por ticker, consultar precios
- */
-async function actualizarPrecios() {
-  const fechaInicio = Date.now()
 
   try {
-    log('Iniciando actualización de precios...')
-
-    // Obtener todos los activos
-    const activos = await obtenerTodosActivosParaActualizar()
-    log(`Se encontraron ${activos.length} activos`)
+    const activos = await activosDelJob(job)
 
     if (activos.length === 0) {
-      log('Sin activos para actualizar')
+      await cerrarJob(job.id, {
+        estado: 'hecho',
+        activos_totales: 0,
+        activos_actualizados: 0,
+        errores: 0,
+        detalles: [],
+        error_mensaje: 'No hay activos que actualizar.',
+      })
+      log(`Job ${job.id}: sin activos`, 'warn')
       return
     }
 
-    // Extraer tickers únicos
-    const tickers = [...new Set(activos.map((a) => a.nombre_activo))]
-    log(`Tickers únicos: ${tickers.length}`)
+    const r = await sincronizarPrecios({
+      datos,
+      activos,
+      fechaRespaldo: hoyLocal(),
+      log,
+    })
 
-    // Procesar en batches
-    let totalExitosos = 0
-    let totalErrores = 0
+    await cerrarJob(job.id, {
+      estado: 'hecho',
+      activos_totales: r.total,
+      activos_actualizados: r.actualizados,
+      errores: r.errores,
+      // Se recorta por si una empresa enorme llenara la fila: el detalle
+      // completo no aporta más que los primeros fallos.
+      detalles: r.detalles.slice(0, 200),
+      error_mensaje: null,
+    })
 
-    for (let i = 0; i < tickers.length; i += MAX_TICKERS_POR_BATCH) {
-      const batch = tickers.slice(i, i + MAX_TICKERS_POR_BATCH)
-      const fechaHoy = new Date().toISOString().split('T')[0]
-      const { exitosos, errores } = await procesarBatchTickers(
-        batch,
-        activos,
-        fechaHoy
-      )
-      totalExitosos += exitosos
-      totalErrores += errores
-
-      // Pequeña pausa entre batches para no saturar
-      if (i + MAX_TICKERS_POR_BATCH < tickers.length) {
-        await new Promise((r) => setTimeout(r, 1000))
-      }
-    }
-
-    const duracion = ((Date.now() - fechaInicio) / 1000).toFixed(2)
     log(
-      `Actualización completada: ${totalExitosos} exitosos, ${totalErrores} errores (${duracion}s)`,
-      'success'
+      `Job ${job.id}: ${r.actualizados}/${r.total} actualizados, ${r.errores} errores`,
+      r.errores === 0 ? 'ok' : 'warn'
     )
   } catch (err) {
-    log(`Error en ciclo de actualización: ${err.message}`, 'error')
+    await cerrarJob(job.id, {
+      estado: 'error',
+      error_mensaje: mensajeDeError(err),
+    })
+    log(`Job ${job.id} falló: ${err.message}`, 'error')
+  }
+}
+
+/** Escribe el desenlace del job. Nunca tumba el ciclo si falla. */
+async function cerrarJob(id, campos) {
+  const { error } = await supabase
+    .from('precios_jobs')
+    .update({ ...campos, finished_at: new Date().toISOString() })
+    .eq('id', id)
+
+  if (error) log(`No se pudo cerrar el job ${id}: ${error.message}`, 'error')
+}
+
+/**
+ * Devuelve a `pendiente` los jobs que llevan demasiado en `procesando`.
+ *
+ * Sin esto, un worker que muere a mitad deja el job colgado para siempre y el
+ * botón de la UI se queda en «procesando» indefinidamente.
+ */
+async function recuperarJobsColgados() {
+  const hace30min = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+
+  const { data, error } = await supabase
+    .from('precios_jobs')
+    .update({ estado: 'pendiente' })
+    .eq('estado', 'procesando')
+    .lt('started_at', hace30min)
+    .select('id')
+
+  if (error) {
+    log(`No se pudieron recuperar jobs colgados: ${error.message}`, 'warn')
+    return
+  }
+  if (data?.length) {
+    log(`Recuperados ${data.length} job(s) colgado(s)`, 'warn')
+  }
+}
+
+/** Atiende los jobs pendientes. Devuelve cuántos procesó. */
+async function atenderCola() {
+  const { data: jobs, error } = await supabase
+    .from('precios_jobs')
+    .select('id, empresa_id, broker_id, intentos')
+    .eq('estado', 'pendiente')
+    .order('created_at', { ascending: true })
+    .limit(10)
+
+  if (error) {
+    log(`No se pudo leer la cola: ${error.message}`, 'error')
+    return 0
+  }
+  if (!jobs?.length) return 0
+
+  log(`Cola: ${jobs.length} job(s) pendiente(s)`)
+  for (const job of jobs) {
+    await procesarJob(job)
+  }
+  return jobs.length
+}
+
+// ============================================================================
+// BARRIDO PERIÓDICO
+// ============================================================================
+
+/**
+ * Refresca los precios de todos los activos de todas las empresas.
+ *
+ * Es lo que mantiene `activos_broker.valor_unitario` al día sin que nadie
+ * pulse nada. El botón del PRD §8 solo adelanta lo que este barrido ya hará.
+ */
+async function barrerTodo() {
+  const activos = await datos.obtenerTodosActivosParaActualizar()
+
+  if (activos.length === 0) {
+    return
+  }
+
+  const r = await sincronizarPrecios({
+    datos,
+    activos,
+    fechaRespaldo: hoyLocal(),
+    log,
+  })
+
+  log(
+    `Barrido: ${r.actualizados}/${r.total} posiciones, ${r.errores} errores`,
+    r.errores === 0 ? 'ok' : 'warn'
+  )
+}
+
+// ============================================================================
+// CICLO
+// ============================================================================
+
+/** Una vuelta completa: recuperar colgados, atender la cola y barrer. */
+async function vuelta() {
+  const inicio = Date.now()
+
+  try {
+    await recuperarJobsColgados()
+    await atenderCola()
+
+    if (!SIN_BARRIDO) {
+      await barrerTodo()
+    }
+
+    log(`Vuelta terminada en ${((Date.now() - inicio) / 1000).toFixed(2)}s`)
+  } catch (err) {
+    // Una vuelta que falla no debe matar al worker: el proceso sigue vivo y la
+    // siguiente vuelta lo intenta otra vez.
+    log(`Error en la vuelta: ${err.message}`, 'error')
   }
 }
 
 // ============================================================================
-// POLLING
+// ARRANQUE
 // ============================================================================
 
-async function iniciarWorker() {
-  log(`Worker iniciado. Polling cada ${POLL_INTERVAL_MS}ms`)
+let intervalo = null
 
-  // Ejecutar inmediatamente al iniciar
-  await actualizarPrecios()
+async function main() {
+  if (UNA_VEZ) {
+    log('Modo UNA_VEZ: una vuelta y salir')
+    await vuelta()
+    return
+  }
 
-  // Luego cada X milisegundos
-  setInterval(actualizarPrecios, POLL_INTERVAL_MS)
+  log(`Worker de precios iniciado (cada ${POLL_INTERVAL_MS / 1000}s)`)
+  await vuelta()
+  intervalo = setInterval(vuelta, POLL_INTERVAL_MS)
 }
 
-// ============================================================================
-// ENTRADA
-// ============================================================================
+function detener(senal) {
+  log(`Recibido ${senal}, deteniendo…`)
+  if (intervalo) clearInterval(intervalo)
+  process.exit(0)
+}
 
-iniciarWorker().catch((err) => {
+process.on('SIGINT', () => detener('SIGINT'))
+process.on('SIGTERM', () => detener('SIGTERM'))
+
+main().catch((err) => {
   log(`Fallo fatal: ${err.message}`, 'error')
   process.exit(1)
-})
-
-// Graceful shutdown
-process.on('SIGINT', () => {
-  log('Recibido SIGINT, deteniendo...', 'info')
-  process.exit(0)
-})
-
-process.on('SIGTERM', () => {
-  log('Recibido SIGTERM, deteniendo...', 'info')
-  process.exit(0)
 })

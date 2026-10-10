@@ -11,7 +11,9 @@
     "humo": "node scripts/humo-brokers.mjs",
     "humo:fase16": "node scripts/humo-wallets.mjs",
     "humo:fase17": "node scripts/humo-fase17.mjs",
-    "humo:fase18": "node scripts/humo-fase18.mjs"
+    "humo:fase18": "node scripts/humo-fase18.mjs",
+    "test:fase18": "node scripts/suite-fase18.mjs",
+    "verificar:fase18": "node scripts/verificacion-final-fase18.mjs"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.12",
