@@ -12,10 +12,13 @@ import { pool, query } from './db.mjs'
 const app = express()
 const port = Number(process.env.PORT || 3000)
 const jwtSecret = process.env.JWT_SECRET
-const pdfPasswordSecret = process.env.PDF_PASSWORD_SECRET || jwtSecret
+const pdfPasswordSecret = process.env.PDF_PASSWORD_SECRET
 
 if (!jwtSecret || jwtSecret.length < 32) {
   throw new Error('JWT_SECRET debe tener al menos 32 caracteres.')
+}
+if (!pdfPasswordSecret || pdfPasswordSecret.length < 32) {
+  throw new Error('PDF_PASSWORD_SECRET debe tener al menos 32 caracteres.')
 }
 
 app.disable('x-powered-by')
@@ -287,6 +290,7 @@ app.post('/api/empresas/:empresaId/cuentas', requireAuth, async (req, res) => {
   }
   const { banco_id: bancoId, numero_cuenta: numeroCuenta, tipo_cuenta: tipoCuenta, tipo_moneda: tipoMoneda } = req.body
   const pdfPassword = typeof req.body.pdf_password === 'string' ? req.body.pdf_password.trim() : ''
+  if (pdfPassword.length > 512) return error(res, 400, 'La clave del PDF es demasiado larga.')
   const monto = Number(req.body.monto ?? 0)
   if (!bancoId || !numeroCuenta?.trim() || !tipoMoneda?.trim()) return error(res, 400, 'Completa los datos obligatorios de la cuenta.')
   if (!['ahorros', 'corriente'].includes(tipoCuenta)) return error(res, 400, 'Tipo de cuenta inválido.')
@@ -348,6 +352,7 @@ app.put('/api/cuentas/:cuentaId/pdf-password', requireAuth, async (req, res) => 
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, account.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
   if (req.body.pdf_password !== null && typeof req.body.pdf_password !== 'string') return error(res, 400, 'La clave del PDF no es válida.')
   const password = typeof req.body.pdf_password === 'string' ? req.body.pdf_password.trim() : ''
+  if (password.length > 512) return error(res, 400, 'La clave del PDF es demasiado larga.')
   await query('update cuentas set pdf_password_encrypted = $2, updated_at = now() where id = $1', [req.params.cuentaId, cifrarClavePdf(password)])
   res.json({ tiene_clave_pdf: Boolean(password) })
 })

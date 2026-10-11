@@ -25,7 +25,8 @@ const IMPORT_CONCURRENCY = Math.max(1, Number(process.env.IMPORT_CONCURRENCY || 
 const PATEWAY_BASE_URL = (process.env.PATEWAY_BASE_URL || 'https://api.pateway.ai').replace(/\/$/, '')
 const PATEWAY_MODEL = process.env.IMPORT_MODEL || 'claude-haiku-4-5-20251001'
 const execFileAsync = promisify(execFile)
-const pdfPasswordSecret = process.env.PDF_PASSWORD_SECRET || process.env.JWT_SECRET
+const pdfPasswordSecret = process.env.PDF_PASSWORD_SECRET
+if (!pdfPasswordSecret || pdfPasswordSecret.length < 32) throw new Error('PDF_PASSWORD_SECRET debe tener al menos 32 caracteres.')
 
 function descifrarClavePdf(valor) {
   if (!valor || !pdfPasswordSecret) return ''
@@ -51,7 +52,7 @@ async function lotesDelArchivo(filePath, pdfPassword = '') {
   const extension = path.extname(filePath).toLowerCase()
   if (extension === '.pdf') {
     try {
-      const total = Number((await execFileAsync(process.env.PDFINFO_BIN || 'pdfinfo', [...(pdfPassword ? ['-upw', pdfPassword] : []), filePath], { maxBuffer: 1024 * 1024 })).stdout.match(/Pages:\s+(\d+)/i)?.[1] || 1)
+      const total = Number((await execFileAsync(process.env.PDFINFO_BIN || 'pdfinfo', [filePath], { maxBuffer: 1024 * 1024 })).stdout.match(/Pages:\s+(\d+)/i)?.[1] || 1)
       const lotes = []
       for (let inicio = 1; inicio <= total; inicio += IMPORT_PDF_PAGES_PER_BATCH) {
         const fin = Math.min(total, inicio + IMPORT_PDF_PAGES_PER_BATCH - 1)
