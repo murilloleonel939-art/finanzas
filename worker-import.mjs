@@ -1,6 +1,8 @@
 import 'dotenv/config'
 import fs from 'node:fs'
 import path from 'node:path'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { query, pool } from './server/db.mjs'
 import {
   generarPromptMovimientosCuenta,
@@ -13,6 +15,7 @@ import {
 const POLL_INTERVAL = Number(process.env.IMPORT_POLL_INTERVAL_MS || 30000)
 const STORAGE_DIR = process.env.IMPORT_STORAGE_DIR || path.resolve('server/uploads')
 const UNA_VEZ = process.env.IMPORT_UNA_VEZ === '1'
+const execFileAsync = promisify(execFile)
 
 function log(message, level = 'info') { console.log(`[${new Date().toISOString()}] ${level === 'error' ? '❌' : level === 'warn' ? '⚠️' : 'ℹ️'} ${message}`) }
 function fileForJob(job) {
@@ -24,22 +27,39 @@ function fileForJob(job) {
 }
 function asArray(value) { return Array.isArray(value) ? value : [] }
 
+async function textoDelPdf(pdfPath) {
+  try {
+    const { stdout } = await execFileAsync(process.env.PDFTOTEXT_BIN || 'pdftotext', ['-layout', pdfPath, '-'], { maxBuffer: 16 * 1024 * 1024 })
+    const texto = stdout.trim()
+    if (!texto) throw new Error('El PDF no contiene texto extraíble.')
+    return texto
+  } catch (error) {
+    if (error.code === 'ENOENT') throw new Error('Falta pdftotext en la imagen del worker NVIDIA.')
+    throw new Error(`No se pudo extraer texto del PDF: ${error.message}`)
+  }
+}
+
 async function extraerDatos(pdfPath, job, contexto) {
-  const apiKey = process.env.PATEWAY_API_KEY
-  if (!apiKey) throw new Error('Falta PATEWAY_API_KEY para extraer el PDF.')
+  const apiKey = process.env.NVIDIA_API_KEY
+  if (!apiKey) throw new Error('Falta NVIDIA_API_KEY para extraer el PDF.')
   const prompt = job.target === 'cuenta'
     ? generarPromptMovimientosCuenta({ ...contexto, proveedor: job.proveedor })
     : job.target === 'broker'
       ? generarPromptMovimientosBroker(contexto)
       : generarPromptMovimientosWallet({ ...contexto, proveedor: job.proveedor })
-  const response = await fetch(process.env.PATEWAY_API_URL || 'https://api.pateway.ai/v1/messages', {
+  const contenido = `${prompt}\n\nEXTRACTO PDF (texto extraído):\n${await textoDelPdf(pdfPath)}\n\nExtrae todos los datos. Retorna solo JSON válido.`
+  const response = await fetch(process.env.NVIDIA_API_URL || 'https://integrate.api.nvidia.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: process.env.IMPORT_MODEL || 'gpt-6-luna', max_tokens: 4096, system: prompt, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'application/pdf', data: fs.readFileSync(pdfPath).toString('base64') } }, { type: 'text', text: 'Extrae todos los datos del PDF. Retorna solo JSON.' }] }] }),
+    body: JSON.stringify({
+      model: process.env.IMPORT_MODEL || 'nvidia/nemotron-3-super-120b-a12b',
+      max_tokens: Number(process.env.IMPORT_MAX_TOKENS || 4096),
+      messages: [{ role: 'system', content: 'Eres un extractor preciso. Devuelve únicamente JSON válido.' }, { role: 'user', content: contenido }],
+    }),
   })
-  if (!response.ok) throw new Error(`Falló extracción (${response.status}).`)
+  if (!response.ok) throw new Error(`Falló extracción NVIDIA (${response.status}).`)
   const payload = await response.json()
-  const text = payload.content?.find((item) => item.type === 'text')?.text || payload.choices?.[0]?.message?.content || ''
+  const text = payload.choices?.[0]?.message?.content || ''
   const datos = validarRespuestaExtraccion(text)
   const items = Array.isArray(datos) ? datos : [...asArray(datos.movimientos), ...asArray(datos.activos)]
   for (const item of items) if (!item.external_id && item.fecha) item.external_id = await derivarExternalId(item)

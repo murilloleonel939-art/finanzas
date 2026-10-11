@@ -1,4 +1,5 @@
 # FinanzAdmin Pro — worker de importaciones (systemd)
+# Requisito del host/container: pdftotext (paquete poppler-utils).
 [Unit]
 Description=FinanzAdmin — worker de importaciones PDF
 After=network-online.target
