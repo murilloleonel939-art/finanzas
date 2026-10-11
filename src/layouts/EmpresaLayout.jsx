@@ -3,9 +3,11 @@ import { useParams, useNavigate, Outlet } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { obtenerEmpresa, obtenerRamas, suscribirseAModulos } from '@/lib/empresas-usuario'
 import { listarBancos, listarCuentas } from '@/lib/bancos'
+import { listarBrokers } from '@/lib/brokers-datos'
+import { listarProveedores, listarWallets } from '@/lib/wallets-datos'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
-import { ChevronDown, ChevronRight, Building2, Landmark, CreditCard, Plus } from 'lucide-react'
+import { ChevronDown, ChevronRight, Building2, Landmark, CreditCard, Plus, TrendingUp, Wallet } from 'lucide-react'
 
 /**
  * EmpresaLayout: Layout principal para la navegación dentro de una empresa.
@@ -47,6 +49,25 @@ export default function EmpresaLayout() {
   })
   const cuentasPorBanco = bancos.reduce((resultado, banco) => {
     resultado[banco.id] = cuentas.filter((cuenta) => cuenta.banco_id === banco.id)
+    return resultado
+  }, {})
+  const { data: brokers = [] } = useQuery({
+    queryKey: ['brokers', empresaId],
+    queryFn: () => listarBrokers(empresaId),
+    enabled: !!empresaId && !!user,
+  })
+  const { data: proveedores = [] } = useQuery({
+    queryKey: ['proveedores-wallet', empresaId],
+    queryFn: () => listarProveedores(empresaId),
+    enabled: !!empresaId && !!user,
+  })
+  const { data: wallets = [] } = useQuery({
+    queryKey: ['wallets-empresa', empresaId],
+    queryFn: () => listarWallets(empresaId),
+    enabled: !!empresaId && !!user,
+  })
+  const walletsPorProveedor = proveedores.reduce((resultado, proveedor) => {
+    resultado[proveedor.id] = wallets.filter((wallet) => wallet.proveedor_id === proveedor.id)
     return resultado
   }, {})
 
@@ -106,65 +127,49 @@ export default function EmpresaLayout() {
           <div className="space-y-2">
             {ramas.map((rama) => {
               const esBancos = rama.id === 'bancos'
-              const bancosVisibles = esBancos ? bancos : []
+              const esBrokers = rama.id === 'brokers'
+              const esWallets = rama.id === 'wallet-providers'
+              const elementos = esBancos ? bancos : esBrokers ? brokers : proveedores
+              const abierto = bancosAbiertos[rama.id]
+              const icono = esBancos ? <Landmark className="h-4 w-4" /> : esBrokers ? <TrendingUp className="h-4 w-4" /> : <Wallet className="h-4 w-4" />
               return (
                 <div key={rama.id}>
                   <div className="flex items-center rounded-md hover:bg-gray-100">
-                    <button
-                      type="button"
-                      onClick={() => navigate(rama.ruta)}
-                      className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 group"
-                    >
-                      {esBancos ? <Landmark className="h-4 w-4" /> : null}
-                      <span className="font-medium">{rama.nombre}</span>
+                    <button type="button" onClick={() => navigate(rama.ruta)} className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-sm text-gray-700">
+                      {icono}<span className="font-medium">{rama.nombre}</span>
                     </button>
-                    {esBancos && bancosVisibles.length > 0 ? (
-                      <button
-                        type="button"
-                        aria-label="Expandir bancos"
-                        onClick={() => setBancosAbiertos((actual) => ({ ...actual, menu: !actual.menu }))}
-                        className="mr-1 rounded p-1 hover:bg-gray-200"
-                      >
-                        {bancosAbiertos.menu ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    {elementos.length > 0 ? (
+                      <button type="button" aria-label={`Expandir ${rama.nombre}`} onClick={() => setBancosAbiertos((actual) => ({ ...actual, [rama.id]: !actual[rama.id] }))} className="mr-1 rounded p-1 hover:bg-gray-200">
+                        {abierto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       </button>
-                    ) : <ChevronRight className="mr-3 h-4 w-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />}
+                    ) : <ChevronRight className="mr-3 h-4 w-4 text-gray-400" />}
                   </div>
 
-                  {esBancos && bancosAbiertos.menu && (
+                  {abierto && (
                     <div className="ml-3 space-y-1 border-l border-gray-200 pl-2">
-                      {bancosVisibles.map((banco) => {
-                        const cuentasBanco = cuentasPorBanco[banco.id] ?? []
-                        const abierto = bancosAbiertos[banco.id]
+                      {elementos.map((elemento) => {
+                        const hijos = esBancos ? (cuentasPorBanco[elemento.id] ?? []) : esWallets ? (walletsPorProveedor[elemento.id] ?? []) : []
+                        const elementoAbierto = bancosAbiertos[elemento.id]
+                        const nombre = esBancos ? elemento.nombre_banco : esBrokers ? elemento.nombre_broker : elemento.nombre_proveedor
                         return (
-                          <div key={banco.id}>
-                            <button
-                              type="button"
-                              onClick={() => setBancosAbiertos((actual) => ({ ...actual, [banco.id]: !actual[banco.id] }))}
-                              className="flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-xs text-gray-600 hover:bg-gray-100"
-                            >
-                              {abierto ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                              <Landmark className="h-3.5 w-3.5" />
-                              <span className="truncate">{banco.nombre_banco}</span>
+                          <div key={elemento.id}>
+                            <button type="button" onClick={() => {
+                              if (esBrokers) navigate(`/empresa/${empresaId}/brokers/${elemento.id}`)
+                              else setBancosAbiertos((actual) => ({ ...actual, [elemento.id]: !actual[elemento.id] }))
+                            }} className="flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-xs text-gray-600 hover:bg-gray-100">
+                              {esBrokers ? <TrendingUp className="h-3.5 w-3.5" /> : elementoAbierto ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                              {esWallets ? <Wallet className="h-3.5 w-3.5" /> : esBancos ? <Landmark className="h-3.5 w-3.5" /> : null}
+                              <span className="truncate">{nombre}</span>
                             </button>
-                            {abierto && (
+                            {!esBrokers && elementoAbierto && (
                               <div className="ml-4 space-y-1">
-                                {cuentasBanco.map((cuenta) => (
-                                  <button
-                                    key={cuenta.id}
-                                    type="button"
-                                    onClick={() => navigate(`/empresa/${empresaId}/cuentas/${cuenta.id}`)}
-                                    className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-gray-500 hover:bg-gray-100"
-                                  >
-                                    <CreditCard className="h-3 w-3" />
-                                    <span className="truncate">{cuenta.numero_cuenta}</span>
+                                {hijos.map((hijo) => (
+                                  <button key={hijo.id} type="button" onClick={() => navigate(esBancos ? `/empresa/${empresaId}/cuentas/${hijo.id}` : `/empresa/${empresaId}/wallets/proveedor/${elemento.id}/wallet/${hijo.id}`)} className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-gray-500 hover:bg-gray-100">
+                                    {esBancos ? <CreditCard className="h-3 w-3" /> : <Wallet className="h-3 w-3" />}<span className="truncate">{esBancos ? hijo.numero_cuenta : hijo.nombre_wallet}</span>
                                   </button>
                                 ))}
-                                <button
-                                  type="button"
-                                  onClick={() => navigate(`/empresa/${empresaId}/cuentas/crear?banco=${banco.id}`)}
-                                  className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-blue-600 hover:bg-blue-50"
-                                >
-                                  <Plus className="h-3 w-3" /> Crear cuenta
+                                <button type="button" onClick={() => navigate(esBancos ? `/empresa/${empresaId}/cuentas/crear?banco=${elemento.id}` : `/empresa/${empresaId}/wallets/proveedor/${elemento.id}/crear-wallet`)} className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-blue-600 hover:bg-blue-50">
+                                  <Plus className="h-3 w-3" /> {esBancos ? 'Crear cuenta' : 'Crear wallet'}
                                 </button>
                               </div>
                             )}
