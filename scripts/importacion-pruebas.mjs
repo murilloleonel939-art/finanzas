@@ -108,16 +108,17 @@ const workerPath = path.join(rootDir, 'worker-import.mjs');
 const workerContent = fs.readFileSync(workerPath, 'utf8');
 
 assert(workerContent.includes('procesarJob'), 'Define función procesarJob');
-assert(workerContent.includes('obtenerJobsPendientes'), 'Define función obtenerJobsPendientes');
-assert(workerContent.includes('GPT-6'), 'Usa GPT-6 Luna');
+assert(workerContent.includes("from './server/db.mjs'"), 'Usa el pool PostgreSQL local');
+assert(workerContent.includes("where estado = 'pendiente'"), 'Busca jobs pendientes en PostgreSQL');
+assert(workerContent.includes('PATEWAY_API_KEY'), 'Usa el gateway configurado');
 assert(workerContent.includes('gpt-6-luna'), 'Configura modelo correcto');
 assert(workerContent.includes('system:'), 'Envía system prompt');
 assert(workerContent.includes('base64'), 'Codifica PDF en base64');
 assert(workerContent.includes('image'), 'Usa vision para procesar imagen');
 assert(workerContent.includes('validarRespuestaExtraccion'), 'Valida respuesta del LLM');
-assert(workerContent.includes('estado: \'procesando\''), 'Marca como procesando');
-assert(workerContent.includes('estado: \'hecho\''), 'Marca como completado');
-assert(workerContent.includes('estado: \'error\''), 'Marca como error si falla');
+assert(workerContent.includes("estado = 'procesando'"), 'Marca como procesando');
+assert(workerContent.includes("estado = 'hecho'"), 'Marca como completado');
+assert(workerContent.includes("estado = 'error'"), 'Marca como error si falla');
 
 // 5. Verificar Componentes React
 console.log('\n5️⃣  Componentes React');
@@ -155,9 +156,9 @@ assert(workerContent.includes('external_id') || datosContent.includes('external_
 assert(workerContent.includes('duplicados') || datosContent.includes('duplicados'), 'Worker/backend retorna conteo de duplicados');
 
 // Verificar que se actualiza estado del job
-assert(workerContent.includes('actualizarImportJob'), 'Actualiza estado del job');
-assert(workerContent.includes('payload:'), 'Guarda payload extraído');
-assert(workerContent.includes('resultado'), 'Guarda resultado de creación');
+assert(workerContent.includes("update import_jobs set estado"), 'Actualiza estado del job');
+assert(workerContent.includes('movimientos_creados'), 'Guarda conteo de movimientos');
+assert(workerContent.includes('duplicados_omitidos'), 'Guarda conteo de duplicados');
 
 // ============================================================================
 // RESUMEN

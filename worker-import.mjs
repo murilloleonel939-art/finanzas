@@ -1,314 +1,137 @@
-/**
- * Worker de importación
- * Procesa jobs de importación con GPT-6 Luna
- * 
- * Flujo:
- * 1. Buscar jobs en estado 'pendiente'
- * 2. Marcar como 'procesando'
- * 3. Descargar PDF de Storage
- * 4. Generar prompt según tipo (cuenta/broker/wallet)
- * 5. Llamar a GPT-6 Luna con el PDF
- * 6. Validar respuesta y crear movimientos
- * 7. Marcar job como 'hecho' o 'error'
- * 
- * Ejecutar con: node worker-import.mjs
- * En producción: supervisord o systemd service
- */
-
-import fs from 'fs';
-import path from 'path';
-import { createClient } from '@supabase/supabase-js';
-import OpenAI from 'openai';
+import 'dotenv/config'
+import fs from 'node:fs'
+import path from 'node:path'
+import { query, pool } from './server/db.mjs'
 import {
   generarPromptMovimientosCuenta,
   generarPromptMovimientosBroker,
   generarPromptMovimientosWallet,
   validarRespuestaExtraccion,
   derivarExternalId,
-} from '../src/lib/imports-prompts.js';
-import {
-  actualizarImportJob,
-  crearMovimientosDesdeImportacion,
-  crearMovimientosBrokerDesdeImportacion,
-  crearMovimientosWalletDesdeImportacion,
-  obtenerCuentaParaImportacion,
-  obtenerBrokerParaImportacion,
-  obtenerWalletParaImportacion,
-} from '../src/lib/imports-datos.js';
+} from './src/lib/imports-prompts.js'
 
-// ============================================================================
-// CONFIGURACIÓN
-// ============================================================================
+const POLL_INTERVAL = Number(process.env.IMPORT_POLL_INTERVAL_MS || 30000)
+const STORAGE_DIR = process.env.IMPORT_STORAGE_DIR || path.resolve('server/uploads')
+const UNA_VEZ = process.env.IMPORT_UNA_VEZ === '1'
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const PATEWAY_API_KEY = process.env.PATEWAY_API_KEY;
-const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL || '10000', 10); // 10s
-const TEMP_DIR = process.env.TEMP_DIR || '/tmp/finanzas-imports';
+function log(message, level = 'info') { console.log(`[${new Date().toISOString()}] ${level === 'error' ? '❌' : level === 'warn' ? '⚠️' : 'ℹ️'} ${message}`) }
+function fileForJob(job) {
+  const root = path.resolve(STORAGE_DIR)
+  const stored = path.isAbsolute(job.storage_path) ? job.storage_path : path.join(root, job.storage_path)
+  const candidate = path.resolve(stored)
+  if (candidate !== root && !candidate.startsWith(`${root}${path.sep}`)) throw new Error('Ruta de almacenamiento inválida.')
+  return candidate
+}
+function asArray(value) { return Array.isArray(value) ? value : [] }
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !PATEWAY_API_KEY) {
-  console.error('Faltan variables de entorno: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, PATEWAY_API_KEY');
-  process.exit(1);
+async function extraerDatos(pdfPath, job, contexto) {
+  const apiKey = process.env.PATEWAY_API_KEY
+  if (!apiKey) throw new Error('Falta PATEWAY_API_KEY para extraer el PDF.')
+  const prompt = job.target === 'cuenta'
+    ? generarPromptMovimientosCuenta({ ...contexto, proveedor: job.proveedor })
+    : job.target === 'broker'
+      ? generarPromptMovimientosBroker(contexto)
+      : generarPromptMovimientosWallet({ ...contexto, proveedor: job.proveedor })
+  const response = await fetch(process.env.PATEWAY_API_URL || 'https://api.pateway.ai/v1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: process.env.IMPORT_MODEL || 'gpt-6-luna', max_tokens: 4096, system: prompt, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'application/pdf', data: fs.readFileSync(pdfPath).toString('base64') } }, { type: 'text', text: 'Extrae todos los datos del PDF. Retorna solo JSON.' }] }] }),
+  })
+  if (!response.ok) throw new Error(`Falló extracción (${response.status}).`)
+  const payload = await response.json()
+  const text = payload.content?.find((item) => item.type === 'text')?.text || payload.choices?.[0]?.message?.content || ''
+  const datos = validarRespuestaExtraccion(text)
+  const items = Array.isArray(datos) ? datos : [...asArray(datos.movimientos), ...asArray(datos.activos)]
+  for (const item of items) if (!item.external_id && item.fecha) item.external_id = await derivarExternalId(item)
+  return datos
 }
 
-// Crear directorio temporal
-if (!fs.existsSync(TEMP_DIR)) {
-  fs.mkdirSync(TEMP_DIR, { recursive: true });
+async function contextoDestino(client, job) {
+  const table = job.target === 'cuenta' ? 'cuentas' : job.target === 'wallet' ? 'wallets' : 'brokers'
+  const id = job[`${job.target}_id`]
+  const result = await client.query(`select * from ${table} where id = $1 and empresa_id = $2 and deleted_at is null`, [id, job.empresa_id])
+  if (!result.rowCount) throw new Error('Destino de importación no encontrado.')
+  return result.rows[0]
 }
 
-// ============================================================================
-// CLIENTES
-// ============================================================================
+async function procesarCuenta(client, job, datos) {
+  let creados = 0; let duplicados = 0
+  for (const item of asArray(datos)) {
+    const fecha = item.fecha; const monto = Number(item.monto)
+    if (!fecha || !Number.isFinite(monto) || monto < 0 || !item.descripcion || !['ingreso', 'egreso'].includes(item.tipo)) continue
+    const r = await client.query(`insert into movimientos (empresa_id, cuenta_id, fecha, descripcion, tipo, monto, created_by)
+      values ($1,$2,$3,$4,$5,$6,$7) returning id`, [job.empresa_id, job.cuenta_id, fecha, String(item.descripcion).trim(), item.tipo, monto, job.created_by])
+    if (r.rowCount) creados++
+  }
+  return { creados, duplicados }
+}
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+async function procesarWallet(client, job, datos) {
+  let creados = 0; let duplicados = 0
+  const wallet = (await client.query('select empresa_id, proveedor_id from wallets where id = $1 and deleted_at is null', [job.wallet_id])).rows[0]
+  if (!wallet) throw new Error('Wallet destino no encontrada.')
+  for (const item of asArray(datos)) {
+    const monto = Number(item.monto)
+    if (!item.fecha || !Number.isFinite(monto) || monto <= 0 || !item.descripcion || !['ingreso', 'egreso'].includes(item.tipo)) continue
+    const r = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, external_id, source_file, created_by)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
+      [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, String(item.descripcion).trim(), item.tipo, monto, item.moneda || 'USD', item.external_id || null, job.storage_path, job.created_by])
+    if (r.rowCount) creados++; else duplicados++
+  }
+  return { creados, duplicados }
+}
 
-const openai = new OpenAI({
-  apiKey: PATEWAY_API_KEY,
-  baseURL: 'https://api.pateway.ai/v1',
-});
+async function procesarBroker(client, job, datos) {
+  let movimientos = 0; let activos = 0; let duplicados = 0
+  const broker = (await client.query('select empresa_id from brokers where id = $1 and deleted_at is null', [job.broker_id])).rows[0]
+  if (!broker) throw new Error('Broker destino no encontrado.')
+  for (const item of asArray(datos?.movimientos)) {
+    const monto = Number(item.monto)
+    const tipo = ['deposito', 'venta', 'ingreso'].includes(item.tipo) ? 'ingreso' : 'egreso'
+    if (!item.fecha || !Number.isFinite(monto) || monto < 0 || !item.descripcion) continue
+    const r = await client.query(`insert into movimientos_broker (empresa_id, broker_id, fecha, descripcion, tipo, monto, external_id, created_by)
+      values ($1,$2,$3,$4,$5,$6,$7,$8) on conflict (broker_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
+      [job.empresa_id, job.broker_id, item.fecha, String(item.descripcion).trim(), tipo, monto, item.external_id || null, job.created_by])
+    if (r.rowCount) movimientos++; else duplicados++
+  }
+  for (const item of asArray(datos?.activos)) {
+    const cantidad = Number(item.cantidad); const valor = Number(item.valor_unitario)
+    if (!item.nombre && !item.ticker || !Number.isFinite(cantidad) || cantidad < 0 || !Number.isFinite(valor) || valor < 0) continue
+    const nombre = String(item.ticker || item.nombre).trim(); const tipo = item.tipo === 'etf' ? 'etf' : item.tipo === 'bono' ? 'bono' : item.tipo === 'fondo' ? 'fondo' : item.tipo === 'criptomoneda' ? 'criptomoneda' : 'accion'
+    const r = await client.query(`insert into activos_broker (empresa_id, broker_id, nombre_activo, tipo_activo, cantidad, valor_unitario, moneda, created_by)
+      values ($1,$2,$3,$4,$5,$6,$7,$8) on conflict (broker_id, lower(nombre_activo)) where deleted_at is null do update set cantidad = excluded.cantidad, valor_unitario = excluded.valor_unitario, moneda = excluded.moneda, updated_at = now() returning id`,
+      [job.empresa_id, job.broker_id, nombre, tipo, cantidad, valor, item.moneda || 'USD', job.created_by])
+    if (r.rowCount) activos++
+  }
+  return { creados: movimientos, activos, duplicados }
+}
 
-// ============================================================================
-// FUNCIONES PRINCIPALES
-// ============================================================================
-
-/**
- * Procesar un job individual
- */
 async function procesarJob(job) {
+  const client = await pool.connect()
   try {
-    console.log(`\n📥 Procesando job ${job.id} (${job.destino}/${job.destino_id})`);
-
-    // Marcar como procesando
-    await actualizarImportJob(job.id, { estado: 'procesando' });
-
-    // Descargar PDF
-    const pdfPath = await descargarPDF(job.archivo_url);
-
-    // Obtener contexto según tipo
-    let contexto;
-    let prompt;
-
-    switch (job.destino) {
-      case 'cuenta':
-        contexto = await obtenerCuentaParaImportacion(job.destino_id);
-        prompt = generarPromptMovimientosCuenta({
-          ...contexto,
-          proveedor: job.proveedor,
-        });
-        break;
-
-      case 'broker':
-        contexto = await obtenerBrokerParaImportacion(job.destino_id);
-        prompt = generarPromptMovimientosBroker(contexto);
-        break;
-
-      case 'wallet':
-        contexto = await obtenerWalletParaImportacion(job.destino_id);
-        prompt = generarPromptMovimientosWallet({
-          ...contexto,
-          proveedor: job.proveedor,
-        });
-        break;
-
-      default:
-        throw new Error(`Destino desconocido: ${job.destino}`);
-    }
-
-    // Leer PDF como base64
-    const pdfData = fs.readFileSync(pdfPath);
-    const base64Pdf = pdfData.toString('base64');
-
-    // Llamar a GPT-6 Luna con vision
-    console.log(`🤖 Extrayendo con GPT-6 Luna...`);
-    const response = await openai.messages.create({
-      model: 'gpt-6-luna',
-      max_tokens: 4096,
-      system: prompt,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: 'application/pdf',
-                data: base64Pdf,
-              },
-            },
-            {
-              type: 'text',
-              text: 'Extrae todos los movimientos del PDF. Retorna solo JSON, sin explicaciones.',
-            },
-          ],
-        },
-      ],
-    });
-
-    const extractedText = response.content[0].type === 'text' 
-      ? response.content[0].text 
-      : '';
-
-    console.log(`✅ Respuesta recibida (${extractedText.length} chars)`);
-
-    // Validar y parsear respuesta
-    const datos = validarRespuestaExtraccion(extractedText);
-
-    // Derivar external_id si falta
-    if (Array.isArray(datos)) {
-      for (const mov of datos) {
-        if (!mov.external_id) {
-          mov.external_id = await derivarExternalId(mov);
-        }
-      }
-    } else if (datos.movimientos) {
-      for (const mov of datos.movimientos) {
-        if (!mov.external_id) {
-          mov.external_id = await derivarExternalId(mov);
-        }
-      }
-      if (datos.activos) {
-        for (const activo of datos.activos) {
-          if (!activo.external_id) {
-            activo.external_id = await derivarExternalId(activo);
-          }
-        }
-      }
-    }
-
-    // Crear movimientos según tipo
-    let resultado;
-
-    switch (job.destino) {
-      case 'cuenta':
-        resultado = await crearMovimientosDesdeImportacion({
-          cuenta_id: job.destino_id,
-          movimientos: datos,
-        });
-        console.log(`📊 ${resultado.creados.length} movimientos creados, ${resultado.duplicados.length} duplicados`);
-        break;
-
-      case 'broker':
-        resultado = await crearMovimientosBrokerDesdeImportacion({
-          broker_id: job.destino_id,
-          movimientos: datos.movimientos,
-          activos: datos.activos,
-        });
-        console.log(`📊 ${resultado.movimientosCreados.length} movimientos, ${resultado.activosCreados.length} activos`);
-        break;
-
-      case 'wallet':
-        resultado = await crearMovimientosWalletDesdeImportacion({
-          wallet_id: job.destino_id,
-          movimientos: datos,
-        });
-        console.log(`📊 ${resultado.creados.length} movimientos creados, ${resultado.duplicados.length} duplicados`);
-        break;
-    }
-
-    // Marcar como hecho
-    await actualizarImportJob(job.id, {
-      estado: 'hecho',
-      payload: { datos_extraidos: datos },
-      resultado,
-    });
-
-    console.log(`✅ Job completado: ${job.id}`);
-
-    // Limpiar PDF temporal
-    fs.unlinkSync(pdfPath);
-
+    await client.query('begin')
+    const claimed = await client.query(`update import_jobs set estado = 'procesando', started_at = now(), intentos = intentos + 1, updated_at = now() where id = $1 and estado = 'pendiente' returning *`, [job.id])
+    if (!claimed.rowCount) { await client.query('rollback'); return }
+    const current = claimed.rows[0]
+    const pdfPath = fileForJob(current)
+    if (!fs.existsSync(pdfPath)) throw new Error(`PDF no encontrado: ${current.storage_path}`)
+    const contexto = await contextoDestino(client, current)
+    const datos = await extraerDatos(pdfPath, current, contexto)
+    const result = current.target === 'cuenta' ? await procesarCuenta(client, current, datos) : current.target === 'wallet' ? await procesarWallet(client, current, datos) : await procesarBroker(client, current, datos)
+    await client.query(`update import_jobs set estado = 'hecho', movimientos_creados = $2, activos_creados = $3, duplicados_omitidos = $4, finished_at = now(), updated_at = now() where id = $1`, [current.id, result.creados ?? 0, result.activos ?? 0, result.duplicados ?? 0])
+    await client.query('commit'); log(`Job ${current.id} completado`)
   } catch (error) {
-    console.error(`❌ Error en job ${job.id}:`, error.message);
-
-    try {
-      await actualizarImportJob(job.id, {
-        estado: 'error',
-        error_msg: error.message,
-      });
-    } catch (updateError) {
-      console.error(`No se pudo actualizar el job a error:`, updateError.message);
-    }
-  }
+    await client.query('rollback').catch(() => {})
+    await query(`update import_jobs set estado = 'error', error_mensaje = $2, finished_at = now(), updated_at = now() where id = $1`, [job.id, error.message])
+    log(`Job ${job.id} falló: ${error.message}`, 'error')
+  } finally { client.release() }
 }
-
-/**
- * Descargar PDF desde Storage
- */
-async function descargarPDF(archivoUrl) {
-  const { data, error } = await supabase.storage
-    .from('extractos')
-    .download(archivoUrl);
-
-  if (error) throw new Error(`No se pudo descargar: ${error.message}`);
-
-  const filename = path.basename(archivoUrl);
-  const localPath = path.join(TEMP_DIR, filename);
-  const buffer = await data.arrayBuffer();
-  fs.writeFileSync(localPath, Buffer.from(buffer));
-
-  return localPath;
+async function vuelta() {
+  const recovered = await query("update import_jobs set estado = 'pendiente', updated_at = now() where estado = 'procesando' and started_at < now() - interval '30 minutes'")
+  if (recovered.rowCount) log(`Recuperados ${recovered.rowCount} job(s) colgado(s)`, 'warn')
+  const jobs = (await query("select * from import_jobs where estado = 'pendiente' order by created_at asc limit 5")).rows
+  for (const job of jobs) await procesarJob(job)
 }
-
-/**
- * Buscar jobs pendientes
- */
-async function obtenerJobsPendientes() {
-  const { data, error } = await supabase
-    .from('import_jobs')
-    .select('*')
-    .eq('estado', 'pendiente')
-    .order('created_at', { ascending: true })
-    .limit(5); // Procesar máximo 5 por ciclo
-
-  if (error) throw new Error(`No se pudieron obtener jobs: ${error.message}`);
-  return data || [];
-}
-
-/**
- * Loop principal del worker
- */
-async function workerLoop() {
-  console.log(`\n⏰ ${new Date().toISOString()} - Buscando jobs pendientes...`);
-
-  try {
-    const jobs = await obtenerJobsPendientes();
-
-    if (jobs.length === 0) {
-      console.log('Ningún job pendiente.');
-    } else {
-      console.log(`Encontrados ${jobs.length} job(s) pendiente(s)`);
-
-      for (const job of jobs) {
-        await procesarJob(job);
-      }
-    }
-  } catch (error) {
-    console.error('Error en loop principal:', error.message);
-  }
-
-  // Siguiente iteración
-  setTimeout(workerLoop, POLL_INTERVAL);
-}
-
-// ============================================================================
-// INICIAR WORKER
-// ============================================================================
-
-console.log('🚀 Worker de importación iniciado');
-console.log(`   Supabase: ${SUPABASE_URL}`);
-console.log(`   Intervalo de polling: ${POLL_INTERVAL}ms`);
-console.log(`   Directorio temporal: ${TEMP_DIR}`);
-
-workerLoop();
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('\n🛑 SIGTERM recibido. Cerrando gracefully...');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  console.log('\n🛑 SIGINT recibido. Cerrando gracefully...');
-  process.exit(0);
-});
+async function main() { log(`Worker de importación local iniciado (intervalo ${POLL_INTERVAL}ms)`); await vuelta(); if (!UNA_VEZ) setInterval(() => vuelta().catch((e) => log(e.message, 'error')), POLL_INTERVAL) }
+process.on('SIGTERM', async () => { await pool.end(); process.exit(0) }); process.on('SIGINT', async () => { await pool.end(); process.exit(0) })
+main().catch(async (error) => { log(`Fallo fatal: ${error.message}`, 'error'); await pool.end(); process.exit(1) })

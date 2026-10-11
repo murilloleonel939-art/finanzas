@@ -6,7 +6,7 @@
  * usan los dos consumidores:
  *
  *   - `worker-precios.mjs` (Node, EC2): barrido periódico y cola de jobs (D30)
- *   - `supabase/functions/actualizar-precios` (Deno): responde al botón del PRD §8
+ *   - el worker local de PostgreSQL: responde al botón del PRD §8 mediante `precios_jobs`
  *
  * **Por qué está separado de `precios-datos.js`:** aquella es la capa de datos
  * (habla con Postgres y nada más). Esta es la política —qué se considera un
@@ -68,7 +68,7 @@ export function fechaDeCotizacion(cotizacion, fechaRespaldo) {
  * precio a todos los demás.
  *
  * @param {Object} params
- * @param {Object} params.datos resultado de `crearPreciosDatos(supabase)`
+ * @param {Object} params.datos resultado de `crearPreciosDatos({ query })`
  * @param {Array<Object>} params.activos filas de `activos_broker`
  * @param {string} params.fechaRespaldo 'YYYY-MM-DD' (hoy local del que llama)
  * @param {(msg: string, nivel?: string) => void} [params.log]

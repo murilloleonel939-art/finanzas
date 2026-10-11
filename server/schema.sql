@@ -233,6 +233,18 @@ create table if not exists precios_jobs (
 );
 create index if not exists precios_jobs_idx on precios_jobs (created_at desc);
 
+create table if not exists precios_barridos (
+  fecha date primary key,
+  estado text not null check (estado in ('procesando', 'hecho', 'error')),
+  activos_totales integer not null default 0,
+  activos_actualizados integer not null default 0,
+  errores integer not null default 0,
+  error_mensaje text,
+  started_at timestamptz not null default now(),
+  finished_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists import_jobs (
   id uuid primary key default gen_random_uuid(),
   empresa_id uuid not null references empresas(id) on delete cascade,

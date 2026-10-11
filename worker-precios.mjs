@@ -15,13 +15,10 @@
  *      pulse nada.
  *
  * Uso:
- *   SUPABASE_URL=https://xxx.supabase.co \
- *   SUPABASE_SERVICE_ROLE_KEY=eyJ... \
- *   node worker-precios.mjs
+ *   DATABASE_URL=postgres://... node worker-precios.mjs
  *
  * Variables:
- *   SUPABASE_URL                (requerida)
- *   SUPABASE_SERVICE_ROLE_KEY   (requerida — escribe sin sesión de usuario)
+ *   DATABASE_URL                (requerida por server/db.mjs)
  *   POLL_INTERVAL_MS            (opcional, 300000 = 5 min)
  *   UNA_VEZ=1                   (opcional: una vuelta y salir — para cron externo)
  *   SIN_COLA=1                  (opcional: no atiende la cola, solo el barrido)
@@ -35,16 +32,12 @@
  * cierre. Con el mercado cerrado, entre las 17:00 y las 09:00 del día siguiente
  * el precio no cambia: repetirlo solo gasta cuota y arriesga un 429.
  *
- * **Por qué service_role y no la anon key:** el worker no tiene sesión de
- * usuario, y las policies de `precios_activo` y `activos_broker` exigen
- * `has_empresa_access()`. Con la anon key no escribiría ni una fila. La
- * service_role se salta el RLS y por eso nunca sale del servidor.
- *
- * **Por qué un worker y no pg_cron:** ver D28/D30. El cron de Supabase ejecuta
- * SQL dentro de Postgres; no puede llamar a la API de Yahoo ni leer su JSON.
+ * El worker conecta directamente al PostgreSQL privado de Coolify y conserva
+ * las escrituras fuera del navegador. La cola y el barrido se recuperan si el
+ * proceso se reinicia durante una operación.
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { pool, query } from './server/db.mjs'
 import { crearPreciosDatos, hoyLocal } from './src/lib/precios-datos.js'
 import { sincronizarPrecios, mensajeDeError } from './src/lib/precios-sync.js'
 import {
@@ -61,8 +54,6 @@ import {
 // CONFIGURACIÓN
 // ============================================================================
 
-const SUPABASE_URL = process.env.SUPABASE_URL
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '300000', 10)
 const UNA_VEZ = process.env.UNA_VEZ === '1'
 const SIN_BARRIDO = process.env.SIN_BARRIDO === '1'
@@ -70,19 +61,6 @@ const SIN_COLA = process.env.SIN_COLA === '1'
 
 const BARRIDO_TZ = process.env.BARRIDO_TZ || TZ_COLOMBIA
 const BARRIDO_HORA = process.env.BARRIDO_HORA || HORA_BARRIDO
-
-const faltantes = []
-if (!SUPABASE_URL) faltantes.push('SUPABASE_URL')
-if (!SUPABASE_SERVICE_ROLE_KEY) faltantes.push('SUPABASE_SERVICE_ROLE_KEY')
-
-if (faltantes.length > 0) {
-  console.error(`❌ Faltan variables de entorno: ${faltantes.join(', ')}`)
-  console.error(
-    '   El worker necesita la service_role key: escribe sin sesión de usuario,\n' +
-      '   así que el RLS lo bloquearía con la anon key.'
-  )
-  process.exit(1)
-}
 
 if (!Number.isFinite(POLL_INTERVAL_MS) || POLL_INTERVAL_MS < 1000) {
   console.error('❌ POLL_INTERVAL_MS debe ser un número >= 1000')
@@ -101,11 +79,7 @@ if (!horaValida(BARRIDO_HORA)) {
   process.exit(1)
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false },
-})
-
-const datos = crearPreciosDatos(supabase)
+const datos = crearPreciosDatos({ query })
 
 // ============================================================================
 // LOGGING
@@ -144,16 +118,9 @@ async function activosDelJob(job) {
 async function procesarJob(job) {
   log(`Job ${job.id}: actualizando ${job.broker_id ? `broker ${job.broker_id}` : 'toda la empresa'}`)
 
-  const { error: errTomar } = await supabase
-    .from('precios_jobs')
-    .update({
-      estado: 'procesando',
-      started_at: new Date().toISOString(),
-      intentos: (job.intentos ?? 0) + 1,
-    })
-    .eq('id', job.id)
-
-  if (errTomar) {
+  try {
+    await query(`update precios_jobs set estado = 'procesando', started_at = now(), intentos = $2 where id = $1`, [job.id, (job.intentos ?? 0) + 1])
+  } catch (errTomar) {
     log(`Job ${job.id}: no se pudo marcar como procesando: ${errTomar.message}`, 'error')
     return
   }
@@ -207,12 +174,14 @@ async function procesarJob(job) {
 
 /** Escribe el desenlace del job. Nunca tumba el ciclo si falla. */
 async function cerrarJob(id, campos) {
-  const { error } = await supabase
-    .from('precios_jobs')
-    .update({ ...campos, finished_at: new Date().toISOString() })
-    .eq('id', id)
-
-  if (error) log(`No se pudo cerrar el job ${id}: ${error.message}`, 'error')
+  const keys = Object.keys(campos)
+  const values = [id, ...keys.map((key) => campos[key])]
+  const sets = keys.map((key, index) => `${key} = $${index + 2}`).join(', ')
+  try {
+    await query(`update precios_jobs set ${sets}, finished_at = now() where id = $1`, values)
+  } catch (error) {
+    log(`No se pudo cerrar el job ${id}: ${error.message}`, 'error')
+  }
 }
 
 /**
@@ -222,38 +191,25 @@ async function cerrarJob(id, campos) {
  * botón de la UI se queda en «procesando» indefinidamente.
  */
 async function recuperarJobsColgados() {
-  const hace30min = new Date(Date.now() - 30 * 60 * 1000).toISOString()
-
-  const { data, error } = await supabase
-    .from('precios_jobs')
-    .update({ estado: 'pendiente' })
-    .eq('estado', 'procesando')
-    .lt('started_at', hace30min)
-    .select('id')
-
-  if (error) {
+  try {
+    const recovered = await query("update precios_jobs set estado = 'pendiente' where estado = 'procesando' and started_at < now() - interval '30 minutes' returning id")
+    if (recovered.rowCount) log(`Recuperados ${recovered.rowCount} job(s) colgado(s)`, 'warn')
+  } catch (error) {
     log(`No se pudieron recuperar jobs colgados: ${error.message}`, 'warn')
-    return
-  }
-  if (data?.length) {
-    log(`Recuperados ${data.length} job(s) colgado(s)`, 'warn')
   }
 }
 
 /** Atiende los jobs pendientes. Devuelve cuántos procesó. */
 async function atenderCola() {
-  const { data: jobs, error } = await supabase
-    .from('precios_jobs')
-    .select('id, empresa_id, broker_id, intentos')
-    .eq('estado', 'pendiente')
-    .order('created_at', { ascending: true })
-    .limit(10)
-
-  if (error) {
+  let jobs
+  try {
+    const result = await query("select id, empresa_id, broker_id, intentos from precios_jobs where estado = 'pendiente' order by created_at asc limit 10")
+    jobs = result.rows
+  } catch (error) {
     log(`No se pudo leer la cola: ${error.message}`, 'error')
     return 0
   }
-  if (!jobs?.length) return 0
+  if (!jobs.length) return 0
 
   log(`Cola: ${jobs.length} job(s) pendiente(s)`)
   for (const job of jobs) {

@@ -1,375 +1,70 @@
-/**
- * Capa de datos de precios.
- *
- * **Por qué es una fábrica y no un módulo con el cliente incrustado:**
- * el worker de precios corre en Node (`worker-precios.mjs`), donde
- * `src/lib/supabase.js` **no se puede importar** — usa `import.meta.env`, que
- * solo existe cuando Vite compila. Si este módulo importara el cliente del
- * navegador, importarlo desde Node reventaría en la primera línea con
- * `Cannot read properties of undefined (reading 'VITE_SUPABASE_URL')`.
- *
- * Con la fábrica, el navegador pasa el cliente normal y el worker pasa uno
- * creado con `createClient(url, service_role)`. El mismo código sirve en los
- * dos sitios.
- *
- * Uso en el navegador:
- *   import { supabase } from '@/lib/supabase'
- *   import { crearPreciosDatos } from '@/lib/precios-datos'
- *   const precios = crearPreciosDatos(supabase)
- *
- * Uso en el worker:
- *   const supabase = createClient(url, serviceKey)
- *   const precios = crearPreciosDatos(supabase)
- */
+/** Capa de datos de precios sobre una función query de PostgreSQL. */
+export function crearPreciosDatos(db) {
+  const q = (text, values) => db.query(text, values)
 
-/**
- * Construye la capa de datos de precios sobre un cliente de Supabase.
- * @param {import('@supabase/supabase-js').SupabaseClient} supabase
- */
-export function crearPreciosDatos(supabase) {
-  // ========================================================================
-  // LECTURA
-  // ========================================================================
-
-  /**
-   * Precio más reciente de un activo.
-   * @param {string} activoId
-   * @returns {Promise<Object|null>}
-   */
   async function obtenerPrecioActual(activoId) {
-    const { data, error } = await supabase
-      .from('precios_activo')
-      .select('*')
-      .eq('activo_id', activoId)
-      .is('deleted_at', null)
-      .order('fecha', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (error) throw new Error(`Error obteniendo precio actual: ${error.message}`)
-    return data ?? null
+    const r = await q('select * from precios_activo where activo_id = $1 and deleted_at is null order by fecha desc limit 1', [activoId])
+    return r.rows[0] ?? null
   }
-
-  /**
-   * Historial de precios de un activo, del más reciente al más antiguo.
-   * @param {string} activoId
-   * @param {{limit?: number}} [options]
-   */
-  async function obtenerHistorialPrecios(activoId, options = {}) {
-    const { limit = 30 } = options
-
-    const { data, error } = await supabase
-      .from('precios_activo')
-      .select('*')
-      .eq('activo_id', activoId)
-      .is('deleted_at', null)
-      .order('fecha', { ascending: false })
-      .limit(limit)
-
-    if (error) throw new Error(`Error obteniendo historial: ${error.message}`)
-    return data ?? []
+  async function obtenerHistorialPrecios(activoId, { limit = 30 } = {}) {
+    const r = await q('select * from precios_activo where activo_id = $1 and deleted_at is null order by fecha desc limit $2', [activoId, limit])
+    return r.rows
   }
-
-  /**
-   * Precios de todos los activos de una empresa en una fecha.
-   * @param {string} empresaId
-   * @param {string} [fecha] ISO date 'YYYY-MM-DD' (por defecto: hoy local)
-   */
   async function obtenerPreciosEmpresa(empresaId, fecha = null) {
-    const fechaFiltro = fecha ?? hoyLocal()
-
-    const { data, error } = await supabase
-      .from('precios_activo')
-      .select('*')
-      .eq('empresa_id', empresaId)
-      .eq('fecha', fechaFiltro)
-      .is('deleted_at', null)
-      .order('fecha', { ascending: false })
-
-    if (error) throw new Error(`Error obteniendo precios de la empresa: ${error.message}`)
-    return data ?? []
+    const r = await q(`select * from precios_activo where empresa_id = $1 and deleted_at is null ${fecha ? 'and fecha = $2' : ''} order by fecha desc`, fecha ? [empresaId, fecha] : [empresaId])
+    return r.rows
   }
-
-  // ========================================================================
-  // ESCRITURA
-  // ========================================================================
-
-  /**
-   * Registra (o actualiza) el precio de cierre de un activo en una fecha.
-   *
-   * El índice único `precios_activo_unico` es por (activo_id, fecha), así que
-   * volver a correr el worker el mismo día debe actualizar, no duplicar.
-   *
-   * @param {Object} params
-   * @param {string} params.empresa_id
-   * @param {string} params.broker_id
-   * @param {string} params.activo_id
-   * @param {string} params.fecha ISO date
-   * @param {number} params.precio_cierre
-   * @param {number|null} [params.precio_anterior]
-   * @param {number|null} [params.variacion_pct]
-   * @param {string} [params.moneda]
-   * @param {string|null} [params.userId] null = lo escribió el sistema
-   * @returns {Promise<Object>} el registro resultante
-   */
-  async function registrarPrecio({
-    empresa_id,
-    broker_id,
-    activo_id,
-    fecha,
-    precio_cierre,
-    precio_anterior = null,
-    variacion_pct = null,
-    moneda = 'USD',
-    userId = null,
-  }) {
-    const { data: existente, error: errBusqueda } = await supabase
-      .from('precios_activo')
-      .select('id')
-      .eq('activo_id', activo_id)
-      .eq('fecha', fecha)
-      .is('deleted_at', null)
-      .maybeSingle()
-
-    if (errBusqueda) {
-      throw new Error(`Error buscando precio existente: ${errBusqueda.message}`)
-    }
-
-    if (existente) {
-      const { data, error } = await supabase
-        .from('precios_activo')
-        .update({
-          precio_cierre,
-          precio_anterior,
-          variacion_pct,
-        })
-        .eq('id', existente.id)
-        .select('*')
-        .single()
-
-      if (error) throw new Error(`Error actualizando precio: ${error.message}`)
-      return data
-    }
-
-    const { data, error } = await supabase
-      .from('precios_activo')
-      .insert({
-        empresa_id,
-        broker_id,
-        activo_id,
-        fecha,
-        precio_cierre,
-        precio_anterior,
-        variacion_pct,
-        moneda,
-        created_by: userId,
-      })
-      .select('*')
-      .single()
-
-    if (error) throw new Error(`Error insertando precio: ${error.message}`)
-    return data
+  async function registrarPrecio({ empresa_id, broker_id, activo_id, fecha, precio_cierre, precio_anterior = null, variacion_pct = null, moneda = 'USD', userId = null }) {
+    const r = await q(`insert into precios_activo (empresa_id, broker_id, activo_id, fecha, precio_cierre, precio_anterior, variacion_pct, moneda, created_by)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      on conflict (activo_id, fecha) where deleted_at is null do update set precio_cierre = excluded.precio_cierre, precio_anterior = excluded.precio_anterior, variacion_pct = excluded.variacion_pct
+      returning *`, [empresa_id, broker_id, activo_id, fecha, precio_cierre, precio_anterior, variacion_pct, moneda, userId])
+    return r.rows[0]
   }
-
-  /**
-   * Copia el precio de cierre al `valor_unitario` del activo.
-   *
-   * Es lo que hace que la posición muestre el valor de mercado: `activos_broker`
-   * guarda la cantidad y el último precio conocido, no el precio en vivo.
-   *
-   * `updated_at` lo pone el trigger `trg_activos_broker_updated_at` de la
-   * migración 0003; mandarlo desde aquí sería redundante.
-   *
-   * @param {string} activoId
-   * @param {number} valorUnitario
-   */
   async function actualizarValorUnitarioActivo(activoId, valorUnitario) {
-    const { error } = await supabase
-      .from('activos_broker')
-      .update({ valor_unitario: valorUnitario })
-      .eq('id', activoId)
-
-    if (error) throw new Error(`Error actualizando valor_unitario: ${error.message}`)
+    await q('update activos_broker set valor_unitario = $1 where id = $2 and deleted_at is null', [valorUnitario, activoId])
   }
-
-  // ========================================================================
-  // ACTIVOS A ACTUALIZAR
-  // ========================================================================
-
-  /**
-   * Activos de una empresa que necesitan precio.
-   * @param {string} empresaId
-   */
   async function obtenerActivosParaActualizar(empresaId) {
-    const { data, error } = await supabase
-      .from('activos_broker')
-      .select('id, empresa_id, broker_id, nombre_activo, tipo_activo, moneda')
-      .eq('empresa_id', empresaId)
-      .is('deleted_at', null)
-      .order('nombre_activo')
-
-    if (error) throw new Error(`Error obteniendo activos: ${error.message}`)
-    return data ?? []
+    const r = await q(`select id, empresa_id, broker_id, nombre_activo, tipo_activo, moneda from activos_broker where empresa_id = $1 and deleted_at is null order by nombre_activo`, [empresaId])
+    return r.rows
   }
-
-  /**
-   * Todos los activos de todas las empresas. Es lo que usa el worker, que no
-   * trabaja por empresa sino por ticker (más barato: un ticker se pide una vez
-   * aunque esté en cinco brokers).
-   */
   async function obtenerTodosActivosParaActualizar() {
-    const { data, error } = await supabase
-      .from('activos_broker')
-      .select('id, empresa_id, broker_id, nombre_activo, tipo_activo, moneda')
-      .is('deleted_at', null)
-      .order('nombre_activo')
-
-    if (error) throw new Error(`Error obteniendo activos: ${error.message}`)
-    return data ?? []
+    const r = await q('select id, empresa_id, broker_id, nombre_activo, tipo_activo, moneda from activos_broker where deleted_at is null order by nombre_activo')
+    return r.rows
   }
-
-  /**
-   * Activos únicos de una empresa, listos para pedir en un lote.
-   *
-   * Devuelve `{nombre_activo, tipo_activo}` y no solo los tickers: el tipo es
-   * necesario para desambiguar (D29) — `LINK` es Chainlink como cripto e
-   * Interlink Electronics como acción.
-   *
-   * @param {string} empresaId
-   */
   async function obtenerTickersUnicos(empresaId) {
     const activos = await obtenerActivosParaActualizar(empresaId)
-
     const vistos = new Set()
-    const unicos = []
-    for (const a of activos) {
+    return activos.filter((a) => {
       const clave = `${a.tipo_activo}:${a.nombre_activo.toUpperCase()}`
-      if (vistos.has(clave)) continue
+      if (vistos.has(clave)) return false
       vistos.add(clave)
-      unicos.push({ nombre_activo: a.nombre_activo, tipo_activo: a.tipo_activo })
-    }
-    return unicos
+      return true
+    }).map(({ nombre_activo, tipo_activo }) => ({ nombre_activo, tipo_activo }))
   }
-
-  // ========================================================================
-  // BARRIDO DIARIO (D31)
-  // ========================================================================
-
-  /**
-   * Fecha del último barrido **completado**, o null si nunca ha habido uno.
-   *
-   * Solo cuentan los `hecho`: un barrido que falló no debe contar como «ya se
-   * barrió hoy», porque entonces un error dejaría a todas las empresas sin
-   * precios hasta el día siguiente.
-   *
-   * @returns {Promise<string|null>} 'YYYY-MM-DD'
-   */
   async function obtenerUltimoBarridoHecho() {
-    const { data, error } = await supabase
-      .from('precios_barridos')
-      .select('fecha')
-      .eq('estado', 'hecho')
-      .order('fecha', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (error) throw new Error(`Error leyendo el último barrido: ${error.message}`)
-    return data?.fecha ?? null
+    const r = await q("select fecha from precios_barridos where estado = 'hecho' order by fecha desc limit 1")
+    return r.rows[0]?.fecha ?? null
   }
-
-  /**
-   * Aparta el barrido de una fecha. Devuelve false si esa fecha ya está tomada.
-   *
-   * Se inserta la fila **antes** de barrer, en estado `procesando`, y se confía
-   * en el índice único para la exclusión: si dos workers arrancan a la misma
-   * hora, el segundo recibe el choque y se retira sin llamar a Yahoo. Comprobar
-   * «¿existe ya?» y luego insertar tendría una carrera entre ambas consultas.
-   *
-   * Ojo: esto no es una transacción de Postgres entre el insert y el barrido.
-   * Si el worker muere a mitad, la fila queda en `procesando` y bloquea el día
-   * entero — lo destapa `recuperarBarridosColgados()`.
-   *
-   * @param {string} fecha 'YYYY-MM-DD' en la zona del negocio
-   * @returns {Promise<boolean>} true si este proceso se queda con el barrido
-   */
   async function apartarBarrido(fecha) {
-    const { error } = await supabase
-      .from('precios_barridos')
-      .insert({ fecha, estado: 'procesando' })
-
-    if (!error) return true
-
-    // 23505 = unique_violation: otro worker ya apartó el barrido de hoy.
-    if (error.code === '23505') return false
-
-    throw new Error(`Error apartando el barrido: ${error.message}`)
+    try { await q("insert into precios_barridos (fecha, estado) values ($1, 'procesando')", [fecha]); return true } catch (err) {
+      if (err.code === '23505') return false
+      throw err
+    }
   }
-
-  /**
-   * Cierra el registro del barrido del día.
-   * @param {string} fecha
-   * @param {Object} campos
-   */
   async function cerrarBarrido(fecha, campos) {
-    const { error } = await supabase
-      .from('precios_barridos')
-      .update({ ...campos, finished_at: new Date().toISOString() })
-      .eq('fecha', fecha)
-
-    if (error) throw new Error(`Error cerrando el barrido: ${error.message}`)
+    const keys = Object.keys(campos)
+    const values = [fecha, ...keys.map((key) => campos[key])]
+    const sets = keys.map((key, i) => `${key} = $${i + 2}`).join(', ')
+    await q(`update precios_barridos set ${sets}, finished_at = now() where fecha = $1`, values)
   }
-
-  /**
-   * Libera los barridos que quedaron en `procesando` demasiado tiempo.
-   *
-   * Sin esto, un worker que muere a mitad de barrido deja la fila de hoy en
-   * `procesando` y `obtenerUltimoBarridoHecho()` no la ve como hecha, pero el
-   * índice único impide volver a apartarla: el barrido no correría nunca más.
-   * Borrar la fila es lo correcto frente a marcarla `error`, porque permite
-   * rehacer el barrido del día en la siguiente vuelta.
-   *
-   * @param {number} [minutos] antigüedad mínima para considerarlo colgado
-   * @returns {Promise<number>} cuántos liberó
-   */
   async function recuperarBarridosColgados(minutos = 30) {
-    const limite = new Date(Date.now() - minutos * 60 * 1000).toISOString()
-
-    const { data, error } = await supabase
-      .from('precios_barridos')
-      .delete()
-      .eq('estado', 'procesando')
-      .lt('started_at', limite)
-      .select('fecha')
-
-    if (error) throw new Error(`Error recuperando barridos colgados: ${error.message}`)
-    return data?.length ?? 0
+    const r = await q("delete from precios_barridos where estado = 'procesando' and started_at < now() - ($1 * interval '1 minute') returning fecha", [minutos])
+    return r.rowCount
   }
-
-  return {
-    obtenerPrecioActual,
-    obtenerHistorialPrecios,
-    obtenerPreciosEmpresa,
-    registrarPrecio,
-    actualizarValorUnitarioActivo,
-    obtenerActivosParaActualizar,
-    obtenerTodosActivosParaActualizar,
-    obtenerTickersUnicos,
-    obtenerUltimoBarridoHecho,
-    apartarBarrido,
-    cerrarBarrido,
-    recuperarBarridosColgados,
-  }
+  return { obtenerPrecioActual, obtenerHistorialPrecios, obtenerPreciosEmpresa, registrarPrecio, actualizarValorUnitarioActivo, obtenerActivosParaActualizar, obtenerTodosActivosParaActualizar, obtenerTickersUnicos, obtenerUltimoBarridoHecho, apartarBarrido, cerrarBarrido, recuperarBarridosColgados }
 }
 
-/**
- * Fecha de hoy en la zona local, como 'YYYY-MM-DD'.
- *
- * Se replica aquí (en vez de importar `src/lib/utils.js`) para que este módulo
- * no arrastre dependencias del navegador: `utils.js` importa `clsx` y
- * `tailwind-merge`, que el worker no necesita. Es la misma lógica de D26 —
- * `toISOString()` daría la fecha UTC, que en Colombia ya es mañana a partir de
- * las 19:00.
- */
 export function hoyLocal(ahora = new Date()) {
   const dosDigitos = (n) => String(n).padStart(2, '0')
   return `${ahora.getFullYear()}-${dosDigitos(ahora.getMonth() + 1)}-${dosDigitos(ahora.getDate())}`

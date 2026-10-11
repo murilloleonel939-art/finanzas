@@ -780,11 +780,13 @@ app.post('/api/empresas/:empresaId/import-jobs', requireAuth, async (req, res) =
   const content = Buffer.from(raw, 'base64')
   if (content.length < 5 || content.subarray(0, 4).toString() !== '%PDF') return error(res, 400, 'El archivo debe ser un PDF válido.')
   if (content.length > 10 * 1024 * 1024) return error(res, 413, 'El PDF supera el límite de 10 MB.')
-  const directory = path.join(process.env.IMPORT_STORAGE_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), 'uploads'), empresaId)
+  const storageRoot = path.resolve(process.env.IMPORT_STORAGE_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), 'uploads'))
+  const directory = path.join(storageRoot, empresaId)
   await mkdir(directory, { recursive: true })
   const jobId = crypto.randomUUID()
-  const storagePath = path.join(directory, `${jobId}.pdf`)
-  await writeFile(storagePath, content, { flag: 'wx' })
+  const absolutePath = path.join(directory, `${jobId}.pdf`)
+  const storagePath = path.relative(storageRoot, absolutePath)
+  await writeFile(absolutePath, content, { flag: 'wx' })
   const columns = target === 'cuenta' ? '(empresa_id, cuenta_id, target, storage_path, proveedor, created_by)' : target === 'wallet' ? '(empresa_id, wallet_id, target, storage_path, proveedor, created_by)' : '(empresa_id, broker_id, target, storage_path, proveedor, created_by)'
   const values = target === 'cuenta' ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, req.auth.sub] : target === 'wallet' ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, req.auth.sub] : [empresaId, destinoId, target, storagePath, null, req.auth.sub]
   const inserted = await query(`insert into import_jobs ${columns} values ($1, $2, $3, $4, $5, $6) returning *`, values)
