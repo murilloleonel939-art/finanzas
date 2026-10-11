@@ -104,11 +104,13 @@ const workerContent = fs.readFileSync(workerPath, 'utf8');
 assert(workerContent.includes('procesarJob'), 'Define función procesarJob');
 assert(workerContent.includes("from './server/db.mjs'"), 'Usa el pool PostgreSQL local');
 assert(workerContent.includes("where estado = 'pendiente'"), 'Busca jobs pendientes en PostgreSQL');
-assert(workerContent.includes('NVIDIA_API_KEY'), 'Usa NVIDIA NIM configurado');
-assert(workerContent.includes('nvidia/nemotron-3-super-120b-a12b'), 'Configura Nemotron correcto');
+assert(workerContent.includes('PATEWAY_API_KEY'), 'Usa Pateway configurado');
+assert(workerContent.includes('claude-haiku-4-5-20251001'), 'Configura Claude Haiku correcto');
 assert(workerContent.includes('system'), 'Envía system prompt');
 assert(workerContent.includes('pdftotext'), 'Convierte PDF a texto');
-assert(workerContent.includes('chat/completions'), 'Usa API compatible con OpenAI');
+assert(workerContent.includes('/v1/messages'), 'Usa API Anthropic Messages');
+assert(workerContent.includes('IMPORT_PDF_PAGES_PER_BATCH'), 'Procesa PDF por lotes');
+assert(workerContent.includes('IMPORT_ROWS_PER_BATCH'), 'Procesa CSV y Excel por lotes');
 assert(workerContent.includes('validarRespuestaExtraccion'), 'Valida respuesta del LLM');
 assert(workerContent.includes("estado = 'procesando'"), 'Marca como procesando');
 assert(workerContent.includes("estado = 'hecho'"), 'Marca como completado');
@@ -171,7 +173,7 @@ if (failCount > 0) {
   console.log('✅ Importación de PDFs: lista\n');
   console.log('Próximos pasos:');
   console.log('  1. Ejecutar server/migrate.mjs contra PostgreSQL de Coolify');
-  console.log('  2. Instalar pdftotext y ejecutar NVIDIA_API_KEY=... node worker-import.mjs');
+  console.log('  2. Instalar poppler-utils y ejecutar PATEWAY_API_KEY=... node worker-import.mjs');
   console.log('  3. Probar en UI: subir un PDF en Cuentas/Brokers/Wallets');
   process.exit(0);
 }

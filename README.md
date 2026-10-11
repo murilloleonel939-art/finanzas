@@ -1,6 +1,6 @@
 # FinanzAdmin Pro
 
-Aplicación SaaS multiempresa para administrar empresas, bancos, cuentas, brokers, activos, wallets y movimientos financieros. Incluye autenticación propia con JWT, PostgreSQL, importación de extractos PDF mediante NVIDIA NIM/Nemotron y sincronización de precios.
+Aplicación SaaS multiempresa para administrar empresas, bancos, cuentas, brokers, activos, wallets y movimientos financieros. Incluye autenticación propia con JWT, PostgreSQL, importación de extractos PDF, CSV y Excel mediante Pateway Claude Haiku y sincronización de precios.
 
 ## Arquitectura actual
 
@@ -10,7 +10,7 @@ Navegador React/Vite
         ▼
 API Node/Express ─────► PostgreSQL
         │
-        ├── worker-import   (PDF → texto → NVIDIA Nemotron → movimientos)
+        ├── worker-import   (PDF → texto → Pateway Claude Haiku → movimientos)
         └── worker-precios  (cola y barrido de precios)
 ```
 
@@ -22,7 +22,7 @@ La aplicación principal sirve el frontend compilado y la API desde el mismo ser
 - Node.js 22, Express y JWT.
 - PostgreSQL mediante `pg`.
 - Contraseñas con bcrypt.
-- NVIDIA NIM compatible con OpenAI para extracción de PDFs.
+- Pateway compatible con Anthropic Messages para extracción de PDFs.
 - `pdftotext` de `poppler-utils` para convertir PDFs a texto.
 - Coolify para despliegue.
 
@@ -90,7 +90,7 @@ El primer inicio puede mostrar `Superusuario inicial creado`. En reinicios poste
 
 ### Worker de importaciones
 
-Crea un servicio separado en Coolify con el mismo repositorio, la misma `DATABASE_URL` y este comando:
+El contenedor principal inicia el worker junto con la API. Si usas un servicio separado en Coolify, comparte la misma `DATABASE_URL`, `IMPORT_STORAGE_DIR` persistente y ejecuta este comando:
 
 ```bash
 npm run worker:import
@@ -99,14 +99,18 @@ npm run worker:import
 Variables adicionales:
 
 ```env
-NVIDIA_API_KEY=...
-NVIDIA_API_URL=https://integrate.api.nvidia.com/v1/chat/completions
-IMPORT_MODEL=nvidia/nemotron-3-super-120b-a12b
+PATEWAY_API_KEY=...
+PATEWAY_BASE_URL=https://api.pateway.ai
+IMPORT_MODEL=claude-haiku-4-5-20251001
+IMPORT_MAX_TOKENS=8192
+IMPORT_PDF_PAGES_PER_BATCH=5
+IMPORT_ROWS_PER_BATCH=500
+IMPORT_REQUEST_TIMEOUT_MS=180000
 IMPORT_STORAGE_DIR=/app/server/uploads
 IMPORT_POLL_INTERVAL_MS=30000
 ```
 
-El modelo configurado es **NVIDIA Nemotron 3 Super 120B** (`nvidia/nemotron-3-super-120b-a12b`). Como su entrada es textual, el worker ejecuta `pdftotext` y envía el contenido extraído a NVIDIA NIM. La imagen del `Dockerfile` ya contiene `poppler-utils`.
+El worker usa **Claude Haiku 4.5** mediante Pateway. Ejecuta `pdftotext` y procesa PDF por páginas, y CSV/Excel por filas. La imagen del `Dockerfile` ya contiene `poppler-utils`.
 
 ### Worker de precios
 
@@ -153,7 +157,7 @@ server/schema.sql                 Esquema PostgreSQL completo
 server/migrate.mjs                Migración idempotente y admin inicial
 server/index.mjs                  API Express, JWT y autorización por empresa
 server/db.mjs                     Pool PostgreSQL
-worker-import.mjs                 Importación PDF con NVIDIA Nemotron
+worker-import.mjs                 Importación PDF con Pateway Claude Haiku
 worker-precios.mjs                Cola y sincronización de precios
 deploy/                           Ejemplos de variables y servicio del worker
 src/lib/api.js                    Cliente de la API propia

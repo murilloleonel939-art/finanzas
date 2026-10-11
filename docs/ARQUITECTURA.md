@@ -9,7 +9,7 @@ FinanzAdmin Pro es un SaaS multiempresa para gestión administrativa y financier
 ```text
 React/Vite ──► Node/Express API ──► PostgreSQL
                          │
-                         ├── worker-import  (PDF → texto → NVIDIA Nemotron)
+                         ├── worker-import  (PDF → texto → Pateway Claude Haiku)
                          └── worker-precios (cola y barrido de precios)
 ```
 
@@ -19,7 +19,7 @@ React/Vite ──► Node/Express API ──► PostgreSQL
 | API | Node.js, Express, JWT |
 | Base de datos | PostgreSQL privado en Coolify |
 | Contraseñas | bcrypt |
-| Importación | Worker Node.js, `pdftotext` y NVIDIA NIM |
+| Importación | Worker Node.js, `pdftotext` y Pateway (Anthropic Messages) |
 | Precios | Worker Node.js y APIs de mercado |
 | Despliegue | Dockerfile y Coolify |
 
@@ -44,7 +44,7 @@ La aplicación principal sirve el frontend compilado y la API desde el mismo con
 - `server/index.mjs`: endpoints, autenticación y autorización.
 - `server/schema.sql`: tablas, índices y vistas.
 - `server/migrate.mjs`: migración y creación del administrador inicial.
-- `worker-import.mjs`: procesamiento de PDFs con NVIDIA Nemotron.
+- `worker-import.mjs`: procesamiento de PDFs con Pateway Claude Haiku.
 - `worker-precios.mjs`: actualización de precios.
 - `deploy/`: ejemplos de servicios y variables de workers.
 - `scripts/`: verificadores y pruebas locales.
@@ -54,7 +54,7 @@ La aplicación principal sirve el frontend compilado y la API desde el mismo con
 1. El usuario selecciona empresa, destino y PDF.
 2. La API valida JWT, permisos, destino, tamaño y firma `%PDF`.
 3. La API guarda el archivo y crea un job `pendiente`.
-4. El worker obtiene el job, convierte el PDF a texto y llama a NVIDIA NIM.
+4. El worker obtiene el job, convierte el PDF a texto y llama a Pateway (Anthropic Messages).
 5. La respuesta se valida, se deduplican movimientos y se guarda el resultado.
 6. La interfaz consulta el estado hasta `hecho` o `error`.
 
