@@ -9,11 +9,12 @@ function fileAsDataUrl(file) {
   })
 }
 
-export async function crearImportJob({ empresaId, target, destinoId, proveedor, archivo, archivoNombre }) {
+export async function crearImportJob({ empresaId, target, destinoId, proveedor, periodo, archivo, archivoNombre }) {
   return apiJson(`/api/empresas/${empresaId}/import-jobs`, 'POST', {
     target,
     destino_id: destinoId,
     proveedor,
+    periodo,
     archivo: await fileAsDataUrl(archivo),
     archivo_nombre: archivoNombre || archivo?.name || '',
   })

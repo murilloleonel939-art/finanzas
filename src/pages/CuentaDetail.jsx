@@ -7,6 +7,7 @@ import {
   obtenerCuenta,
   listarMovimientos,
   borrarMovimiento,
+  borrarMes,
   conSaldoResultante,
   resumenPeriodo,
 } from '@/lib/cuentas'
@@ -49,6 +50,7 @@ export default function CuentaDetail() {
   const [mes, setMes] = useState(MES_TODOS)
   const [pagina, setPagina] = useState(0)
   const [movimientoABorrar, setMovimientoABorrar] = useState(null)
+  const [mesABorrar, setMesABorrar] = useState(null)
   const [importarAbierto, setImportarAbierto] = useState(false)
 
   const { data: cuenta, isLoading: cargandoCuenta, error: errorCuenta } = useQuery({
@@ -82,6 +84,16 @@ export default function CuentaDetail() {
   const visibles = conSaldo.slice(paginaSegura * POR_PAGINA, (paginaSegura + 1) * POR_PAGINA)
 
   const resumen = useMemo(() => resumenPeriodo(filtrados), [filtrados])
+
+  const { mutate: eliminarMes, isPending: borrandoMes } = useMutation({
+    mutationFn: (periodo) => borrarMes(empresaId, cuentaId, periodo),
+    onSuccess: () => {
+      setMesABorrar(null)
+      setMes(MES_TODOS)
+      queryClient.invalidateQueries({ queryKey: ['movimientos', cuentaId] })
+      queryClient.invalidateQueries({ queryKey: ['cuenta', cuentaId] })
+    },
+  })
 
   const { mutate: eliminar, isPending: borrando } = useMutation({
     mutationFn: (mov) => borrarMovimiento(empresaId, cuentaId, mov.id),
@@ -150,6 +162,11 @@ export default function CuentaDetail() {
             <Button onClick={() => setImportarAbierto(true)} variant="outline" className="gap-2">
                Importar movimientos
              </Button>
+              {mes !== MES_TODOS && filtrados.length > 0 && (
+                <Button onClick={() => setMesABorrar(mes)} variant="destructive" className="gap-2">
+                  <Trash2 className="w-4 h-4" /> Borrar {formatMes(mes)}
+                </Button>
+              )}
              <ExportButtons
               datos={conSaldo}
               columnas={[
@@ -365,6 +382,16 @@ export default function CuentaDetail() {
         }
         onConfirm={() => eliminar(movimientoABorrar)}
         isLoading={borrando}
+       />
+
+       <ConfirmDialog
+         open={!!mesABorrar}
+         onOpenChange={(abierto) => !abierto && setMesABorrar(null)}
+         title="¿Borrar todo este mes?"
+         description={mesABorrar ? `Se eliminarán todos los movimientos de ${formatMes(mesABorrar)}. Esta acción no se puede deshacer desde la pantalla.` : ''}
+         actionText="Borrar mes completo"
+         onConfirm={() => eliminarMes(mesABorrar)}
+         isLoading={borrandoMes}
        />
 
        <ImportarMovimientosModal

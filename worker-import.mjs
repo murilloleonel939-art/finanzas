@@ -19,6 +19,7 @@ const UNA_VEZ = process.env.IMPORT_UNA_VEZ === '1'
 const IMPORT_MAX_TOKENS = Number(process.env.IMPORT_MAX_TOKENS || 8192)
 const IMPORT_PDF_PAGES_PER_BATCH = Math.max(1, Number(process.env.IMPORT_PDF_PAGES_PER_BATCH || 5))
 const IMPORT_ROWS_PER_BATCH = Math.max(25, Number(process.env.IMPORT_ROWS_PER_BATCH || 500))
+const IMPORT_CONCURRENCY = Math.max(1, Number(process.env.IMPORT_CONCURRENCY || 3))
 const PATEWAY_BASE_URL = (process.env.PATEWAY_BASE_URL || 'https://api.pateway.ai').replace(/\/$/, '')
 const PATEWAY_MODEL = process.env.IMPORT_MODEL || 'claude-haiku-4-5-20251001'
 const execFileAsync = promisify(execFile)
@@ -100,20 +101,28 @@ async function extraerLote(texto, prompt, esBroker, indice, total) {
 
 async function extraerDatos(filePath, job, contexto) {
   const prompt = job.target === 'cuenta'
-    ? generarPromptMovimientosCuenta({ ...contexto, proveedor: job.proveedor })
+    ? generarPromptMovimientosCuenta({ ...contexto, banco: contexto.banco || contexto.nombre_banco, proveedor: job.proveedor })
     : job.target === 'broker'
       ? generarPromptMovimientosBroker(contexto)
       : generarPromptMovimientosWallet({ ...contexto, proveedor: job.proveedor })
   const lotes = await lotesDelArchivo(filePath)
   const acumulado = job.target === 'broker' ? { movimientos: [], activos: [] } : []
-  for (let indice = 0; indice < lotes.length; indice += 1) {
-    log(`Procesando lote ${indice + 1}/${lotes.length} del job ${job.id}`)
-    const datos = await extraerLote(lotes[indice], prompt, job.target === 'broker', indice + 1, lotes.length)
-    if (job.target === 'broker') {
-      acumulado.movimientos.push(...datos.movimientos)
-      acumulado.activos.push(...datos.activos)
-    } else acumulado.push(...datos)
+  for (let inicio = 0; inicio < lotes.length; inicio += IMPORT_CONCURRENCY) {
+    const indices = Array.from({ length: Math.min(IMPORT_CONCURRENCY, lotes.length - inicio) }, (_, offset) => inicio + offset)
+    indices.forEach((indice) => log(`Procesando lote ${indice + 1}/${lotes.length} del job ${job.id}`))
+    const resultados = await Promise.all(indices.map((indice) => extraerLote(lotes[indice], prompt, job.target === 'broker', indice + 1, lotes.length)))
+    resultados.forEach((datos, resultadoIndex) => {
+      if (job.target !== 'broker') {
+        const offsetOrden = indices[resultadoIndex] * 1000000
+        datos.forEach((item, itemIndex) => { item.orden = Number.isInteger(Number(item.orden)) ? offsetOrden + Number(item.orden) : offsetOrden + itemIndex })
+      }
+      if (job.target === 'broker') {
+        acumulado.movimientos.push(...datos.movimientos)
+        acumulado.activos.push(...datos.activos)
+      } else acumulado.push(...datos)
+    })
   }
+  if (job.target !== 'broker') acumulado.sort((a, b) => Number(a.orden ?? 0) - Number(b.orden ?? 0))
   const items = job.target === 'broker' ? [...acumulado.movimientos, ...acumulado.activos] : acumulado
   for (const item of items) if (!item.external_id && item.fecha) item.external_id = await derivarExternalId(item)
   return acumulado
@@ -122,7 +131,9 @@ async function extraerDatos(filePath, job, contexto) {
 async function contextoDestino(client, job) {
   const table = job.target === 'cuenta' ? 'cuentas' : job.target === 'wallet' ? 'wallets' : 'brokers'
   const id = job[`${job.target}_id`]
-  const result = await client.query(`select * from ${table} where id = $1 and empresa_id = $2 and deleted_at is null`, [id, job.empresa_id])
+  const result = table === 'cuentas'
+    ? await client.query(`select c.*, b.nombre_banco as banco from cuentas c join bancos b on b.id = c.banco_id and b.deleted_at is null where c.id = $1 and c.empresa_id = $2 and c.deleted_at is null`, [id, job.empresa_id])
+    : await client.query(`select * from ${table} where id = $1 and empresa_id = $2 and deleted_at is null`, [id, job.empresa_id])
   if (!result.rowCount) throw new Error('Destino de importación no encontrado.')
   return result.rows[0]
 }
@@ -130,12 +141,14 @@ async function contextoDestino(client, job) {
 async function procesarCuenta(client, job, datos) {
   let creados = 0; let duplicados = 0
   for (const item of asArray(datos)) {
-    const fecha = item.fecha; const monto = Number(item.monto)
-    if (!fecha || !Number.isFinite(monto) || monto < 0 || !item.descripcion || !['ingreso', 'egreso'].includes(item.tipo)) continue
-    const r = await client.query(`insert into movimientos (empresa_id, cuenta_id, fecha, descripcion, tipo, monto, created_by)
-      values ($1,$2,$3,$4,$5,$6,$7) returning id`, [job.empresa_id, job.cuenta_id, fecha, String(item.descripcion).trim(), item.tipo, monto, job.created_by])
+    const fecha = String(item.fecha || '').slice(0, 10); const monto = Number(item.monto)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !Number.isFinite(monto) || monto < 0 || !item.descripcion || !['ingreso', 'egreso'].includes(item.tipo)) continue
+    const orden = Number.isInteger(Number(item.orden)) ? Number(item.orden) : creados
+    const r = await client.query(`insert into movimientos (empresa_id, cuenta_id, fecha, descripcion, tipo, monto, orden, created_by)
+      values ($1,$2,$3,$4,$5,$6,$7,$8) returning id`, [job.empresa_id, job.cuenta_id, fecha, String(item.descripcion).trim(), item.tipo, monto, orden, job.created_by])
     if (r.rowCount) creados++
   }
+  await client.query(`update cuentas set monto = coalesce((select sum(case when tipo = 'ingreso' then monto else -monto end) from movimientos where cuenta_id = $1 and deleted_at is null), 0) where id = $1`, [job.cuenta_id])
   return { creados, duplicados }
 }
 

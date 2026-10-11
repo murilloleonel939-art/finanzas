@@ -18,6 +18,7 @@ export function ImportarMovimientosModal({
 }) {
   const [archivo, setArchivo] = useState(null);
   const [proveedor, setProveedor] = useState('');
+  const [periodo, setPeriodo] = useState('');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [jobId, setJobId] = useState('');
@@ -48,7 +49,7 @@ export function ImportarMovimientosModal({
     setEstado('subiendo');
 
     try {
-      const { job } = await crearImportJob({ empresaId, target: 'cuenta', destinoId: cuentaId, proveedor, archivo, archivoNombre: archivo.name });
+      const { job } = await crearImportJob({ empresaId, target: 'cuenta', destinoId: cuentaId, proveedor, periodo, archivo, archivoNombre: archivo.name });
       setJobId(job.id);
       setEstado('pendiente');
 
@@ -111,6 +112,7 @@ export function ImportarMovimientosModal({
   const handleCerrar = () => {
     setArchivo(null);
     setProveedor('');
+    setPeriodo('');
     setError('');
     setJobId('');
     setEstado('');
@@ -153,7 +155,12 @@ export function ImportarMovimientosModal({
                 className="hidden"
               />
 
-              {/* Selector de proveedor (opcional) */}
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-2">Mes del extracto (opcional)</label>
+                 <input type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+               </div>
+
+               {/* Selector de proveedor (opcional) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Proveedor (opcional)
@@ -165,6 +172,7 @@ export function ImportarMovimientosModal({
                 >
                   <option value="">Genérico</option>
                   <option value="Coindepo">Coindepo</option>
+                   <option value="Nequi">Nequi</option>
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
                   Si es un proveedor conocido, selecciónalo para mejores resultados

@@ -58,6 +58,12 @@ export function borrarMovimiento(empresaId, cuentaId, movimientoId) {
   })
 }
 
+export function borrarMes(empresaId, cuentaId, periodo) {
+  return api(`/api/empresas/${empresaId}/cuentas/${cuentaId}/movimientos/mes/${periodo}`, {
+    method: 'DELETE',
+  })
+}
+
 // ---------------------------------------------------------------------
 // Cálculos
 // ---------------------------------------------------------------------
@@ -86,8 +92,11 @@ export function efecto(movimiento) {
 export function conSaldoResultante(movimientos = [], saldoActual = 0) {
   if (movimientos.length === 0) return []
 
-  // Trabajar en orden cronológico ascendente.
-  const ascendente = [...movimientos].reverse()
+  // El backend entrega el orden cronológico original del extracto.
+  const ascendente = [...movimientos].sort((a, b) => {
+    const fecha = String(a.fecha || '').localeCompare(String(b.fecha || ''))
+    return fecha || Number(a.orden ?? 0) - Number(b.orden ?? 0)
+  })
 
   const totalEfectos = ascendente.reduce((acc, m) => acc + efecto(m), 0)
   let saldo = Number(saldoActual) - totalEfectos
@@ -97,8 +106,8 @@ export function conSaldoResultante(movimientos = [], saldoActual = 0) {
     return { ...m, saldo_resultante: Number(saldo.toFixed(8)) }
   })
 
-  // Devolver en el orden original (descendente).
-  return conSaldo.reverse()
+  // Devolver en el orden original del extracto (ascendente).
+  return conSaldo
 }
 
 /**

@@ -343,7 +343,7 @@ app.get('/api/cuentas/:cuentaId/movimientos', requireAuth, async (req, res) => {
   const result = await query(
     `select id, fecha, descripcion, tipo, monto, orden
      from movimientos where cuenta_id = $1 and deleted_at is null
-     order by fecha desc, orden desc, created_at desc`,
+     order by fecha asc, orden asc, created_at asc`,
     [req.params.cuentaId]
   )
   res.json({ movimientos: result.rows })
@@ -790,9 +790,10 @@ app.post('/api/empresas/:empresaId/import-jobs', requireAuth, async (req, res) =
   const absolutePath = path.join(directory, `${jobId}.${extension}`)
   const storagePath = path.relative(storageRoot, absolutePath)
   await writeFile(absolutePath, content, { flag: 'wx' })
-  const columns = target === 'cuenta' ? '(empresa_id, cuenta_id, target, storage_path, proveedor, created_by)' : target === 'wallet' ? '(empresa_id, wallet_id, target, storage_path, proveedor, created_by)' : '(empresa_id, broker_id, target, storage_path, proveedor, created_by)'
-  const values = target === 'cuenta' ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, req.auth.sub] : target === 'wallet' ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, req.auth.sub] : [empresaId, destinoId, target, storagePath, null, req.auth.sub]
-  const inserted = await query(`insert into import_jobs ${columns} values ($1, $2, $3, $4, $5, $6) returning *`, values)
+  const periodo = /^\d{4}-\d{2}$/.test(String(req.body.periodo || '')) ? String(req.body.periodo) : null
+  const columns = target === 'cuenta' ? '(empresa_id, cuenta_id, target, storage_path, proveedor, periodo, created_by)' : target === 'wallet' ? '(empresa_id, wallet_id, target, storage_path, proveedor, periodo, created_by)' : '(empresa_id, broker_id, target, storage_path, proveedor, periodo, created_by)'
+  const values = target === 'cuenta' ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, periodo, req.auth.sub] : target === 'wallet' ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, periodo, req.auth.sub] : [empresaId, destinoId, target, storagePath, null, periodo, req.auth.sub]
+  const inserted = await query(`insert into import_jobs ${columns} values ($1, $2, $3, $4, $5, $6, $7) returning *`, values)
   res.status(201).json({ job: inserted.rows[0] })
 })
 
@@ -811,6 +812,22 @@ app.get('/api/import-jobs/:jobId', requireAuth, async (req, res) => {
   const result = await query('select * from import_jobs where id = $1', [req.params.jobId])
   if (!result.rowCount || !await requireCompanyAccess(req.auth.sub, req.auth.role, result.rows[0].empresa_id)) return error(res, 404, 'Job no encontrado.')
   res.json({ job: result.rows[0] })
+})
+
+app.delete('/api/empresas/:empresaId/cuentas/:cuentaId/movimientos/mes/:periodo', requireAuth, async (req, res) => {
+  const { empresaId, cuentaId, periodo } = req.params
+  if (!/^\d{4}-\d{2}$/.test(periodo)) return error(res, 400, 'El período no es válido.')
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const account = await client.query('select id from cuentas where id = $1 and empresa_id = $2 and deleted_at is null for update', [cuentaId, empresaId])
+    if (!account.rowCount) { await client.query('rollback'); return error(res, 404, 'Cuenta no encontrada.') }
+    const deleted = await client.query(`update movimientos set deleted_at = now() where cuenta_id = $1 and empresa_id = $2 and deleted_at is null and to_char(fecha, 'YYYY-MM') = $3`, [cuentaId, empresaId, periodo])
+    await client.query(`update cuentas set monto = coalesce((select sum(case when tipo = 'ingreso' then monto else -monto end) from movimientos where cuenta_id = $1 and deleted_at is null), 0) where id = $1`, [cuentaId])
+    await client.query('commit')
+    res.json({ eliminados: deleted.rowCount })
+  } catch (err) { await client.query('rollback'); throw err } finally { client.release() }
 })
 
 app.post('/api/empresas/:empresaId/precios-jobs', requireAuth, async (req, res) => {

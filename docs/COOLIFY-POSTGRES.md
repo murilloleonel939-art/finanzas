@@ -41,6 +41,7 @@ Para importar extractos grandes, el worker usa Pateway Claude Haiku por lotes. C
 | `IMPORT_MAX_TOKENS` | `8192` |
 | `IMPORT_PDF_PAGES_PER_BATCH` | `5` |
 | `IMPORT_ROWS_PER_BATCH` | `500` |
+| `IMPORT_CONCURRENCY` | `3` |
 | `IMPORT_REQUEST_TIMEOUT_MS` | `180000` |
 
 El worker procesa los PDF por páginas y CSV/Excel por filas, por lo que un extracto de 60 páginas no se envía en una sola solicitud.

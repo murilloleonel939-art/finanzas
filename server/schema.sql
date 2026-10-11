@@ -254,6 +254,7 @@ create table if not exists import_jobs (
   target text not null check (target in ('cuenta', 'wallet', 'broker')),
   storage_path text not null,
   proveedor text,
+  periodo text,
   estado text not null default 'pendiente' check (estado in ('pendiente', 'procesando', 'hecho', 'error')),
   movimientos_creados integer not null default 0,
   activos_creados integer not null default 0,
@@ -272,6 +273,8 @@ create table if not exists import_jobs (
   )
 );
 create index if not exists import_jobs_empresa_idx on import_jobs (empresa_id, created_at desc);
+
+alter table import_jobs add column if not exists periodo text;
 
 create table if not exists admin_logs (
   id bigserial primary key,

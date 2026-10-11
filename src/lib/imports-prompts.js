@@ -45,6 +45,10 @@ export function generarPromptMovimientosCuenta(context) {
   const providerInstruction = proveedor
     ? (PROVIDER_RULES[proveedor.toLowerCase()]?.instruction || PROVIDER_RULES.otro.instruction)
     : PROVIDER_RULES.otro.instruction;
+  const esNequi = /nequi/i.test(`${banco || ''} ${proveedor || ''}`)
+  const instruccionNequi = esNequi
+    ? `\nREGLA ESPECIAL NEQUI:\n- La fila o texto “Saldo anterior” representa el saldo inicial del período. Inclúyelo como el PRIMER movimiento, con fecha del primer día del período, tipo "ingreso", monto positivo y descripción exactamente "Saldo anterior".\n- Conserva el orden en que aparecen las filas del PDF.\n`
+    : '';
 
   return `Eres un experto en extracción de datos de extractos bancarios.
 Tu tarea es extraer movimientos de un extracto de ${banco}.
@@ -57,12 +61,12 @@ CONTEXTO:
 
 INSTRUCCIONES CRÍTICAS:
 ${providerInstruction}
-
+${instruccionNequi}
 REGLAS OBLIGATORIAS:
 1. Extrae SOLO filas que son movimientos reales. NO incluyas:
    - Encabezados o títulos
    - Totales o resúmenes
-   - Saldos iniciales/finales
+   - Saldos finales (excepto "Saldo anterior" en extractos Nequi)
    - Líneas vacías o de separación
 
 2. Para cada movimiento extrae:
@@ -73,6 +77,7 @@ REGLAS OBLIGATORIAS:
    - moneda: la moneda del movimiento, ej. 'USD', 'COP' (obligatorio)
    - external_id: si hay ID de transacción, úsalo; si no, deja null (opcional)
    - status: si hay columna, extrae exactamente como aparece; si no, null (opcional)
+   - orden: posición de la fila dentro del extracto, empezando en 0 (obligatorio para conservar el orden)
 
 3. Incluye TODAS las filas de TODAS las páginas.
 4. Los montos son siempre positivos. El 'tipo' indica la dirección.
