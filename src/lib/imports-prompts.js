@@ -264,7 +264,17 @@ Retorna SOLO el JSON array, sin explicaciones.`;
  */
 export function validarRespuestaExtraccion(response) {
   try {
-    const parsed = JSON.parse(response);
+    const texto = String(response || '').trim()
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim()
+    if (!texto) throw new Error('El LLM devolvió una respuesta vacía')
+    const inicioArray = texto.indexOf('[')
+    const inicioObjeto = texto.indexOf('{')
+    const inicios = [inicioArray, inicioObjeto].filter((indice) => indice >= 0)
+    const inicio = inicios.length ? Math.min(...inicios) : -1
+    const json = inicio > 0 ? texto.slice(inicio) : texto
+    const parsed = JSON.parse(json);
     
     // Validar estructura según si es array o objeto
     if (Array.isArray(parsed)) {

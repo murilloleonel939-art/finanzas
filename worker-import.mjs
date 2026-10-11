@@ -63,13 +63,15 @@ async function extraerDatos(filePath, job, contexto) {
     headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: process.env.IMPORT_MODEL || 'nvidia/nemotron-3-super-120b-a12b',
-      max_tokens: Number(process.env.IMPORT_MAX_TOKENS || 4096),
+      max_tokens: Number(process.env.IMPORT_MAX_TOKENS || 12000),
       messages: [{ role: 'system', content: 'Eres un extractor preciso. Devuelve únicamente JSON válido.' }, { role: 'user', content: contenido }],
     }),
   })
   if (!response.ok) throw new Error(`Falló extracción NVIDIA (${response.status}).`)
   const payload = await response.json()
-  const text = payload.choices?.[0]?.message?.content || ''
+  const choice = payload.choices?.[0]
+  const text = choice?.message?.content || ''
+  if (!text && choice?.finish_reason) throw new Error(`NVIDIA devolvió contenido vacío (finish_reason: ${choice.finish_reason})`)
   const datos = validarRespuestaExtraccion(text)
   const items = Array.isArray(datos) ? datos : [...asArray(datos.movimientos), ...asArray(datos.activos)]
   for (const item of items) if (!item.external_id && item.fecha) item.external_id = await derivarExternalId(item)
