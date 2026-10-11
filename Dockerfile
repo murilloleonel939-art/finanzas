@@ -14,4 +14,4 @@ RUN npm run build
 ENV NODE_ENV=production
 EXPOSE 3000
 
-CMD ["sh", "-c", "node server/migrate.mjs && node server/index.mjs"]
+CMD ["sh", "-c", "node server/migrate.mjs && (node worker-import.mjs & exec node server/index.mjs)"]
