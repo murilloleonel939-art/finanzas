@@ -188,6 +188,30 @@ app.post('/api/admin/empresas/:id/restaurar', requireAuth, requireAdmin, async (
   res.status(204).end()
 })
 
+app.get('/api/empresas/:empresaId/resumen', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) {
+    return error(res, 403, 'No tienes acceso a esta empresa.')
+  }
+  const [cuentas, activos, wallets] = await Promise.all([
+    query(`select tipo_moneda as moneda, coalesce(sum(monto), 0) as monto
+      from cuentas where empresa_id = $1 and deleted_at is null group by tipo_moneda`, [req.params.empresaId]),
+    query(`select moneda, coalesce(sum(cantidad * valor_unitario), 0) as monto
+      from activos_broker where empresa_id = $1 and deleted_at is null group by moneda`, [req.params.empresaId]),
+    query(`select s.moneda, coalesce(sum(s.monto), 0) as monto
+      from wallet_saldos s join wallets w on w.id = s.wallet_id and w.deleted_at is null
+      where w.empresa_id = $1 group by s.moneda`, [req.params.empresaId]),
+  ])
+  const totals = new Map()
+  for (const row of [...cuentas.rows, ...activos.rows, ...wallets.rows]) {
+    const moneda = String(row.moneda || 'N/A').trim().toUpperCase()
+    totals.set(moneda, (totals.get(moneda) || 0) + Number(row.monto || 0))
+  }
+  res.json({ totales: [...totals.entries()]
+    .map(([moneda, monto]) => ({ moneda, monto: Number(monto.toFixed(8)) }))
+    .filter((row) => row.monto !== 0)
+    .sort((a, b) => a.moneda.localeCompare(b.moneda)) })
+})
+
 app.get('/api/empresas/:empresaId/bancos', requireAuth, async (req, res) => {
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) {
     return error(res, 403, 'No tienes acceso a esta empresa.')
