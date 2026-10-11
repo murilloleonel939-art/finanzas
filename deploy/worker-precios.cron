@@ -1,6 +1,6 @@
 # FinanzAdmin Pro — worker de precios vía cron
 #
-# Alternativa a systemd (deploy/worker-precios.service) si el EC2 ya usa cron
+# Alternativa a systemd (deploy/worker-precios.service) si el servidor ya usa cron
 # para todo. Instalación:
 #
 #   sudo cp deploy/worker-precios.cron /etc/cron.d/worker-precios
@@ -39,7 +39,7 @@ TZ=America/Bogota
 # Tres detalles que hay que respetar en esta línea:
 #   - `set -a; . env; set +a` — un `. archivo` a secas define las variables pero
 #     NO las exporta, así que node no las vería y el worker saldría con
-#     «Faltan variables de entorno: SUPABASE_URL».
+#     «Falta DATABASE_URL».
 #   - `env UNA_VEZ=1 node …` — `flock` ejecuta un binario, no una orden de
 #     shell, así que `UNA_VEZ=1` tiene que ir por `env` y no delante de flock.
 #   - `flock -n` evita solapes: si una vuelta tarda más de 5 minutos (un barrido

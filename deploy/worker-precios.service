@@ -2,7 +2,7 @@
 #
 # Instalación en el EC2:
 #   1. Copiar este archivo a /etc/systemd/system/worker-precios.service
-#   2. Crear /etc/worker-precios.env con SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY
+#   2. Crear /etc/worker-precios.env con DATABASE_URL
 #      (chmod 600, dueño root: los secretos no van en este archivo, que sí se
 #      versiona)
 #   3. systemctl daemon-reload
