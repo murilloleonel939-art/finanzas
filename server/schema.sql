@@ -142,6 +142,64 @@ create table if not exists precios_activo (
 create unique index if not exists precios_activo_unico on precios_activo (activo_id, fecha) where deleted_at is null;
 create index if not exists precios_activo_broker_fecha_idx on precios_activo (broker_id, fecha desc) where deleted_at is null;
 
+create table if not exists wallet_providers (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  tipo text not null check (tipo in ('cripto', 'fiat', 'ambos')),
+  nombre_proveedor text not null,
+  created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+create index if not exists wallet_providers_empresa_idx on wallet_providers (empresa_id) where deleted_at is null;
+
+create table if not exists wallets (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  proveedor_id uuid not null references wallet_providers(id) on delete cascade,
+  tipo text not null check (tipo in ('cripto', 'fiat', 'ambos')),
+  nombre_wallet text not null,
+  direccion text,
+  tipo_moneda text not null default 'USD',
+  created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+create index if not exists wallets_empresa_idx on wallets (empresa_id) where deleted_at is null;
+create index if not exists wallets_proveedor_idx on wallets (proveedor_id) where deleted_at is null;
+
+create table if not exists wallet_saldos (
+  wallet_id uuid not null references wallets(id) on delete cascade,
+  moneda text not null,
+  monto numeric(20,8) not null default 0 check (monto >= 0),
+  updated_at timestamptz not null default now(),
+  primary key (wallet_id, moneda)
+);
+
+create table if not exists movimientos_wallet (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  proveedor_id uuid not null references wallet_providers(id) on delete cascade,
+  wallet_id uuid not null references wallets(id) on delete cascade,
+  fecha date not null,
+  descripcion text not null,
+  tipo text not null check (tipo in ('ingreso', 'egreso')),
+  monto numeric(20,8) not null check (monto > 0),
+  tipo_moneda text not null default 'USD',
+  external_id text,
+  source_file text,
+  created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+create unique index if not exists movimientos_wallet_dedupe_idx on movimientos_wallet (wallet_id, external_id) where external_id is not null and deleted_at is null;
+create index if not exists mov_wallet_wallet_fecha_idx on movimientos_wallet (wallet_id, fecha desc) where deleted_at is null;
+create index if not exists mov_wallet_empresa_fecha_idx on movimientos_wallet (empresa_id, fecha desc) where deleted_at is null;
+create index if not exists mov_wallet_proveedor_idx on movimientos_wallet (proveedor_id) where deleted_at is null;
+
 create table if not exists usuario_empresa (
   id uuid primary key default gen_random_uuid(),
   usuario_id uuid not null references usuarios(id) on delete cascade,
@@ -182,5 +240,13 @@ drop trigger if exists activos_broker_updated_at on activos_broker;
 create trigger activos_broker_updated_at before update on activos_broker for each row execute function set_updated_at();
 drop trigger if exists precios_activo_updated_at on precios_activo;
 create trigger precios_activo_updated_at before update on precios_activo for each row execute function set_updated_at();
+drop trigger if exists wallet_providers_updated_at on wallet_providers;
+create trigger wallet_providers_updated_at before update on wallet_providers for each row execute function set_updated_at();
+drop trigger if exists wallets_updated_at on wallets;
+create trigger wallets_updated_at before update on wallets for each row execute function set_updated_at();
+drop trigger if exists wallet_saldos_updated_at on wallet_saldos;
+create trigger wallet_saldos_updated_at before update on wallet_saldos for each row execute function set_updated_at();
+drop trigger if exists movimientos_wallet_updated_at on movimientos_wallet;
+create trigger movimientos_wallet_updated_at before update on movimientos_wallet for each row execute function set_updated_at();
 drop trigger if exists usuario_empresa_updated_at on usuario_empresa;
 create trigger usuario_empresa_updated_at before update on usuario_empresa for each row execute function set_updated_at();

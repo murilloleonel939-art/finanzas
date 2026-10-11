@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { formatearMonto } from '@/lib/monedas'
 import { resumenEarn, activosEarnPorMoneda, activosConSaldo, esMovimientoEarn } from '@/lib/earnConfig'
-import { borrarMovimientoWallet, recalcularSaldosWallet } from '@/lib/wallets-datos'
+import { borrarMovimientoWallet } from '@/lib/wallets-datos'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import WalletEarnAssets from '@/components/wallets/WalletEarnAssets'
@@ -57,8 +57,7 @@ export default function WalletEarn({
     // los movimientos, así que hay que recalcularlo en la misma operación. Es
     // el mismo orden que usa el módulo de cuentas (borrar → recalcular).
     mutationFn: async (id) => {
-      await borrarMovimientoWallet(id)
-      await recalcularSaldosWallet(walletId)
+      await borrarMovimientoWallet(empresaId, walletId, id)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['movimientos-wallet', walletId] })

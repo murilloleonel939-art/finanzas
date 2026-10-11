@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '@/contexts/AuthContext'
 import { crearProveedor } from '@/lib/wallets-datos'
 import {
   proveedoresPorTipo,
@@ -36,7 +35,6 @@ import { AlertCircle, Loader2, ChevronLeft, Sparkles } from 'lucide-react'
 export default function CrearWalletProvider() {
   const { empresaId } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
 
@@ -66,7 +64,6 @@ export default function CrearWalletProvider() {
         empresaId,
         tipo: tipoFinal,
         nombreProveedor: nombreFinal,
-        userId: user?.id,
       })
     },
     onSuccess: () => {

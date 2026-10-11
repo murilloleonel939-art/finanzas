@@ -35,7 +35,7 @@
  * `wallet_saldos` no lo llevan porque la tabla **no tiene** esa columna: su
  * visibilidad la decide el RLS con un EXISTS contra `wallets` (0006).
  */
-import { supabase } from '@/lib/supabase'
+import { api, apiJson } from '@/lib/api'
 import { esInteres } from '@/lib/earnConfig'
 
 // ---------------------------------------------------------------------
@@ -50,43 +50,17 @@ import { esInteres } from '@/lib/earnConfig'
  * pagó caro.
  */
 export async function listarProveedores(empresaId) {
-  const { data, error } = await supabase
-    .from('wallet_providers')
-    .select('id, tipo, nombre_proveedor, created_at')
-    .eq('empresa_id', empresaId)
-    .is('deleted_at', null)
-    .order('nombre_proveedor')
-
-  if (error) throw error
-  return data ?? []
+  const { proveedores } = await api(`/api/empresas/${empresaId}/wallet-providers`)
+  return proveedores
 }
 
 export async function obtenerProveedor(proveedorId) {
-  const { data, error } = await supabase
-    .from('wallet_providers')
-    .select('id, empresa_id, tipo, nombre_proveedor')
-    .eq('id', proveedorId)
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (error) throw error
-  return data ?? null
+  const { proveedor } = await api(`/api/wallet-providers/${proveedorId}`)
+  return proveedor
 }
 
-export async function crearProveedor({ empresaId, tipo, nombreProveedor, userId }) {
-  const { data, error } = await supabase
-    .from('wallet_providers')
-    .insert({
-      empresa_id: empresaId,
-      tipo,
-      nombre_proveedor: nombreProveedor,
-      created_by: userId,
-    })
-    .select('id')
-    .single()
-
-  if (error) throw error
-  return data
+export function crearProveedor({ empresaId, tipo, nombreProveedor }) {
+  return apiJson(`/api/empresas/${empresaId}/wallet-providers`, 'POST', { tipo, nombre_proveedor: nombreProveedor })
 }
 
 /**
@@ -94,13 +68,8 @@ export async function crearProveedor({ empresaId, tipo, nombreProveedor, userId 
  * acceso ya se deriva del `deleted_at` del proveedor en las vistas, y una
  * cascada de borrados lógicos es justo lo que D19 descartó para las empresas.
  */
-export async function borrarProveedor(proveedorId) {
-  const { error } = await supabase
-    .from('wallet_providers')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', proveedorId)
-
-  if (error) throw error
+export function borrarProveedor(empresaId, proveedorId) {
+  return api(`/api/empresas/${empresaId}/wallet-providers/${proveedorId}`, { method: 'DELETE' })
 }
 
 // ---------------------------------------------------------------------
@@ -116,44 +85,20 @@ export async function borrarProveedor(proveedorId) {
  * `listarSaldos()`.
  */
 export async function listarWallets(empresaId) {
-  const { data, error } = await supabase
-    .from('wallets_view')
-    .select(
-      'id, proveedor_id, proveedor_nombre, tipo, nombre_wallet, direccion, tipo_moneda, saldo_total, monedas_distintas'
-    )
-    .eq('empresa_id', empresaId)
-    .order('nombre_wallet')
-
-  if (error) throw error
-  return data ?? []
+  const { wallets } = await api(`/api/empresas/${empresaId}/wallets`)
+  return wallets
 }
 
 /** Wallets de un proveedor concreto (la tarjeta del proveedor en el listado). */
 export async function listarWalletsDeProveedor(proveedorId) {
-  const { data, error } = await supabase
-    .from('wallets_view')
-    .select(
-      'id, proveedor_id, proveedor_nombre, tipo, nombre_wallet, direccion, tipo_moneda, saldo_total, monedas_distintas'
-    )
-    .eq('proveedor_id', proveedorId)
-    .order('nombre_wallet')
-
-  if (error) throw error
-  return data ?? []
+  const { wallets } = await api(`/api/wallet-providers/${proveedorId}/wallets`)
+  return wallets
 }
 
 /** Una wallet desde la vista, ya con `proveedor_nombre` resuelto. */
 export async function obtenerWallet(walletId) {
-  const { data, error } = await supabase
-    .from('wallets_view')
-    .select(
-      'id, empresa_id, proveedor_id, proveedor_nombre, tipo, nombre_wallet, direccion, tipo_moneda, saldo_total, monedas_distintas'
-    )
-    .eq('id', walletId)
-    .maybeSingle()
-
-  if (error) throw error
-  return data ?? null
+  const { wallet } = await api(`/api/wallets/${walletId}`)
+  return wallet
 }
 
 /**
@@ -173,72 +118,15 @@ export async function obtenerWallet(walletId) {
  * esquema conserva a propósito (0004), para que un cambio futuro en el
  * proveedor no reinterprete wallets históricas.
  */
-export async function crearWallet({
-  empresaId,
-  proveedorId,
-  tipoProveedor,
-  nombreWallet,
-  direccion,
-  tipoMoneda,
-  saldos = [],
-  fechaApertura,
-  userId,
-}) {
-  const { data: wallet, error } = await supabase
-    .from('wallets')
-    .insert({
-      empresa_id: empresaId,
-      proveedor_id: proveedorId,
-      tipo: tipoProveedor,
-      nombre_wallet: nombreWallet,
-      direccion: direccion?.trim() || null,
-      tipo_moneda: tipoMoneda,
-      created_by: userId,
-    })
-    .select('id')
-    .single()
-
-  if (error) throw error
-
-  const conSaldo = (saldos ?? []).filter((s) => Number(s.monto) > 0)
-  if (conSaldo.length === 0) return wallet
-
-  const { error: errSaldos } = await supabase.from('wallet_saldos').insert(
-    conSaldo.map((s) => ({
-      wallet_id: wallet.id,
-      moneda: s.moneda,
-      monto: Number(s.monto),
-    }))
-  )
-
-  if (errSaldos) throw errSaldos
-
-  const { error: errMovs } = await supabase.from('movimientos_wallet').insert(
-    conSaldo.map((s) => ({
-      empresa_id: empresaId,
-      proveedor_id: proveedorId,
-      wallet_id: wallet.id,
-      fecha: fechaApertura,
-      descripcion: 'Saldo inicial',
-      tipo: 'ingreso',
-      monto: Number(s.monto),
-      tipo_moneda: s.moneda,
-      created_by: userId,
-    }))
-  )
-
-  if (errMovs) throw errMovs
-
-  return wallet
+export function crearWallet({ empresaId, proveedorId, tipoProveedor, nombreWallet, direccion, tipoMoneda, saldos = [], fechaApertura }) {
+  return apiJson(`/api/empresas/${empresaId}/wallet-providers/${proveedorId}/wallets`, 'POST', {
+    tipo: tipoProveedor, nombre_wallet: nombreWallet, direccion, tipo_moneda: tipoMoneda, saldos, fecha_apertura: fechaApertura,
+  })
 }
 
-export async function borrarWallet(walletId) {
-  const { error } = await supabase
-    .from('wallets')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', walletId)
 
-  if (error) throw error
+export function borrarWallet(empresaId, walletId) {
+  return api(`/api/empresas/${empresaId}/wallets/${walletId}`, { method: 'DELETE' })
 }
 
 // ---------------------------------------------------------------------
@@ -252,14 +140,8 @@ export async function borrarWallet(walletId) {
  * tabla de valores cuya fila desaparece con la wallet (ON DELETE CASCADE).
  */
 export async function listarSaldos(walletId) {
-  const { data, error } = await supabase
-    .from('wallet_saldos')
-    .select('wallet_id, moneda, monto, updated_at')
-    .eq('wallet_id', walletId)
-    .order('moneda')
-
-  if (error) throw error
-  return data ?? []
+  const { saldos } = await api(`/api/wallets/${walletId}/saldos`)
+  return saldos
 }
 
 /**
@@ -270,14 +152,7 @@ export async function listarSaldos(walletId) {
  * calculado, no un incremento, para que un alta repetida no lo duplique.
  */
 export async function fijarSaldo(walletId, moneda, monto) {
-  const { error } = await supabase
-    .from('wallet_saldos')
-    .upsert(
-      { wallet_id: walletId, moneda, monto: Number(monto), updated_at: new Date().toISOString() },
-      { onConflict: 'wallet_id,moneda' }
-    )
-
-  if (error) throw error
+  return apiJson(`/api/wallets/${walletId}/saldos`, 'PUT', { moneda, monto: Number(monto) })
 }
 
 // ---------------------------------------------------------------------
@@ -292,57 +167,18 @@ export async function fijarSaldo(walletId, moneda, monto) {
  * `created_at`, que es lo único que hay para hacerlo.
  */
 export async function listarMovimientosWallet(walletId) {
-  const { data, error } = await supabase
-    .from('movimientos_wallet_view')
-    .select(
-      'id, fecha, descripcion, tipo, monto, tipo_moneda, proveedor_nombre, external_id'
-    )
-    .eq('wallet_id', walletId)
-    .order('fecha', { ascending: false })
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
-  return data ?? []
+  const { movimientos } = await api(`/api/wallets/${walletId}/movimientos`)
+  return movimientos
 }
 
-export async function crearMovimientoWallet({
-  empresaId,
-  proveedorId,
-  walletId,
-  fecha,
-  descripcion,
-  tipo,
-  monto,
-  tipoMoneda,
-  userId,
-}) {
-  const { data, error } = await supabase
-    .from('movimientos_wallet')
-    .insert({
-      empresa_id: empresaId,
-      proveedor_id: proveedorId,
-      wallet_id: walletId,
-      fecha,
-      descripcion,
-      tipo,
-      monto,
-      tipo_moneda: tipoMoneda,
-      created_by: userId,
-    })
-    .select('id')
-    .single()
-
-  if (error) throw error
-  return data
+export function crearMovimientoWallet({ empresaId, walletId, fecha, descripcion, tipo, monto, tipoMoneda }) {
+  return apiJson(`/api/empresas/${empresaId}/wallets/${walletId}/movimientos`, 'POST', {
+    fecha, descripcion, tipo, monto, tipo_moneda: tipoMoneda,
+  })
 }
 
-export async function borrarMovimientoWallet(id) {
-  const { error } = await supabase
-    .from('movimientos_wallet')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', id)
-
-  if (error) throw error
+export function borrarMovimientoWallet(empresaId, walletId, movimientoId) {
+  return api(`/api/empresas/${empresaId}/wallets/${walletId}/movimientos/${movimientoId}`, { method: 'DELETE' })
 }
 
 /**
@@ -365,37 +201,8 @@ export async function borrarMovimientoWallet(id) {
  * Devuelve `{ saldos, descuadres }`, donde `descuadres` son las monedas cuyo
  * cálculo no se pudo guardar y por qué.
  */
-export async function recalcularSaldosWallet(walletId) {
-  const { data, error } = await supabase
-    .from('movimientos_wallet')
-    .select('tipo, monto, tipo_moneda')
-    .eq('wallet_id', walletId)
-    .is('deleted_at', null)
-
-  if (error) throw error
-
-  const calculados = saldosPorMoneda(data ?? [])
-
-  const saldos = []
-  const descuadres = []
-
-  for (const s of calculados) {
-    if (s.monto < 0) {
-      descuadres.push({
-        moneda: s.moneda,
-        monto: s.monto,
-        motivo:
-          `El saldo calculado en ${s.moneda} es negativo (${s.monto}). La base no ` +
-          `admite un saldo negativo y no se ha recortado a cero: revisa los ` +
-          `movimientos de esa moneda.`,
-      })
-      continue
-    }
-    await fijarSaldo(walletId, s.moneda, s.monto)
-    saldos.push(s)
-  }
-
-  return { saldos, descuadres }
+export function recalcularSaldosWallet(walletId) {
+  return apiJson(`/api/wallets/${walletId}/recalcular-saldos`, 'POST')
 }
 
 // ---------------------------------------------------------------------

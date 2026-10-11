@@ -529,6 +529,188 @@ app.get('/api/brokers/:brokerId/precios', requireAuth, async (req, res) => {
   res.json({ precios: result.rows })
 })
 
+app.get('/api/empresas/:empresaId/wallet-providers', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const result = await query(`select id, tipo, nombre_proveedor, created_at from wallet_providers
+    where empresa_id = $1 and deleted_at is null order by nombre_proveedor`, [req.params.empresaId])
+  res.json({ proveedores: result.rows })
+})
+
+app.post('/api/empresas/:empresaId/wallet-providers', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const tipo = req.body.tipo
+  const nombre = req.body.nombre_proveedor?.trim()
+  if (!['cripto', 'fiat', 'ambos'].includes(tipo) || !nombre) return error(res, 400, 'Tipo y nombre del proveedor son obligatorios.')
+  const created = await query(`insert into wallet_providers (empresa_id, tipo, nombre_proveedor, created_by)
+    values ($1, $2, $3, $4) returning id, tipo, nombre_proveedor`, [req.params.empresaId, tipo, nombre, req.auth.sub])
+  res.status(201).json({ proveedor: created.rows[0] })
+})
+
+app.delete('/api/empresas/:empresaId/wallet-providers/:proveedorId', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const deleted = await query(`update wallet_providers set deleted_at = now() where id = $1 and empresa_id = $2 and deleted_at is null`, [req.params.proveedorId, req.params.empresaId])
+  if (!deleted.rowCount) return error(res, 404, 'Proveedor no encontrado.')
+  res.status(204).end()
+})
+
+app.get('/api/wallet-providers/:proveedorId', requireAuth, async (req, res) => {
+  const result = await query('select id, empresa_id, tipo, nombre_proveedor from wallet_providers where id = $1 and deleted_at is null', [req.params.proveedorId])
+  const proveedor = result.rows[0]
+  if (!proveedor) return error(res, 404, 'Proveedor no encontrado.')
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, proveedor.empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  res.json({ proveedor })
+})
+
+const walletSelect = `w.id, w.empresa_id, w.proveedor_id, p.nombre_proveedor as proveedor_nombre, w.tipo,
+  w.nombre_wallet, w.direccion, w.tipo_moneda,
+  coalesce((select count(*) from wallet_saldos s where s.wallet_id = w.id), 0)::int as monedas_distintas,
+  coalesce((select sum(s.monto) from wallet_saldos s where s.wallet_id = w.id), 0) as saldo_total`
+
+app.get('/api/empresas/:empresaId/wallets', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const result = await query(`select ${walletSelect} from wallets w join wallet_providers p on p.id = w.proveedor_id and p.deleted_at is null
+    where w.empresa_id = $1 and w.deleted_at is null order by w.nombre_wallet`, [req.params.empresaId])
+  res.json({ wallets: result.rows })
+})
+
+app.get('/api/wallet-providers/:proveedorId/wallets', requireAuth, async (req, res) => {
+  const provider = await query('select empresa_id from wallet_providers where id = $1 and deleted_at is null', [req.params.proveedorId])
+  if (!provider.rowCount) return error(res, 404, 'Proveedor no encontrado.')
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, provider.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const result = await query(`select ${walletSelect} from wallets w join wallet_providers p on p.id = w.proveedor_id and p.deleted_at is null
+    where w.proveedor_id = $1 and w.deleted_at is null order by w.nombre_wallet`, [req.params.proveedorId])
+  res.json({ wallets: result.rows })
+})
+
+app.get('/api/wallets/:walletId', requireAuth, async (req, res) => {
+  const result = await query(`select ${walletSelect} from wallets w join wallet_providers p on p.id = w.proveedor_id and p.deleted_at is null
+    where w.id = $1 and w.deleted_at is null`, [req.params.walletId])
+  const wallet = result.rows[0]
+  if (!wallet) return error(res, 404, 'Wallet no encontrada.')
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, wallet.empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  res.json({ wallet })
+})
+
+app.post('/api/empresas/:empresaId/wallet-providers/:proveedorId/wallets', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const { nombre_wallet: nombre, direccion, tipo_moneda: tipoMoneda, tipo, saldos = [], fecha_apertura: fecha } = req.body
+  if (!nombre?.trim() || !['cripto', 'fiat', 'ambos'].includes(tipo) || !tipoMoneda?.trim()) return error(res, 400, 'Nombre, tipo y moneda son obligatorios.')
+  if (!Array.isArray(saldos) || saldos.some((s) => !s?.moneda || !Number.isFinite(Number(s.monto)) || Number(s.monto) < 0)) return error(res, 400, 'Los saldos iniciales no son válidos.')
+  if (new Set(saldos.map((s) => s.moneda)).size !== saldos.length) return error(res, 400, 'No puede repetirse una moneda.')
+  const provider = await query('select id, tipo from wallet_providers where id = $1 and empresa_id = $2 and deleted_at is null', [req.params.proveedorId, req.params.empresaId])
+  if (!provider.rowCount || (provider.rows[0].tipo !== 'ambos' && provider.rows[0].tipo !== tipo)) return error(res, 400, 'El tipo de la wallet no coincide con el proveedor.')
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const wallet = await client.query(`insert into wallets (empresa_id, proveedor_id, tipo, nombre_wallet, direccion, tipo_moneda, created_by)
+      values ($1, $2, $3, $4, $5, $6, $7) returning id`, [req.params.empresaId, req.params.proveedorId, tipo, nombre.trim(), direccion?.trim() || null, tipoMoneda.trim(), req.auth.sub])
+    for (const saldo of saldos.filter((s) => Number(s.monto) > 0)) {
+      await client.query('insert into wallet_saldos (wallet_id, moneda, monto) values ($1, $2, $3)', [wallet.rows[0].id, saldo.moneda, Number(saldo.monto)])
+      await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, created_by)
+        values ($1, $2, $3, $4, 'Saldo inicial', 'ingreso', $5, $6, $7)`, [req.params.empresaId, req.params.proveedorId, wallet.rows[0].id, fecha || new Date().toISOString().slice(0, 10), Number(saldo.monto), saldo.moneda, req.auth.sub])
+    }
+    await client.query('commit')
+    res.status(201).json({ walletId: wallet.rows[0].id })
+  } catch (err) { await client.query('rollback'); throw err } finally { client.release() }
+})
+
+app.delete('/api/empresas/:empresaId/wallets/:walletId', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const deleted = await query('update wallets set deleted_at = now() where id = $1 and empresa_id = $2 and deleted_at is null', [req.params.walletId, req.params.empresaId])
+  if (!deleted.rowCount) return error(res, 404, 'Wallet no encontrada.')
+  res.status(204).end()
+})
+
+app.get('/api/wallets/:walletId/saldos', requireAuth, async (req, res) => {
+  const wallet = await query('select empresa_id from wallets where id = $1 and deleted_at is null', [req.params.walletId])
+  if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, wallet.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const result = await query('select wallet_id, moneda, monto, updated_at from wallet_saldos where wallet_id = $1 order by moneda', [req.params.walletId])
+  res.json({ saldos: result.rows })
+})
+
+app.put('/api/wallets/:walletId/saldos', requireAuth, async (req, res) => {
+  const wallet = await query('select empresa_id from wallets where id = $1 and deleted_at is null', [req.params.walletId])
+  if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, wallet.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const monto = Number(req.body.monto)
+  if (!req.body.moneda?.trim() || !Number.isFinite(monto) || monto < 0) return error(res, 400, 'Saldo inválido.')
+  await query(`insert into wallet_saldos (wallet_id, moneda, monto) values ($1, $2, $3)
+    on conflict (wallet_id, moneda) do update set monto = excluded.monto`, [req.params.walletId, req.body.moneda.trim(), monto])
+  res.status(204).end()
+})
+
+app.get('/api/wallets/:walletId/movimientos', requireAuth, async (req, res) => {
+  const result = await query(`select m.id, m.fecha, m.descripcion, m.tipo, m.monto, m.tipo_moneda, p.nombre_proveedor as proveedor_nombre, m.external_id, m.created_at
+    from movimientos_wallet m join wallets w on w.id = m.wallet_id and w.deleted_at is null
+    join wallet_providers p on p.id = m.proveedor_id and p.deleted_at is null
+    where m.wallet_id = $1 and m.deleted_at is null order by m.fecha desc, m.created_at desc`, [req.params.walletId])
+  if (!result.rowCount) {
+    const wallet = await query('select empresa_id from wallets where id = $1 and deleted_at is null', [req.params.walletId])
+    if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
+    if (!await requireCompanyAccess(req.auth.sub, req.auth.role, wallet.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  } else {
+    const wallet = await query('select empresa_id from wallets where id = $1', [req.params.walletId])
+    if (!await requireCompanyAccess(req.auth.sub, req.auth.role, wallet.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  }
+  res.json({ movimientos: result.rows })
+})
+
+app.post('/api/empresas/:empresaId/wallets/:walletId/movimientos', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const { fecha, descripcion, tipo, tipo_moneda: moneda } = req.body
+  const monto = Number(req.body.monto)
+  const wallet = await query('select proveedor_id from wallets where id = $1 and empresa_id = $2 and deleted_at is null', [req.params.walletId, req.params.empresaId])
+  if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
+  if (!fecha || !descripcion?.trim() || !['ingreso', 'egreso'].includes(tipo) || !moneda?.trim() || !Number.isFinite(monto) || monto <= 0) return error(res, 400, 'Los datos del movimiento no son válidos.')
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const created = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, created_by)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`, [req.params.empresaId, wallet.rows[0].proveedor_id, req.params.walletId, fecha, descripcion.trim(), tipo, monto, moneda.trim(), req.auth.sub])
+    const descuadres = await recalcularWallet(req.params.walletId, client)
+    if (descuadres.length) {
+      await client.query('rollback')
+      return error(res, 409, `El movimiento dejaría un saldo negativo en ${descuadres.map((d) => d.moneda).join(', ')}.`)
+    }
+    await client.query('commit')
+    res.status(201).json({ movimientoId: created.rows[0].id })
+  } catch (err) { await client.query('rollback'); throw err } finally { client.release() }
+})
+
+async function recalcularWallet(walletId, client = pool) {
+  const result = await client.query(`select tipo, tipo_moneda, sum(case when tipo = 'ingreso' then monto else -monto end) as monto
+    from movimientos_wallet where wallet_id = $1 and deleted_at is null group by tipo_moneda, tipo`, [walletId])
+  const totals = new Map()
+  for (const row of result.rows) totals.set(row.tipo_moneda, (totals.get(row.tipo_moneda) || 0) + Number(row.monto))
+  await client.query('delete from wallet_saldos where wallet_id = $1', [walletId])
+  for (const [moneda, monto] of totals) {
+    if (monto < 0) continue
+    await client.query('insert into wallet_saldos (wallet_id, moneda, monto) values ($1, $2, $3)', [walletId, moneda, monto])
+  }
+  return [...totals.entries()].filter(([, monto]) => monto < 0).map(([moneda, monto]) => ({ moneda, monto }))
+}
+
+app.post('/api/wallets/:walletId/recalcular-saldos', requireAuth, async (req, res) => {
+  const wallet = await query('select empresa_id from wallets where id = $1 and deleted_at is null', [req.params.walletId])
+  if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, wallet.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  res.json({ descuadres: await recalcularWallet(req.params.walletId) })
+})
+
+app.delete('/api/empresas/:empresaId/wallets/:walletId/movimientos/:movimientoId', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const deleted = await client.query('update movimientos_wallet set deleted_at = now() where id = $1 and wallet_id = $2 and empresa_id = $3 and deleted_at is null', [req.params.movimientoId, req.params.walletId, req.params.empresaId])
+    if (!deleted.rowCount) { await client.query('rollback'); return error(res, 404, 'Movimiento no encontrado.') }
+    const descuadres = await recalcularWallet(req.params.walletId, client)
+    await client.query('commit')
+    res.json({ descuadres })
+  } catch (err) { await client.query('rollback'); throw err } finally { client.release() }
+})
+
 app.get('/api/admin/usuarios', requireAuth, requireAdmin, async (_req, res) => {
   const result = await query(
     `select u.id, u.email, u.full_name, u.app_role, u.estado, u.created_at, u.updated_at, coalesce(

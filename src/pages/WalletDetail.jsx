@@ -7,7 +7,6 @@ import {
   listarMovimientosWallet,
   listarSaldos,
   borrarMovimientoWallet,
-  recalcularSaldosWallet,
   analizarWallet,
 } from '@/lib/wallets-datos'
 import { esProveedorEarn, esMovimientoEarn } from '@/lib/earnConfig'
@@ -109,8 +108,7 @@ export default function WalletDetail() {
     // `monto >= 0`, 0004) y `recalcularSaldosWallet` no lo inventa: devuelve el
     // descuadre para enseñarlo (D25).
     mutationFn: async (id) => {
-      await borrarMovimientoWallet(id)
-      return recalcularSaldosWallet(walletId)
+      return borrarMovimientoWallet(empresaId, walletId, id)
     },
     onSuccess: (resultado) => {
       setDescuadres(resultado?.descuadres ?? [])

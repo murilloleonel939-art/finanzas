@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '@/contexts/AuthContext'
 import { formatearMonto, MONEDA_DEFECTO } from '@/lib/monedas'
 import { hoyLocal } from '@/lib/utils'
-import { crearMovimientoWallet, recalcularSaldosWallet, obtenerWallet } from '@/lib/wallets-datos'
+import { crearMovimientoWallet, obtenerWallet } from '@/lib/wallets-datos'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -31,7 +30,6 @@ import { AlertCircle, Loader2, ChevronLeft } from 'lucide-react'
 export default function CrearMovimientoWallet() {
   const { empresaId, proveedorId, walletId } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
   const queryClient = useQueryClient()
 
   const hoy = hoyLocal()
@@ -69,13 +67,8 @@ export default function CrearMovimientoWallet() {
         tipo,
         monto: montoNum,
         tipoMoneda,
-        userId: user?.id,
       })
 
-      // El saldo se recalcula completamente: un incremento quedaría desviado
-      // ante cualquier borrado posterior, y en esta app los extractos se
-      // importan y se pueden re-importar.
-      await recalcularSaldosWallet(walletId)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['movimientos-wallet', walletId] })

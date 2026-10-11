@@ -52,7 +52,7 @@ export default function WalletsPage() {
   }, {})
 
   const { mutate: eliminarProveedor, isPending: borrandoProveedor } = useMutation({
-    mutationFn: (id) => borrarProveedor(id),
+    mutationFn: (id) => borrarProveedor(empresaId, id),
     onSuccess: () => {
       setProveedorABorrar(null)
       queryClient.invalidateQueries({ queryKey: ['proveedores-wallet', empresaId] })
@@ -61,7 +61,7 @@ export default function WalletsPage() {
   })
 
   const { mutate: eliminarWallet, isPending: borrandoWallet } = useMutation({
-    mutationFn: (id) => borrarWallet(id),
+    mutationFn: (id) => borrarWallet(empresaId, id),
     onSuccess: () => {
       setWalletABorrar(null)
       queryClient.invalidateQueries({ queryKey: ['wallets-empresa', empresaId] })

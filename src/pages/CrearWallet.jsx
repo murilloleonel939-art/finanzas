@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '@/contexts/AuthContext'
 import { crearWallet } from '@/lib/wallets-datos'
 import { MONEDAS_CRIPTO, MONEDAS_FIAT, MONEDA_DEFECTO, moneda as infoMoneda } from '@/lib/monedas'
 import { obtenerProveedor } from '@/lib/wallets-datos'
@@ -35,7 +34,6 @@ import { AlertCircle, Loader2, ChevronLeft, Plus, Trash2 } from 'lucide-react'
 export default function CrearWallet() {
   const { empresaId, proveedorId } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
   const queryClient = useQueryClient()
 
   const [nombre, setNombre] = useState('')
@@ -86,7 +84,6 @@ export default function CrearWallet() {
         // `hoyLocal()` y no `toISOString()`: en Colombia, un alta de después de
         // las 19:00 nacería con la fecha de mañana (D26).
         fechaApertura: hoyLocal(),
-        userId: user?.id,
       })
     },
     onSuccess: () => {
