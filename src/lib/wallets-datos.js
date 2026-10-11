@@ -144,17 +144,6 @@ export async function listarSaldos(walletId) {
   return saldos
 }
 
-/**
- * Escribe el saldo de una moneda (upsert sobre la PK compuesta).
- *
- * `onConflict` tiene que nombrar las DOS columnas: la PK no es `id`, así que sin
- * esto PostgREST intentaría un `id` inexistente y fallaría. Se escribe el saldo
- * calculado, no un incremento, para que un alta repetida no lo duplique.
- */
-export async function fijarSaldo(walletId, moneda, monto) {
-  return apiJson(`/api/wallets/${walletId}/saldos`, 'PUT', { moneda, monto: Number(monto) })
-}
-
 // ---------------------------------------------------------------------
 // Movimientos
 // ---------------------------------------------------------------------

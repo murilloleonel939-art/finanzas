@@ -605,9 +605,10 @@ app.post('/api/empresas/:empresaId/wallet-providers/:proveedorId/wallets', requi
     const wallet = await client.query(`insert into wallets (empresa_id, proveedor_id, tipo, nombre_wallet, direccion, tipo_moneda, created_by)
       values ($1, $2, $3, $4, $5, $6, $7) returning id`, [req.params.empresaId, req.params.proveedorId, tipo, nombre.trim(), direccion?.trim() || null, tipoMoneda.trim(), req.auth.sub])
     for (const saldo of saldos.filter((s) => Number(s.monto) > 0)) {
-      await client.query('insert into wallet_saldos (wallet_id, moneda, monto) values ($1, $2, $3)', [wallet.rows[0].id, saldo.moneda, Number(saldo.monto)])
+      const moneda = String(saldo.moneda).trim().toUpperCase()
+      await client.query('insert into wallet_saldos (wallet_id, moneda, monto) values ($1, $2, $3)', [wallet.rows[0].id, moneda, Number(saldo.monto)])
       await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, created_by)
-        values ($1, $2, $3, $4, 'Saldo inicial', 'ingreso', $5, $6, $7)`, [req.params.empresaId, req.params.proveedorId, wallet.rows[0].id, fecha || new Date().toISOString().slice(0, 10), Number(saldo.monto), saldo.moneda, req.auth.sub])
+        values ($1, $2, $3, $4, 'Saldo inicial', 'ingreso', $5, $6, $7)`, [req.params.empresaId, req.params.proveedorId, wallet.rows[0].id, fecha || new Date().toISOString().slice(0, 10), Number(saldo.monto), moneda, req.auth.sub])
     }
     await client.query('commit')
     res.status(201).json({ walletId: wallet.rows[0].id })
@@ -629,36 +630,20 @@ app.get('/api/wallets/:walletId/saldos', requireAuth, async (req, res) => {
   res.json({ saldos: result.rows })
 })
 
-app.put('/api/wallets/:walletId/saldos', requireAuth, async (req, res) => {
+app.get('/api/wallets/:walletId/movimientos', requireAuth, async (req, res) => {
   const wallet = await query('select empresa_id from wallets where id = $1 and deleted_at is null', [req.params.walletId])
   if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, wallet.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
-  const monto = Number(req.body.monto)
-  if (!req.body.moneda?.trim() || !Number.isFinite(monto) || monto < 0) return error(res, 400, 'Saldo inválido.')
-  await query(`insert into wallet_saldos (wallet_id, moneda, monto) values ($1, $2, $3)
-    on conflict (wallet_id, moneda) do update set monto = excluded.monto`, [req.params.walletId, req.body.moneda.trim(), monto])
-  res.status(204).end()
-})
-
-app.get('/api/wallets/:walletId/movimientos', requireAuth, async (req, res) => {
   const result = await query(`select m.id, m.fecha, m.descripcion, m.tipo, m.monto, m.tipo_moneda, p.nombre_proveedor as proveedor_nombre, m.external_id, m.created_at
-    from movimientos_wallet m join wallets w on w.id = m.wallet_id and w.deleted_at is null
-    join wallet_providers p on p.id = m.proveedor_id and p.deleted_at is null
+    from movimientos_wallet m join wallet_providers p on p.id = m.proveedor_id and p.deleted_at is null
     where m.wallet_id = $1 and m.deleted_at is null order by m.fecha desc, m.created_at desc`, [req.params.walletId])
-  if (!result.rowCount) {
-    const wallet = await query('select empresa_id from wallets where id = $1 and deleted_at is null', [req.params.walletId])
-    if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
-    if (!await requireCompanyAccess(req.auth.sub, req.auth.role, wallet.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
-  } else {
-    const wallet = await query('select empresa_id from wallets where id = $1', [req.params.walletId])
-    if (!await requireCompanyAccess(req.auth.sub, req.auth.role, wallet.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
-  }
   res.json({ movimientos: result.rows })
 })
 
 app.post('/api/empresas/:empresaId/wallets/:walletId/movimientos', requireAuth, async (req, res) => {
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
-  const { fecha, descripcion, tipo, tipo_moneda: moneda } = req.body
+  const { fecha, descripcion, tipo } = req.body
+  const moneda = String(req.body.tipo_moneda || '').trim().toUpperCase()
   const monto = Number(req.body.monto)
   const wallet = await query('select proveedor_id from wallets where id = $1 and empresa_id = $2 and deleted_at is null', [req.params.walletId, req.params.empresaId])
   if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
@@ -682,13 +667,17 @@ async function recalcularWallet(walletId, client = pool) {
   const result = await client.query(`select tipo, tipo_moneda, sum(case when tipo = 'ingreso' then monto else -monto end) as monto
     from movimientos_wallet where wallet_id = $1 and deleted_at is null group by tipo_moneda, tipo`, [walletId])
   const totals = new Map()
-  for (const row of result.rows) totals.set(row.tipo_moneda, (totals.get(row.tipo_moneda) || 0) + Number(row.monto))
+  for (const row of result.rows) {
+    const moneda = String(row.tipo_moneda).trim().toUpperCase()
+    totals.set(moneda, (totals.get(moneda) || 0) + Number(row.monto))
+  }
+  const descuadres = [...totals.entries()].filter(([, monto]) => monto < 0).map(([moneda, monto]) => ({ moneda, monto }))
+  if (descuadres.length) return descuadres
   await client.query('delete from wallet_saldos where wallet_id = $1', [walletId])
   for (const [moneda, monto] of totals) {
-    if (monto < 0) continue
     await client.query('insert into wallet_saldos (wallet_id, moneda, monto) values ($1, $2, $3)', [walletId, moneda, monto])
   }
-  return [...totals.entries()].filter(([, monto]) => monto < 0).map(([moneda, monto]) => ({ moneda, monto }))
+  return []
 }
 
 app.post('/api/wallets/:walletId/recalcular-saldos', requireAuth, async (req, res) => {
@@ -700,14 +689,20 @@ app.post('/api/wallets/:walletId/recalcular-saldos', requireAuth, async (req, re
 
 app.delete('/api/empresas/:empresaId/wallets/:walletId/movimientos/:movimientoId', requireAuth, async (req, res) => {
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const wallet = await query('select id from wallets where id = $1 and empresa_id = $2 and deleted_at is null', [req.params.walletId, req.params.empresaId])
+  if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
   const client = await pool.connect()
   try {
     await client.query('begin')
     const deleted = await client.query('update movimientos_wallet set deleted_at = now() where id = $1 and wallet_id = $2 and empresa_id = $3 and deleted_at is null', [req.params.movimientoId, req.params.walletId, req.params.empresaId])
     if (!deleted.rowCount) { await client.query('rollback'); return error(res, 404, 'Movimiento no encontrado.') }
     const descuadres = await recalcularWallet(req.params.walletId, client)
+    if (descuadres.length) {
+      await client.query('rollback')
+      return error(res, 409, `El borrado dejaría un saldo negativo en ${descuadres.map((d) => d.moneda).join(', ')}.`)
+    }
     await client.query('commit')
-    res.json({ descuadres })
+    res.json({ descuadres: [] })
   } catch (err) { await client.query('rollback'); throw err } finally { client.release() }
 })
 
