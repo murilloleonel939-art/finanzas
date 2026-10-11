@@ -29,7 +29,21 @@ El contenedor ejecuta la migración idempotente en cada arranque. Crea las tabla
 
 Al terminar el despliegue, abre el dominio de la aplicación e inicia sesión con el correo y contraseña de `ADMIN_*`.
 
-En esta versión funcionan con la API propia y PostgreSQL: inicio de sesión, sesión JWT, superusuario, empresas, usuarios, bancos, cuentas, brokers, wallets, movimientos, importación de PDFs y precios.
+En esta versión funcionan con la API propia y PostgreSQL: inicio de sesión, sesión JWT, superusuario, empresas, usuarios, bancos, cuentas, brokers, wallets, movimientos, importación de PDFs/CSV/Excel y precios.
+
+Para importar extractos grandes, el worker usa Pateway Claude Haiku por lotes. Configura estas variables en el servicio de la aplicación:
+
+| Variable | Valor recomendado |
+| --- | --- |
+| `PATEWAY_API_KEY` | Clave de Pateway |
+| `PATEWAY_BASE_URL` | `https://api.pateway.ai` |
+| `IMPORT_MODEL` | `claude-haiku-4-5-20251001` |
+| `IMPORT_MAX_TOKENS` | `8192` |
+| `IMPORT_PDF_PAGES_PER_BATCH` | `5` |
+| `IMPORT_ROWS_PER_BATCH` | `500` |
+| `IMPORT_REQUEST_TIMEOUT_MS` | `180000` |
+
+El worker procesa los PDF por páginas y CSV/Excel por filas, por lo que un extracto de 60 páginas no se envía en una sola solicitud.
 
 La autorización se valida en el backend y se aplica por empresa; no depende únicamente del frontend.
 

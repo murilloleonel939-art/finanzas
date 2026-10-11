@@ -16,6 +16,11 @@ import {
 const POLL_INTERVAL = Number(process.env.IMPORT_POLL_INTERVAL_MS || 30000)
 const STORAGE_DIR = process.env.IMPORT_STORAGE_DIR || path.resolve('server/uploads')
 const UNA_VEZ = process.env.IMPORT_UNA_VEZ === '1'
+const IMPORT_MAX_TOKENS = Number(process.env.IMPORT_MAX_TOKENS || 8192)
+const IMPORT_PDF_PAGES_PER_BATCH = Math.max(1, Number(process.env.IMPORT_PDF_PAGES_PER_BATCH || 5))
+const IMPORT_ROWS_PER_BATCH = Math.max(25, Number(process.env.IMPORT_ROWS_PER_BATCH || 500))
+const PATEWAY_BASE_URL = (process.env.PATEWAY_BASE_URL || 'https://api.pateway.ai').replace(/\/$/, '')
+const PATEWAY_MODEL = process.env.IMPORT_MODEL || 'claude-haiku-4-5-20251001'
 const execFileAsync = promisify(execFile)
 
 function log(message, level = 'info') { console.log(`[${new Date().toISOString()}] ${level === 'error' ? '❌' : level === 'warn' ? '⚠️' : 'ℹ️'} ${message}`) }
@@ -28,54 +33,90 @@ function fileForJob(job) {
 }
 function asArray(value) { return Array.isArray(value) ? value : [] }
 
-async function textoDelArchivo(filePath) {
+async function lotesDelArchivo(filePath) {
   const extension = path.extname(filePath).toLowerCase()
   if (extension === '.pdf') {
     try {
-      const { stdout } = await execFileAsync(process.env.PDFTOTEXT_BIN || 'pdftotext', ['-layout', filePath, '-'], { maxBuffer: 16 * 1024 * 1024 })
-      const texto = stdout.trim()
-      if (!texto) throw new Error('El PDF no contiene texto extraíble.')
-      return texto
+      const total = Number((await execFileAsync(process.env.PDFINFO_BIN || 'pdfinfo', [filePath], { maxBuffer: 1024 * 1024 })).stdout.match(/Pages:\s+(\d+)/i)?.[1] || 1)
+      const lotes = []
+      for (let inicio = 1; inicio <= total; inicio += IMPORT_PDF_PAGES_PER_BATCH) {
+        const fin = Math.min(total, inicio + IMPORT_PDF_PAGES_PER_BATCH - 1)
+        const { stdout: texto } = await execFileAsync(process.env.PDFTOTEXT_BIN || 'pdftotext', ['-layout', '-f', String(inicio), '-l', String(fin), filePath, '-'], { maxBuffer: 16 * 1024 * 1024 })
+        if (texto.trim()) lotes.push(`PÁGINAS ${inicio}-${fin}\n${texto.trim()}`)
+      }
+      if (!lotes.length) throw new Error('El PDF no contiene texto extraíble.')
+      return lotes
     } catch (error) {
-      if (error.code === 'ENOENT') throw new Error('Falta pdftotext en la imagen del worker NVIDIA.')
+      if (error.code === 'ENOENT') throw new Error('Falta pdftotext/pdfinfo en la imagen del worker.')
       throw new Error(`No se pudo extraer texto del PDF: ${error.message}`)
     }
   }
-  if (extension === '.csv') return fs.readFileSync(filePath, 'utf8').slice(0, 16 * 1024 * 1024)
-  if (extension === '.xls' || extension === '.xlsx') {
+  let texto
+  if (extension === '.csv') texto = fs.readFileSync(filePath, 'utf8')
+  else if (extension === '.xls' || extension === '.xlsx') {
     const workbook = XLSX.readFile(filePath, { cellDates: true })
-    return workbook.SheetNames.map((name) => `HOJA: ${name}\n${XLSX.utils.sheet_to_csv(workbook.Sheets[name])}`).join('\n\n')
+    texto = workbook.SheetNames.map((name) => `HOJA: ${name}\n${XLSX.utils.sheet_to_csv(workbook.Sheets[name])}`).join('\n\n')
+  } else throw new Error('Formato de archivo no soportado.')
+  const lineas = texto.split(/\r?\n/).filter((linea) => linea.trim())
+  const lotes = []
+  for (let i = 0; i < lineas.length; i += IMPORT_ROWS_PER_BATCH) lotes.push(lineas.slice(i, i + IMPORT_ROWS_PER_BATCH).join('\n'))
+  return lotes
+}
+
+async function extraerLote(texto, prompt, esBroker, indice, total) {
+  const apiKey = process.env.PATEWAY_API_KEY
+  if (!apiKey) throw new Error('Falta PATEWAY_API_KEY para extraer movimientos.')
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), Number(process.env.IMPORT_REQUEST_TIMEOUT_MS || 180000))
+  try {
+    const response = await fetch(process.env.PATEWAY_MESSAGES_URL || `${PATEWAY_BASE_URL}/v1/messages`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: PATEWAY_MODEL,
+        max_tokens: IMPORT_MAX_TOKENS,
+        system: 'Eres un extractor preciso. Devuelve únicamente JSON válido, sin markdown ni explicaciones.',
+        messages: [{ role: 'user', content: `${prompt}\n\nLOTE ${indice}/${total} DEL EXTRACTO:\n${texto}\n\nExtrae únicamente las filas reales de este lote. Retorna solo JSON válido.` }],
+      }),
+    })
+    if (!response.ok) throw new Error(`Falló extracción Pateway (${response.status}): ${await response.text()}`)
+    const payload = await response.json()
+    const text = payload.content?.filter((part) => part.type === 'text').map((part) => part.text).join('') || ''
+    if (!text) throw new Error(`Pateway devolvió contenido vacío (stop_reason: ${payload.stop_reason || 'desconocido'})`)
+    const datos = validarRespuestaExtraccion(text)
+    return esBroker ? { movimientos: asArray(datos.movimientos), activos: asArray(datos.activos) } : asArray(datos)
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error(`Pateway superó el tiempo límite del lote ${indice}/${total}.`)
+    throw error
+  } finally {
+    clearTimeout(timeout)
   }
-  throw new Error('Formato de archivo no soportado.')
 }
 
 async function extraerDatos(filePath, job, contexto) {
-  const apiKey = process.env.NVIDIA_API_KEY
-  if (!apiKey) throw new Error('Falta NVIDIA_API_KEY para extraer el PDF.')
   const prompt = job.target === 'cuenta'
     ? generarPromptMovimientosCuenta({ ...contexto, proveedor: job.proveedor })
     : job.target === 'broker'
       ? generarPromptMovimientosBroker(contexto)
       : generarPromptMovimientosWallet({ ...contexto, proveedor: job.proveedor })
-  const contenido = `${prompt}\n\nEXTRACTO (texto extraído):\n${await textoDelArchivo(filePath)}\n\nExtrae todos los datos. Retorna solo JSON válido.`
-  const response = await fetch(process.env.NVIDIA_API_URL || 'https://integrate.api.nvidia.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: process.env.IMPORT_MODEL || 'nvidia/nemotron-3-super-120b-a12b',
-      max_tokens: Number(process.env.IMPORT_MAX_TOKENS || 50000),
-      messages: [{ role: 'system', content: 'Eres un extractor preciso. Devuelve únicamente JSON válido.' }, { role: 'user', content: contenido }],
-    }),
-  })
-  if (!response.ok) throw new Error(`Falló extracción NVIDIA (${response.status}).`)
-  const payload = await response.json()
-  const choice = payload.choices?.[0]
-  const text = choice?.message?.content || ''
-  if (!text && choice?.finish_reason) throw new Error(`NVIDIA devolvió contenido vacío (finish_reason: ${choice.finish_reason})`)
-  const datos = validarRespuestaExtraccion(text)
-  const items = Array.isArray(datos) ? datos : [...asArray(datos.movimientos), ...asArray(datos.activos)]
+  const lotes = await lotesDelArchivo(filePath)
+  const acumulado = job.target === 'broker' ? { movimientos: [], activos: [] } : []
+  for (let indice = 0; indice < lotes.length; indice += 1) {
+    log(`Procesando lote ${indice + 1}/${lotes.length} del job ${job.id}`)
+    const datos = await extraerLote(lotes[indice], prompt, job.target === 'broker', indice + 1, lotes.length)
+    if (job.target === 'broker') {
+      acumulado.movimientos.push(...datos.movimientos)
+      acumulado.activos.push(...datos.activos)
+    } else acumulado.push(...datos)
+  }
+  const items = job.target === 'broker' ? [...acumulado.movimientos, ...acumulado.activos] : acumulado
   for (const item of items) if (!item.external_id && item.fecha) item.external_id = await derivarExternalId(item)
-  return datos
+  return acumulado
 }
 
 async function contextoDestino(client, job) {
@@ -139,24 +180,27 @@ async function procesarBroker(client, job, datos) {
 }
 
 async function procesarJob(job) {
-  const client = await pool.connect()
+  const claimed = await query(`update import_jobs set estado = 'procesando', started_at = now(), intentos = intentos + 1, updated_at = now() where id = $1 and estado = 'pendiente' returning *`, [job.id])
+  if (!claimed.rowCount) return
+  const current = claimed.rows[0]
+  let client
   try {
-    await client.query('begin')
-    const claimed = await client.query(`update import_jobs set estado = 'procesando', started_at = now(), intentos = intentos + 1, updated_at = now() where id = $1 and estado = 'pendiente' returning *`, [job.id])
-    if (!claimed.rowCount) { await client.query('rollback'); return }
-    const current = claimed.rows[0]
     const filePath = fileForJob(current)
     if (!fs.existsSync(filePath)) throw new Error(`Archivo no encontrado: ${current.storage_path}`)
+    client = await pool.connect()
     const contexto = await contextoDestino(client, current)
+    client.release(); client = null
     const datos = await extraerDatos(filePath, current, contexto)
+    client = await pool.connect()
+    await client.query('begin')
     const result = current.target === 'cuenta' ? await procesarCuenta(client, current, datos) : current.target === 'wallet' ? await procesarWallet(client, current, datos) : await procesarBroker(client, current, datos)
     await client.query(`update import_jobs set estado = 'hecho', movimientos_creados = $2, activos_creados = $3, duplicados_omitidos = $4, finished_at = now(), updated_at = now() where id = $1`, [current.id, result.creados ?? 0, result.activos ?? 0, result.duplicados ?? 0])
     await client.query('commit'); log(`Job ${current.id} completado`)
   } catch (error) {
-    await client.query('rollback').catch(() => {})
+    if (client) await client.query('rollback').catch(() => {})
     await query(`update import_jobs set estado = 'error', error_mensaje = $2, finished_at = now(), updated_at = now() where id = $1`, [job.id, error.message])
     log(`Job ${job.id} falló: ${error.message}`, 'error')
-  } finally { client.release() }
+  } finally { if (client) client.release() }
 }
 async function vuelta() {
   const recovered = await query("update import_jobs set estado = 'pendiente', updated_at = now() where estado = 'procesando' and started_at < now() - interval '30 minutes'")
