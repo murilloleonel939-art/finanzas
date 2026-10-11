@@ -145,7 +145,7 @@ export default function EmpresaLayout() {
                     <button type="button" onClick={() => navigate(rama.ruta)} className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-sm text-gray-700">
                       {icono}<span className="font-medium">{rama.nombre}</span>
                     </button>
-                    {elementos.length > 0 ? (
+                    {elementos.length > 0 && !esComisionistas ? (
                       <button type="button" aria-label={`Expandir ${rama.nombre}`} onClick={() => setBancosAbiertos((actual) => ({ ...actual, [rama.id]: !actual[rama.id] }))} className="mr-1 rounded p-1 hover:bg-gray-200">
                         {abierto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       </button>

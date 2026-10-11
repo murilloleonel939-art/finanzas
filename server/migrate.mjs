@@ -17,6 +17,7 @@ await query(`create table if not exists comisionistas_fiducias (
   updated_at timestamptz not null default now(),
   deleted_at timestamptz
 )`)
+await query('alter table comisionistas_fiducias drop constraint if exists comisionistas_fiducias_empresa_id_pais_nombre_key')
 await query('create unique index if not exists comisionistas_fiducias_unique_active_idx on comisionistas_fiducias (empresa_id, pais, nombre) where deleted_at is null')
 await query('create index if not exists comisionistas_fiducias_empresa_idx on comisionistas_fiducias (empresa_id) where deleted_at is null')
 
