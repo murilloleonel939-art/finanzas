@@ -103,13 +103,18 @@ export function conSaldoResultante(movimientos = [], saldoActual = 0) {
     return fecha || Number(a.orden ?? 0) - Number(b.orden ?? 0)
   })
 
-  const saldoInicial = ascendente.find((m) => esSaldoInicial(m))
-  const movimientosReales = ascendente.filter((m) => !esSaldoInicial(m))
+  const saldosIniciales = ascendente.filter((m) => esSaldoInicial(m))
+  const saldoInicial = saldosIniciales.at(-1)
+  const movimientosReales = ascendente.filter((m) => !esSaldoInicial(m) && (!saldoInicial || String(m.fecha) >= String(saldoInicial.fecha)))
   const saldoBase = saldoInicial ? Number(saldoInicial.monto || 0) : Number(saldoActual) - movimientosReales.reduce((acc, m) => acc + efecto(m), 0)
   let saldo = saldoBase
 
   const conSaldo = ascendente.map((m) => {
-    if (esSaldoInicial(m)) return { ...m, saldo_resultante: Number(saldo.toFixed(8)) }
+    if (esSaldoInicial(m)) {
+      const esUltimoSaldo = m === saldoInicial
+      return { ...m, saldo_resultante: esUltimoSaldo ? Number(saldo.toFixed(8)) : null }
+    }
+    if (saldoInicial && String(m.fecha) < String(saldoInicial.fecha)) return { ...m, saldo_resultante: null }
 
     saldo += efecto(m)
     return { ...m, saldo_resultante: Number(saldo.toFixed(8)) }
@@ -147,7 +152,7 @@ export function resumenPeriodo(movimientos = []) {
   const ingresos = suma(esIngreso)
   const egresos = suma(esEgreso)
 
-  const saldoInicial = movimientos.find(esSaldoInicial)
+  const saldoInicial = movimientos.filter(esSaldoInicial).sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || ''))).at(-1)
 
   return {
     ingresos,

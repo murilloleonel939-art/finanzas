@@ -158,7 +158,10 @@ async function procesarCuenta(client, job, datos) {
       values ($1,$2,$3,$4,$5,$6,$7,$8) returning id`, [job.empresa_id, job.cuenta_id, fecha, String(item.descripcion).trim(), item.tipo, monto, orden, job.created_by])
     if (r.rowCount) creados++
   }
-  await client.query(`update cuentas set monto = coalesce((select sum(case when tipo = 'ingreso' then monto else -monto end) from movimientos where cuenta_id = $1 and deleted_at is null), 0) where id = $1`, [job.cuenta_id])
+  await client.query(`update cuentas set monto = coalesce((
+    select coalesce((select monto from movimientos where cuenta_id = $1 and deleted_at is null and descripcion ~* 'saldo[[:space:]]+anterior' order by fecha desc, orden desc, created_at desc limit 1), 0)
+      + coalesce((select sum(case when tipo = 'ingreso' then monto else -monto end) from movimientos m where m.cuenta_id = $1 and m.deleted_at is null and m.descripcion !~* 'saldo[[:space:]]+anterior' and m.fecha >= coalesce((select fecha from movimientos where cuenta_id = $1 and deleted_at is null and descripcion ~* 'saldo[[:space:]]+anterior' order by fecha desc, orden desc, created_at desc limit 1), '0001-01-01'::date)), 0)
+  ), 0) where id = $1`, [job.cuenta_id])
   return { creados, duplicados }
 }
 

@@ -384,8 +384,8 @@ app.post('/api/empresas/:empresaId/cuentas/:cuentaId/movimientos', requireAuth, 
     )
     await client.query(
       `update cuentas set monto = coalesce((
-        select sum(case when tipo = 'ingreso' then monto else -monto end)
-        from movimientos where cuenta_id = $1 and deleted_at is null
+        select coalesce((select monto from movimientos where cuenta_id = $1 and deleted_at is null and descripcion ~* 'saldo[[:space:]]+anterior' order by fecha desc, orden desc, created_at desc limit 1), 0)
+          + coalesce((select sum(case when tipo = 'ingreso' then monto else -monto end) from movimientos m where m.cuenta_id = $1 and m.deleted_at is null and m.descripcion !~* 'saldo[[:space:]]+anterior' and m.fecha >= coalesce((select fecha from movimientos where cuenta_id = $1 and deleted_at is null and descripcion ~* 'saldo[[:space:]]+anterior' order by fecha desc, orden desc, created_at desc limit 1), '0001-01-01'::date)), 0)
       ), 0) where id = $1`,
       [req.params.cuentaId]
     )
@@ -425,8 +425,8 @@ app.delete('/api/empresas/:empresaId/cuentas/:cuentaId/movimientos/:movimientoId
     }
     await client.query(
       `update cuentas set monto = coalesce((
-        select sum(case when tipo = 'ingreso' then monto else -monto end)
-        from movimientos where cuenta_id = $1 and deleted_at is null
+        select coalesce((select monto from movimientos where cuenta_id = $1 and deleted_at is null and descripcion ~* 'saldo[[:space:]]+anterior' order by fecha desc, orden desc, created_at desc limit 1), 0)
+          + coalesce((select sum(case when tipo = 'ingreso' then monto else -monto end) from movimientos m where m.cuenta_id = $1 and m.deleted_at is null and m.descripcion !~* 'saldo[[:space:]]+anterior' and m.fecha >= coalesce((select fecha from movimientos where cuenta_id = $1 and deleted_at is null and descripcion ~* 'saldo[[:space:]]+anterior' order by fecha desc, orden desc, created_at desc limit 1), '0001-01-01'::date)), 0)
       ), 0) where id = $1`,
       [req.params.cuentaId]
     )
@@ -824,7 +824,7 @@ app.delete('/api/empresas/:empresaId/cuentas/:cuentaId/movimientos/mes/:periodo'
     const account = await client.query('select id from cuentas where id = $1 and empresa_id = $2 and deleted_at is null for update', [cuentaId, empresaId])
     if (!account.rowCount) { await client.query('rollback'); return error(res, 404, 'Cuenta no encontrada.') }
     const deleted = await client.query(`update movimientos set deleted_at = now() where cuenta_id = $1 and empresa_id = $2 and deleted_at is null and to_char(fecha, 'YYYY-MM') = $3`, [cuentaId, empresaId, periodo])
-    await client.query(`update cuentas set monto = coalesce((select sum(case when tipo = 'ingreso' then monto else -monto end) from movimientos where cuenta_id = $1 and deleted_at is null), 0) where id = $1`, [cuentaId])
+    await client.query(`update cuentas set monto = coalesce((select coalesce((select monto from movimientos where cuenta_id = $1 and deleted_at is null and descripcion ~* 'saldo[[:space:]]+anterior' order by fecha desc, orden desc, created_at desc limit 1), 0) + coalesce((select sum(case when tipo = 'ingreso' then monto else -monto end) from movimientos m where m.cuenta_id = $1 and m.deleted_at is null and m.descripcion !~* 'saldo[[:space:]]+anterior' and m.fecha >= coalesce((select fecha from movimientos where cuenta_id = $1 and deleted_at is null and descripcion ~* 'saldo[[:space:]]+anterior' order by fecha desc, orden desc, created_at desc limit 1), '0001-01-01'::date)), 0)), 0) where id = $1`, [cuentaId])
     await client.query('commit')
     res.json({ eliminados: deleted.rowCount })
   } catch (err) { await client.query('rollback'); throw err } finally { client.release() }

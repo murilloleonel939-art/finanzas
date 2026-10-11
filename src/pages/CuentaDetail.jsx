@@ -290,7 +290,7 @@ export default function CuentaDetail() {
                     {visibles.map((m) => (
                       <tr key={m.id} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                          {m.fecha}
+                          {String(m.fecha || '').slice(0, 10)}
                         </td>
                         <td className="px-4 py-3">
                           {m.descripcion}
