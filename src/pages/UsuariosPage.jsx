@@ -72,12 +72,12 @@ export default function UsuariosPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Invita usuarios y decide a qué empresas acceden.
+            Crea usuarios y decide a qué empresas acceden.
           </p>
         </div>
         <Button onClick={abrirNuevo}>
           <UserPlus className="h-4 w-4" />
-          Invitar usuario
+          Crear usuario
         </Button>
       </header>
 
@@ -223,9 +223,8 @@ export default function UsuariosPage() {
       </Card>
 
       <p className="mt-4 text-xs text-muted-foreground">
-        Los usuarios se crean por invitación: no se puede asignar una contraseña
-        desde aquí. Si el correo no llega, revisa el SMTP configurado en Supabase
-        (ver <code>docs/DESPLIEGUE.md</code>, paso 6).
+        Al crear una cuenta defines una contraseña inicial. Compártela solo por un canal seguro;
+        el envío de correos propios se incorporará en la siguiente fase.
       </p>
 
       <UsuarioDialog

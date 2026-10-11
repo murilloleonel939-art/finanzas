@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, Mail, Search } from 'lucide-react'
+import { AlertCircle, Search } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -23,18 +23,18 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  actualizarContrasena,
   actualizarUsuario,
   invitarUsuario,
   listarEmpresas,
-  reenviarInvitacion,
 } from '@/lib/usuarios'
 
 /**
- * Alta (invitación) y edición de un usuario.
+ * Alta y edición de un usuario local.
  *
  * Un solo diálogo para los dos casos porque comparten el 80% del formulario
  * y las reglas son idénticas; lo único que cambia es el email (fijo al
- * editar) y el hecho de que al crear se envía una invitación.
+ * editar) y la contraseña inicial que se define al crear.
  *
  * La asignación de empresas es una lista con casilla + rol por fila, en vez
  * de dos selectores separados: el `rol` es POR EMPRESA (D6), así que un
@@ -54,6 +54,8 @@ export default function UsuarioDialog({ abierto, onCerrar, usuario }) {
 
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
   const [appRole, setAppRole] = useState('usuario')
   const [estado, setEstado] = useState('activo')
   // { [empresa_id]: 'contador' | 'cliente' } — la presencia de la clave es
@@ -78,6 +80,8 @@ export default function UsuarioDialog({ abierto, onCerrar, usuario }) {
     setError('')
     setAviso('')
     setBusqueda('')
+    setPassword('')
+    setNewPassword('')
     if (usuario) {
       setFullName(usuario.full_name ?? '')
       setEmail(usuario.email ?? '')
@@ -130,15 +134,15 @@ export default function UsuarioDialog({ abierto, onCerrar, usuario }) {
       return invitarUsuario({
         email,
         full_name: fullName,
+        password,
         app_role: appRole,
         estado,
         empresas: empresasPayload,
       })
     },
     onSuccess: (data) => {
-      // El backend avisa de éxitos parciales (invitado pero roles sin
-      // ajustar). Se muestran en vez de cerrar el diálogo como si todo
-      // hubiera ido bien.
+      // El backend puede devolver avisos sin que la operación haya fallado.
+      // Se muestran en vez de cerrar el diálogo como si todo hubiera ido bien.
       if (data?.aviso) {
         setAviso(data.aviso)
       } else {
@@ -149,16 +153,14 @@ export default function UsuarioDialog({ abierto, onCerrar, usuario }) {
     onError: (err) => setError(err.message),
   })
 
-  const reenviar = useMutation({
-    mutationFn: () => reenviarInvitacion(usuario.id),
-    onSuccess: (data) => {
+  const restablecerContrasena = useMutation({
+    mutationFn: () => actualizarContrasena(usuario.id, newPassword),
+    onSuccess: () => {
+      setNewPassword('')
+      setAviso('Contraseña actualizada. Compártela con el usuario por un canal seguro.')
       setError('')
-      setAviso(data?.mensaje ?? 'Enlace enviado.')
     },
-    onError: (err) => {
-      setAviso('')
-      setError(err.message)
-    },
+    onError: (err) => setError(err.message),
   })
 
   function onSubmit(e) {
@@ -184,17 +186,17 @@ export default function UsuarioDialog({ abierto, onCerrar, usuario }) {
     guardar.mutate()
   }
 
-  const enviando = guardar.isPending || reenviar.isPending
+  const enviando = guardar.isPending || restablecerContrasena.isPending
 
   return (
     <Dialog open={abierto} onOpenChange={(v) => !enviando && !v && onCerrar()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{esEdicion ? 'Editar usuario' : 'Invitar usuario'}</DialogTitle>
+          <DialogTitle>{esEdicion ? 'Editar usuario' : 'Crear usuario'}</DialogTitle>
           <DialogDescription>
             {esEdicion
               ? 'Cambia el rol global, el estado o las empresas asignadas.'
-              : 'Se enviará un correo de invitación. El usuario elige su contraseña y entra con las empresas ya asignadas.'}
+              : 'Define una contraseña inicial y compártela con el usuario mediante un canal seguro.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -225,11 +227,52 @@ export default function UsuarioDialog({ abierto, onCerrar, usuario }) {
               />
               {esEdicion && (
                 <p className="text-xs text-muted-foreground">
-                  El email de un usuario existente no se puede cambiar (limitación
-                  de Supabase Auth). Para cambiarlo, crea otro usuario.
+                  El email de un usuario existente no se puede cambiar desde este formulario.
+                  Para cambiarlo, crea otro usuario.
                 </p>
               )}
             </div>
+
+            {!esEdicion ? (
+              <div className="space-y-2">
+                <Label htmlFor="u-password">Contraseña inicial</Label>
+                <Input
+                  id="u-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  minLength={12}
+                  required
+                  autoComplete="new-password"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Mínimo 12 caracteres. Compártela por un canal seguro.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="u-new-password">Restablecer contraseña</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="u-new-password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    minLength={12}
+                    placeholder="Nueva contraseña (mínimo 12)"
+                    autoComplete="new-password"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={newPassword.length < 12 || restablecerContrasena.isPending}
+                    onClick={() => restablecerContrasena.mutate()}
+                  >
+                    {restablecerContrasena.isPending ? 'Actualizando…' : 'Actualizar'}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Rol global</Label>
@@ -267,7 +310,7 @@ export default function UsuarioDialog({ abierto, onCerrar, usuario }) {
               <p className="text-xs text-muted-foreground">
                 {esUnoMismo
                   ? 'No puedes desactivar tu propia cuenta.'
-                  : 'Un usuario inactivo no ve ningún dato: lo bloquea el RLS, no la interfaz.'}
+                  : 'Un usuario inactivo no puede usar la API ni acceder a sus datos.'}
               </p>
             </div>
           </div>
@@ -377,18 +420,6 @@ export default function UsuarioDialog({ abierto, onCerrar, usuario }) {
           )}
 
           <DialogFooter className="items-center gap-2">
-            {esEdicion && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => reenviar.mutate()}
-                disabled={enviando}
-                className="sm:mr-auto"
-              >
-                <Mail className="h-4 w-4" />
-                Reenviar enlace de acceso
-              </Button>
-            )}
             <Button type="button" variant="ghost" onClick={onCerrar} disabled={enviando}>
               Cancelar
             </Button>
@@ -396,10 +427,10 @@ export default function UsuarioDialog({ abierto, onCerrar, usuario }) {
               {guardar.isPending
                 ? esEdicion
                   ? 'Guardando…'
-                  : 'Enviando invitación…'
+                  : 'Creando usuario…'
                 : esEdicion
                   ? 'Guardar cambios'
-                  : 'Enviar invitación'}
+                  : 'Crear usuario'}
             </Button>
           </DialogFooter>
         </form>

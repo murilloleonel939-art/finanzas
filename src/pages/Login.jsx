@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Wallet } from 'lucide-react'
 
 export default function Login() {
-  const { signIn, signInWithGoogle } = useAuth()
+  const { signIn } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -84,22 +84,9 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">o</span>
-            </div>
-          </div>
-
-          <Button variant="outline" className="w-full" onClick={signInWithGoogle} disabled={cargando}>
-            Continuar con Google
-          </Button>
-
           <p className="text-center text-xs text-muted-foreground">
-            El acceso es solo por invitación. Si no tienes cuenta, pide a un
-            administrador que te invite.
+            El acceso es solo para cuentas creadas por un administrador. Si no tienes cuenta,
+            pídele que la cree.
           </p>
         </CardContent>
       </Card>
