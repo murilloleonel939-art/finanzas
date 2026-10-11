@@ -154,15 +154,23 @@ export function resumenPeriodo(movimientos = []) {
 
   const saldoInicial = movimientos.filter(esSaldoInicial).sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || ''))).at(-1)
 
+  const esIva = (m) => esEgreso(m) && menciona(['iva', 'impuesto al valor agregado'])(m)
+  const esComision = (m) => esEgreso(m) && menciona(['comision', 'commission'])(m) && !esIva(m)
+  const iva = suma(esIva)
+  const cuatroPorMil = suma((m) => esEgreso(m) && menciona(['4x1000', '4 x 1000', 'cuatro por mil', 'gravamen movimiento financiero', 'gmf'])(m))
+  const retenciones = suma((m) => esEgreso(m) && menciona(['retefuente', 'retencion', 'retencion en la fuente'])(m))
+  const comisiones = suma(esComision)
+
   return {
     ingresos,
     egresos,
     saldoInicial: saldoInicial ? Number(saldoInicial.monto ?? 0) : null,
     neto: Number((ingresos - egresos).toFixed(8)),
     intereses: suma((m) => esIngreso(m) && menciona(['interes', 'interest', 'rendimiento'])(m)),
-    retenciones: suma(
-      (m) => esEgreso(m) && menciona(['retencion', 'retenc', 'impuesto', 'comision', 'gmf', '4x1000'])(m)
-    ),
+    iva,
+    cuatroPorMil,
+    retenciones,
+    comisiones,
     total: movimientos.length,
   }
 }

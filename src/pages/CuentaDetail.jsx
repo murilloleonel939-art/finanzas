@@ -222,25 +222,38 @@ export default function CuentaDetail() {
           </Card>
         </div>
 
-        {/* Intereses y retenciones: el PRD §4 los pide aparte del neto. */}
-        {(resumen.intereses > 0 || resumen.retenciones > 0) && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-            <Card className="p-3">
-              <p className="text-xs text-muted-foreground mb-1">
-                Intereses del período ({periodo})
-              </p>
-              <p className="text-lg font-semibold">
-                {formatearMonto(resumen.intereses, cuenta.tipo_moneda)}
-              </p>
-            </Card>
-            <Card className="p-3">
-              <p className="text-xs text-muted-foreground mb-1">
-                Retenciones e impuestos ({periodo})
-              </p>
-              <p className="text-lg font-semibold">
-                {formatearMonto(resumen.retenciones, cuenta.tipo_moneda)}
-              </p>
-            </Card>
+        {(resumen.intereses > 0 || resumen.iva > 0 || resumen.cuatroPorMil > 0 || resumen.retenciones > 0 || resumen.comisiones > 0) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            {resumen.intereses > 0 && (
+              <Card className="p-3">
+                <p className="text-xs text-muted-foreground mb-1">Intereses ({periodo})</p>
+                <p className="text-lg font-semibold">{formatearMonto(resumen.intereses, cuenta.tipo_moneda)}</p>
+              </Card>
+            )}
+            {resumen.iva > 0 && (
+              <Card className="p-3">
+                <p className="text-xs text-muted-foreground mb-1">IVA ({periodo})</p>
+                <p className="text-lg font-semibold">{formatearMonto(resumen.iva, cuenta.tipo_moneda)}</p>
+              </Card>
+            )}
+            {resumen.cuatroPorMil > 0 && (
+              <Card className="p-3">
+                <p className="text-xs text-muted-foreground mb-1">4x1000 ({periodo})</p>
+                <p className="text-lg font-semibold">{formatearMonto(resumen.cuatroPorMil, cuenta.tipo_moneda)}</p>
+              </Card>
+            )}
+            {resumen.retenciones > 0 && (
+              <Card className="p-3">
+                <p className="text-xs text-muted-foreground mb-1">Retención ({periodo})</p>
+                <p className="text-lg font-semibold">{formatearMonto(resumen.retenciones, cuenta.tipo_moneda)}</p>
+              </Card>
+            )}
+            {resumen.comisiones > 0 && (
+              <Card className="p-3">
+                <p className="text-xs text-muted-foreground mb-1">Comisiones ({periodo})</p>
+                <p className="text-lg font-semibold">{formatearMonto(resumen.comisiones, cuenta.tipo_moneda)}</p>
+              </Card>
+            )}
           </div>
         )}
 
