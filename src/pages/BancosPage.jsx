@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabase'
+import { borrarBanco as borrarBancoApi, listarBancos, listarCuentas } from '@/lib/bancos'
 import { formatearMonto } from '@/lib/monedas'
 import { nombrePais } from '@/lib/paises'
 import { Button } from '@/components/ui/button'
@@ -31,33 +31,13 @@ export default function BancosPage() {
   // Bancos de la empresa
   const { data: bancos = [], isLoading: cargandoBancos, error: errorBancos } = useQuery({
     queryKey: ['bancos', empresaId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('bancos')
-        .select('id, nombre_banco, pais')
-        .eq('empresa_id', empresaId)
-        .is('deleted_at', null)
-        .order('nombre_banco')
-
-      if (error) throw error
-      return data ?? []
-    },
+    queryFn: () => listarBancos(empresaId),
   })
 
   // Todas las cuentas de la empresa (para agrupar por banco y contar)
   const { data: cuentas = [] } = useQuery({
     queryKey: ['cuentas-empresa', empresaId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('cuentas')
-        .select('id, banco_id, numero_cuenta, tipo_moneda, monto, tipo_cuenta')
-        .eq('empresa_id', empresaId)
-        .is('deleted_at', null)
-        .order('numero_cuenta')
-
-      if (error) throw error
-      return data ?? []
-    },
+    queryFn: () => listarCuentas(empresaId),
   })
 
   const cuentasPorBanco = bancos.reduce((acc, banco) => {
@@ -66,14 +46,7 @@ export default function BancosPage() {
   }, {})
 
   const { mutate: borrarBanco, isPending: borrando } = useMutation({
-    mutationFn: async (bancoId) => {
-      const { error } = await supabase
-        .from('bancos')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', bancoId)
-
-      if (error) throw error
-    },
+    mutationFn: (bancoId) => borrarBancoApi(empresaId, bancoId),
     onSuccess: () => {
       setBancoABorrar(null)
       queryClient.invalidateQueries({ queryKey: ['bancos', empresaId] })

@@ -1,10 +1,8 @@
 import { useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/contexts/AuthContext'
+import { crearCuenta as crearCuentaApi, listarBancos } from '@/lib/bancos'
 import { MONEDAS_FIAT } from '@/lib/monedas'
-import { hoyLocal } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -30,7 +28,6 @@ import { AlertCircle, Loader2, ChevronLeft } from 'lucide-react'
 export default function CrearCuenta() {
   const { empresaId } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
 
@@ -46,17 +43,7 @@ export default function CrearCuenta() {
 
   const { data: bancos = [], isLoading: cargandoBancos } = useQuery({
     queryKey: ['bancos', empresaId],
-    queryFn: async () => {
-      const { data, error: err } = await supabase
-        .from('bancos')
-        .select('id, nombre_banco, pais')
-        .eq('empresa_id', empresaId)
-        .is('deleted_at', null)
-        .order('nombre_banco')
-
-      if (err) throw err
-      return data ?? []
-    },
+    queryFn: () => listarBancos(empresaId),
   })
 
   const { mutate: crearCuenta, isPending } = useMutation({
@@ -71,47 +58,15 @@ export default function CrearCuenta() {
         throw new Error('El saldo inicial debe ser un número igual o mayor que cero.')
       }
 
-      // 1. La cuenta
-      const { data: cuenta, error: errCuenta } = await supabase
-        .from('cuentas')
-        .insert({
-          empresa_id: empresaId,
-          banco_id: bancoId,
-          numero_cuenta: numeroCuenta.trim(),
-          tipo_cuenta: tipoCuenta,
-          tipo_moneda: tipoMoneda,
-          monto: saldo,
-          created_by: user?.id,
-        })
-        .select('id')
-        .single()
+      const { cuentaId } = await crearCuentaApi(empresaId, {
+        banco_id: bancoId,
+        numero_cuenta: numeroCuenta.trim(),
+        tipo_cuenta: tipoCuenta,
+        tipo_moneda: tipoMoneda,
+        monto: saldo,
+      })
 
-      if (errCuenta) {
-        // Índice único `cuentas_banco_numero_unico` de la 0002.
-        if (errCuenta.code === '23505') {
-          throw new Error('Ese número de cuenta ya existe en este banco.')
-        }
-        throw errCuenta
-      }
-
-      // 2. Movimiento de apertura, solo si hay saldo. Sin él, el `monto` de la
-      //    cuenta sería un número sin respaldo en el historial.
-      if (saldo > 0) {
-        const { error: errMov } = await supabase.from('movimientos').insert({
-          empresa_id: empresaId,
-          cuenta_id: cuenta.id,
-          fecha: hoyLocal(),
-          descripcion: 'Saldo inicial',
-          tipo: 'ingreso',
-          monto: saldo,
-          orden: 0,
-          created_by: user?.id,
-        })
-
-        if (errMov) throw errMov
-      }
-
-      return cuenta.id
+      return cuentaId
     },
     onSuccess: (cuentaId) => {
       queryClient.invalidateQueries({ queryKey: ['bancos', empresaId] })

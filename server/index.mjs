@@ -78,6 +78,18 @@ function validateUserInput(body, { creating = false } = {}) {
   return null
 }
 
+async function requireCompanyAccess(userId, role, empresaId) {
+  if (role === 'super_admin') return true
+  const access = await query(
+    `select 1 from usuario_empresa ue
+     join empresas e on e.id = ue.empresa_id
+     where ue.usuario_id = $1 and ue.empresa_id = $2
+       and ue.deleted_at is null and e.deleted_at is null and e.estado = 'activa'`,
+    [userId, empresaId]
+  )
+  return access.rowCount > 0
+}
+
 async function replaceCompanies(client, userId, empresas) {
   await client.query('delete from usuario_empresa where usuario_id = $1', [userId])
   for (const empresa of empresas) {
@@ -174,6 +186,107 @@ app.post('/api/admin/empresas/:id/restaurar', requireAuth, requireAdmin, async (
   const restored = await query('update empresas set deleted_at = null where id = $1', [req.params.id])
   if (!restored.rowCount) return error(res, 404, 'Empresa no encontrada.')
   res.status(204).end()
+})
+
+app.get('/api/empresas/:empresaId/bancos', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) {
+    return error(res, 403, 'No tienes acceso a esta empresa.')
+  }
+  const result = await query(
+    `select id, empresa_id, pais, nombre_banco, created_at, updated_at
+     from bancos where empresa_id = $1 and deleted_at is null order by nombre_banco`,
+    [req.params.empresaId]
+  )
+  res.json({ bancos: result.rows })
+})
+
+app.get('/api/empresas/:empresaId/cuentas', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) {
+    return error(res, 403, 'No tienes acceso a esta empresa.')
+  }
+  const result = await query(
+    `select id, empresa_id, banco_id, numero_cuenta, tipo_cuenta, tipo_moneda, monto, created_at, updated_at
+     from cuentas where empresa_id = $1 and deleted_at is null order by numero_cuenta`,
+    [req.params.empresaId]
+  )
+  res.json({ cuentas: result.rows })
+})
+
+app.post('/api/empresas/:empresaId/bancos', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) {
+    return error(res, 403, 'No tienes acceso a esta empresa.')
+  }
+  const pais = req.body.pais?.trim()
+  const nombre = req.body.nombre_banco?.trim()
+  if (!pais || !nombre) return error(res, 400, 'País y nombre del banco son obligatorios.')
+  try {
+    const created = await query(
+      `insert into bancos (empresa_id, pais, nombre_banco, created_by)
+       values ($1, $2, $3, $4)
+       returning id, empresa_id, pais, nombre_banco, created_at, updated_at`,
+      [req.params.empresaId, pais, nombre, req.auth.sub]
+    )
+    res.status(201).json({ banco: created.rows[0] })
+  } catch (err) {
+    if (err.code === '23505') return error(res, 409, 'Ya existe un banco con ese nombre en esta empresa.')
+    throw err
+  }
+})
+
+app.delete('/api/empresas/:empresaId/bancos/:bancoId', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) {
+    return error(res, 403, 'No tienes acceso a esta empresa.')
+  }
+  const deleted = await query(
+    'update bancos set deleted_at = now() where id = $1 and empresa_id = $2 and deleted_at is null',
+    [req.params.bancoId, req.params.empresaId]
+  )
+  if (!deleted.rowCount) return error(res, 404, 'Banco no encontrado.')
+  res.status(204).end()
+})
+
+app.post('/api/empresas/:empresaId/cuentas', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) {
+    return error(res, 403, 'No tienes acceso a esta empresa.')
+  }
+  const { banco_id: bancoId, numero_cuenta: numeroCuenta, tipo_cuenta: tipoCuenta, tipo_moneda: tipoMoneda } = req.body
+  const monto = Number(req.body.monto ?? 0)
+  if (!bancoId || !numeroCuenta?.trim() || !tipoMoneda?.trim()) return error(res, 400, 'Completa los datos obligatorios de la cuenta.')
+  if (!['ahorros', 'corriente'].includes(tipoCuenta)) return error(res, 400, 'Tipo de cuenta inválido.')
+  if (!Number.isFinite(monto) || monto < 0) return error(res, 400, 'El saldo inicial debe ser un número igual o mayor que cero.')
+
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const bank = await client.query(
+      'select id from bancos where id = $1 and empresa_id = $2 and deleted_at is null',
+      [bancoId, req.params.empresaId]
+    )
+    if (!bank.rowCount) {
+      await client.query('rollback')
+      return error(res, 400, 'El banco seleccionado no pertenece a esta empresa.')
+    }
+    const created = await client.query(
+      `insert into cuentas (empresa_id, banco_id, numero_cuenta, tipo_cuenta, tipo_moneda, monto, created_by)
+       values ($1, $2, $3, $4, $5, $6, $7) returning id`,
+      [req.params.empresaId, bancoId, numeroCuenta.trim(), tipoCuenta, tipoMoneda.trim(), monto, req.auth.sub]
+    )
+    if (monto > 0) {
+      await client.query(
+        `insert into movimientos (empresa_id, cuenta_id, fecha, descripcion, tipo, monto, orden, created_by)
+         values ($1, $2, current_date, 'Saldo inicial', 'ingreso', $3, 0, $4)`,
+        [req.params.empresaId, created.rows[0].id, monto, req.auth.sub]
+      )
+    }
+    await client.query('commit')
+    res.status(201).json({ cuentaId: created.rows[0].id })
+  } catch (err) {
+    await client.query('rollback')
+    if (err.code === '23505') return error(res, 409, 'Ese número de cuenta ya existe en este banco.')
+    throw err
+  } finally {
+    client.release()
+  }
 })
 
 app.get('/api/admin/usuarios', requireAuth, requireAdmin, async (_req, res) => {

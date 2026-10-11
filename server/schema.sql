@@ -24,6 +24,54 @@ create table if not exists empresas (
   deleted_at timestamptz
 );
 
+create table if not exists bancos (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  pais text not null,
+  nombre_banco text not null,
+  created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz,
+  unique (empresa_id, nombre_banco)
+);
+
+create index if not exists bancos_empresa_idx on bancos (empresa_id) where deleted_at is null;
+
+create table if not exists cuentas (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  banco_id uuid not null references bancos(id) on delete restrict,
+  numero_cuenta text not null,
+  tipo_cuenta text not null check (tipo_cuenta in ('ahorros', 'corriente')),
+  tipo_moneda text not null,
+  monto numeric(18, 2) not null default 0,
+  created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz,
+  unique (banco_id, numero_cuenta)
+);
+
+create index if not exists cuentas_empresa_idx on cuentas (empresa_id) where deleted_at is null;
+
+create table if not exists movimientos (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  cuenta_id uuid not null references cuentas(id) on delete restrict,
+  fecha date not null,
+  descripcion text not null,
+  tipo text not null check (tipo in ('ingreso', 'egreso')),
+  monto numeric(18, 2) not null check (monto >= 0),
+  orden integer not null default 0,
+  created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+
+create index if not exists movimientos_cuenta_idx on movimientos (cuenta_id, fecha desc) where deleted_at is null;
+
 create table if not exists usuario_empresa (
   id uuid primary key default gen_random_uuid(),
   usuario_id uuid not null references usuarios(id) on delete cascade,
@@ -50,5 +98,11 @@ drop trigger if exists usuarios_updated_at on usuarios;
 create trigger usuarios_updated_at before update on usuarios for each row execute function set_updated_at();
 drop trigger if exists empresas_updated_at on empresas;
 create trigger empresas_updated_at before update on empresas for each row execute function set_updated_at();
+drop trigger if exists bancos_updated_at on bancos;
+create trigger bancos_updated_at before update on bancos for each row execute function set_updated_at();
+drop trigger if exists cuentas_updated_at on cuentas;
+create trigger cuentas_updated_at before update on cuentas for each row execute function set_updated_at();
+drop trigger if exists movimientos_updated_at on movimientos;
+create trigger movimientos_updated_at before update on movimientos for each row execute function set_updated_at();
 drop trigger if exists usuario_empresa_updated_at on usuario_empresa;
 create trigger usuario_empresa_updated_at before update on usuario_empresa for each row execute function set_updated_at();

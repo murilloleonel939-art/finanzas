@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/contexts/AuthContext'
+import { crearBanco as crearBancoApi } from '@/lib/bancos'
 import { BANCOS_POR_PAIS, OTRO_BANCO, resolverNombreBanco, tieneCatalogo } from '@/lib/bancosPorPais'
 import { PAISES, nombrePais } from '@/lib/paises'
 import { Button } from '@/components/ui/button'
@@ -26,7 +25,6 @@ import { AlertCircle, Loader2, ChevronLeft } from 'lucide-react'
 export default function CrearBanco() {
   const { empresaId } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
   const queryClient = useQueryClient()
 
   const [pais, setPais] = useState('')
@@ -49,23 +47,7 @@ export default function CrearBanco() {
       if (!pais) throw new Error('Selecciona un país.')
       if (!nombreFinal) throw new Error('Indica el nombre del banco.')
 
-      const { error: err } = await supabase.from('bancos').insert({
-        empresa_id: empresaId,
-        pais,
-        nombre_banco: nombreFinal,
-        created_by: user?.id,
-      })
-
-      if (err) {
-        // Índice único de 0002: (empresa_id, lower(nombre_banco))? No existe tal
-        // índice, pero sí el de banco+numero en cuentas. Un duplicado de banco
-        // no está impedido por el esquema: se avisa igual porque repetir el
-        // mismo banco casi siempre es un descuido.
-        if (err.code === '23505') {
-          throw new Error('Ya existe un banco con ese nombre en esta empresa.')
-        }
-        throw err
-      }
+      await crearBancoApi(empresaId, { pais, nombre_banco: nombreFinal })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bancos', empresaId] })
