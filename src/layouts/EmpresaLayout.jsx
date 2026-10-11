@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Outlet } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { obtenerEmpresa, obtenerRamas, suscribirseAModulos } from '@/lib/empresas-usuario'
+import { listarBancos, listarCuentas } from '@/lib/bancos'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
-import { ChevronRight, Building2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Building2, Landmark, CreditCard, Plus } from 'lucide-react'
 
 /**
  * EmpresaLayout: Layout principal para la navegación dentro de una empresa.
@@ -23,6 +24,7 @@ export default function EmpresaLayout() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const [, setRefresh] = useState(0)
+  const [bancosAbiertos, setBancosAbiertos] = useState({})
 
   // Obtener empresa
   const { data: empresa, isLoading: cargandoEmpresa, error: errorEmpresa } = useQuery({
@@ -33,6 +35,20 @@ export default function EmpresaLayout() {
 
   // Las tres ramas son constantes (no las consulta a BD)
   const ramas = obtenerRamas(empresaId)
+  const { data: bancos = [] } = useQuery({
+    queryKey: ['bancos', empresaId],
+    queryFn: () => listarBancos(empresaId),
+    enabled: !!empresaId && !!user,
+  })
+  const { data: cuentas = [] } = useQuery({
+    queryKey: ['cuentas-empresa', empresaId],
+    queryFn: () => listarCuentas(empresaId),
+    enabled: !!empresaId && !!user,
+  })
+  const cuentasPorBanco = bancos.reduce((resultado, banco) => {
+    resultado[banco.id] = cuentas.filter((cuenta) => cuenta.banco_id === banco.id)
+    return resultado
+  }, {})
 
   // Suscribirse a cambios en los módulos de datos
   useEffect(() => {
@@ -88,16 +104,78 @@ export default function EmpresaLayout() {
           </h2>
 
           <div className="space-y-2">
-            {ramas.map((rama) => (
-              <button
-                key={rama.id}
-                onClick={() => navigate(rama.ruta)}
-                className="w-full flex items-center justify-between px-3 py-2 text-sm rounded-md hover:bg-gray-100 text-gray-700 group"
-              >
-                <span className="font-medium">{rama.nombre}</span>
-                <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
-              </button>
-            ))}
+            {ramas.map((rama) => {
+              const esBancos = rama.id === 'bancos'
+              const bancosVisibles = esBancos ? bancos : []
+              return (
+                <div key={rama.id}>
+                  <div className="flex items-center rounded-md hover:bg-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => navigate(rama.ruta)}
+                      className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 group"
+                    >
+                      {esBancos ? <Landmark className="h-4 w-4" /> : null}
+                      <span className="font-medium">{rama.nombre}</span>
+                    </button>
+                    {esBancos && bancosVisibles.length > 0 ? (
+                      <button
+                        type="button"
+                        aria-label="Expandir bancos"
+                        onClick={() => setBancosAbiertos((actual) => ({ ...actual, menu: !actual.menu }))}
+                        className="mr-1 rounded p-1 hover:bg-gray-200"
+                      >
+                        {bancosAbiertos.menu ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </button>
+                    ) : <ChevronRight className="mr-3 h-4 w-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />}
+                  </div>
+
+                  {esBancos && bancosAbiertos.menu && (
+                    <div className="ml-3 space-y-1 border-l border-gray-200 pl-2">
+                      {bancosVisibles.map((banco) => {
+                        const cuentasBanco = cuentasPorBanco[banco.id] ?? []
+                        const abierto = bancosAbiertos[banco.id]
+                        return (
+                          <div key={banco.id}>
+                            <button
+                              type="button"
+                              onClick={() => setBancosAbiertos((actual) => ({ ...actual, [banco.id]: !actual[banco.id] }))}
+                              className="flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-xs text-gray-600 hover:bg-gray-100"
+                            >
+                              {abierto ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                              <Landmark className="h-3.5 w-3.5" />
+                              <span className="truncate">{banco.nombre_banco}</span>
+                            </button>
+                            {abierto && (
+                              <div className="ml-4 space-y-1">
+                                {cuentasBanco.map((cuenta) => (
+                                  <button
+                                    key={cuenta.id}
+                                    type="button"
+                                    onClick={() => navigate(`/empresa/${empresaId}/cuentas/${cuenta.id}`)}
+                                    className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-gray-500 hover:bg-gray-100"
+                                  >
+                                    <CreditCard className="h-3 w-3" />
+                                    <span className="truncate">{cuenta.numero_cuenta}</span>
+                                  </button>
+                                ))}
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(`/empresa/${empresaId}/cuentas/crear?banco=${banco.id}`)}
+                                  className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-blue-600 hover:bg-blue-50"
+                                >
+                                  <Plus className="h-3 w-3" /> Crear cuenta
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
 
