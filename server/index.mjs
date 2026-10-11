@@ -764,6 +764,29 @@ app.get('/api/admin/empresas-recientes', requireAuth, requireAdmin, async (req, 
   res.json({ empresas: result.rows })
 })
 
+app.get('/api/admin/logs', requireAuth, requireAdmin, async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 1000)
+  const offset = Math.max(Number(req.query.offset) || 0, 0)
+  const filters = [req.query.accion || null, req.query.entidad || null, req.query.estado || null, req.query.desde || null, req.query.hasta || null]
+  const where = `where ($1::text is null or accion = $1)
+    and ($2::text is null or entidad ilike '%' || $2 || '%')
+    and ($3::text is null or estado = $3)
+    and ($4::timestamptz is null or created_at >= $4)
+    and ($5::timestamptz is null or created_at <= $5)`
+  const [items, total, stats] = await Promise.all([
+    query(`select id, admin_id, accion, entidad, entidad_id, detalles, ip_address, user_agent,
+      estado, mensaje_error, duracion_ms, created_at from admin_logs ${where}
+      order by created_at desc limit $6 offset $7`, [...filters, limit, offset]),
+    query(`select count(*)::integer as total from admin_logs ${where}`, filters),
+    query(`select estado, count(*)::integer as cantidad from admin_logs ${where} group by estado`, filters),
+  ])
+  res.json({
+    logs: items.rows,
+    estadisticas: Object.fromEntries(stats.rows.map((row) => [row.estado, row.cantidad])),
+    paginacion: { total: total.rows[0].total, limit, offset },
+  })
+})
+
 app.get('/api/admin/config', requireAuth, requireAdmin, async (req, res) => {
   const params = []
   let where = ''

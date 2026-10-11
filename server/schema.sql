@@ -214,6 +214,23 @@ create table if not exists usuario_empresa (
 create index if not exists usuario_empresa_usuario_idx on usuario_empresa (usuario_id) where deleted_at is null;
 create index if not exists usuario_empresa_empresa_idx on usuario_empresa (empresa_id) where deleted_at is null;
 
+create table if not exists admin_logs (
+  id bigserial primary key,
+  admin_id uuid references usuarios(id) on delete set null,
+  accion text not null,
+  entidad text not null,
+  entidad_id text,
+  detalles jsonb,
+  ip_address inet,
+  user_agent text,
+  estado text not null default 'success',
+  mensaje_error text,
+  duracion_ms integer,
+  created_at timestamptz not null default now()
+);
+create index if not exists admin_logs_created_idx on admin_logs (created_at desc);
+create index if not exists admin_logs_filter_idx on admin_logs (accion, entidad, estado, created_at desc);
+
 create table if not exists admin_config (
   id bigserial primary key,
   clave text not null unique,

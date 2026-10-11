@@ -60,52 +60,12 @@ export async function listAdminJobs(options = {}) {
 /**
  * Listar logs administrativos
  */
-export async function listAdminLogs(options = {}) {
-  try {
-    const { 
-      accion = null,
-      entidad = null,
-      estado = null,
-      desde = null,
-      hasta = null,
-      formato = 'json',
-      limit = 100, 
-      offset = 0 
-    } = options
-
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) throw new Error('No autenticado')
-
-    const params = new URLSearchParams()
-    if (accion) params.append('accion', accion)
-    if (entidad) params.append('entidad', entidad)
-    if (estado) params.append('estado', estado)
-    if (desde) params.append('desde', desde)
-    if (hasta) params.append('hasta', hasta)
-    params.append('formato', formato)
-    params.append('limit', limit)
-    params.append('offset', offset)
-
-    const response = await fetch(
-      `${ADMIN_API_BASE}/admin-list-logs?${params}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    )
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Error listando logs')
-    }
-
-    return await response.json()
-  } catch (error) {
-    console.error('listAdminLogs error:', error)
-    throw error
+export function listAdminLogs(options = {}) {
+  const params = new URLSearchParams()
+  for (const key of ['accion', 'entidad', 'estado', 'desde', 'hasta', 'formato', 'limit', 'offset']) {
+    if (options[key] !== null && options[key] !== undefined && options[key] !== '') params.set(key, options[key])
   }
+  return api(`/api/admin/logs?${params}`)
 }
 
 /**
