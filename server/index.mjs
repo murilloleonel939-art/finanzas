@@ -487,6 +487,28 @@ app.post('/api/empresas/:empresaId/brokers', requireAuth, async (req, res) => {
   res.status(201).json({ broker: created.rows[0] })
 })
 
+app.get('/api/empresas/:empresaId/comisionistas-fiducias', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const result = await query('select id, empresa_id, pais, nombre, created_at from comisionistas_fiducias where empresa_id = $1 and deleted_at is null order by pais, nombre', [req.params.empresaId])
+  res.json({ comisionistas: result.rows })
+})
+
+app.post('/api/empresas/:empresaId/comisionistas-fiducias', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const pais = req.body.pais?.trim().toUpperCase()
+  const nombre = req.body.nombre?.trim()
+  if (!pais || !nombre) return error(res, 400, 'País y nombre son obligatorios.')
+  const created = await query('insert into comisionistas_fiducias (empresa_id, pais, nombre, created_by) values ($1, $2, $3, $4) returning id, empresa_id, pais, nombre', [req.params.empresaId, pais, nombre, req.auth.sub])
+  res.status(201).json({ comisionista: created.rows[0] })
+})
+
+app.delete('/api/empresas/:empresaId/comisionistas-fiducias/:id', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const deleted = await query('update comisionistas_fiducias set deleted_at = now() where id = $1 and empresa_id = $2 and deleted_at is null', [req.params.id, req.params.empresaId])
+  if (!deleted.rowCount) return error(res, 404, 'Comisionista o fiducia no encontrado.')
+  res.status(204).end()
+})
+
 app.get('/api/brokers/:brokerId', requireAuth, async (req, res) => {
   const result = await query('select id, empresa_id, nombre_broker, moneda from brokers where id = $1 and deleted_at is null', [req.params.brokerId])
   const broker = result.rows[0]

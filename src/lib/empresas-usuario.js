@@ -21,6 +21,7 @@ export function obtenerRamas(empresaId) {
     { id: 'bancos', nombre: 'Bancos', icono: 'bank', ruta: `/empresa/${empresaId}/bancos` },
     { id: 'brokers', nombre: 'Brokers', icono: 'trending-up', ruta: `/empresa/${empresaId}/brokers` },
     { id: 'wallet-providers', nombre: 'Proveedores de Wallet', icono: 'wallet', ruta: `/empresa/${empresaId}/wallets` },
+    { id: 'comisionistas-fiducias', nombre: 'Comisionistas y fiducias', icono: 'building', ruta: `/empresa/${empresaId}/comisionistas-fiducias` },
   ]
 }
 

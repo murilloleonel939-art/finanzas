@@ -85,6 +85,19 @@ create table if not exists brokers (
 );
 create index if not exists brokers_empresa_idx on brokers (empresa_id) where deleted_at is null;
 
+create table if not exists comisionistas_fiducias (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  pais text not null,
+  nombre text not null,
+  created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+create unique index if not exists comisionistas_fiducias_unique_active_idx on comisionistas_fiducias (empresa_id, pais, nombre) where deleted_at is null;
+create index if not exists comisionistas_fiducias_empresa_idx on comisionistas_fiducias (empresa_id) where deleted_at is null;
+
 create table if not exists movimientos_broker (
   id uuid primary key default gen_random_uuid(),
   empresa_id uuid not null references empresas(id) on delete cascade,

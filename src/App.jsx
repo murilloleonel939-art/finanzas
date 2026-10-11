@@ -43,6 +43,10 @@ import BrokerDetail from './pages/BrokerDetail.jsx'
 import CrearMovimientoBroker from './pages/CrearMovimientoBroker.jsx'
 import CrearActivo from './pages/CrearActivo.jsx'
 
+// Comisionistas y fiducias
+import ComisionistasFiduciasPage from './pages/ComisionistasFiduciasPage.jsx'
+import CrearComisionistaFiducia from './pages/CrearComisionistaFiducia.jsx'
+
 // Wallets + Earn
 import WalletsPage from './pages/WalletsPage.jsx'
 import CrearWalletProvider from './pages/CrearWalletProvider.jsx'
@@ -113,6 +117,10 @@ export default function App() {
         <Route path="brokers/:brokerId" element={<BrokerDetail />} />
         <Route path="brokers/:brokerId/movimiento" element={<CrearMovimientoBroker />} />
         <Route path="brokers/:brokerId/activo" element={<CrearActivo />} />
+
+        {/* Comisionistas y fiducias */}
+        <Route path="comisionistas-fiducias" element={<ComisionistasFiduciasPage />} />
+        <Route path="comisionistas-fiducias/crear" element={<CrearComisionistaFiducia />} />
 
         {/* Wallets + Earn */}
         <Route path="wallets" element={<WalletsPage />} />

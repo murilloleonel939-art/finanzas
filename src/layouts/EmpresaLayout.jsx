@@ -5,9 +5,10 @@ import { obtenerEmpresa, obtenerRamas, suscribirseAModulos } from '@/lib/empresa
 import { listarBancos, listarCuentas } from '@/lib/bancos'
 import { listarBrokers } from '@/lib/brokers-datos'
 import { listarProveedores, listarWallets } from '@/lib/wallets-datos'
+import { listarComisionistasFiducias } from '@/lib/comisionistas-fiducias'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
-import { ChevronDown, ChevronRight, Building2, Landmark, CreditCard, Plus, TrendingUp, Wallet } from 'lucide-react'
+import { ChevronDown, ChevronRight, Building2, Landmark, CreditCard, Plus, TrendingUp, Wallet, BriefcaseBusiness } from 'lucide-react'
 
 /**
  * EmpresaLayout: Layout principal para la navegación dentro de una empresa.
@@ -64,6 +65,11 @@ export default function EmpresaLayout() {
   const { data: wallets = [] } = useQuery({
     queryKey: ['wallets-empresa', empresaId],
     queryFn: () => listarWallets(empresaId),
+    enabled: !!empresaId && !!user,
+  })
+  const { data: comisionistasFiducias = [] } = useQuery({
+    queryKey: ['comisionistas-fiducias', empresaId],
+    queryFn: () => listarComisionistasFiducias(empresaId),
     enabled: !!empresaId && !!user,
   })
   const walletsPorProveedor = proveedores.reduce((resultado, proveedor) => {
@@ -129,9 +135,10 @@ export default function EmpresaLayout() {
               const esBancos = rama.id === 'bancos'
               const esBrokers = rama.id === 'brokers'
               const esWallets = rama.id === 'wallet-providers'
-              const elementos = esBancos ? bancos : esBrokers ? brokers : proveedores
+              const esComisionistas = rama.id === 'comisionistas-fiducias'
+              const elementos = esBancos ? bancos : esBrokers ? brokers : esWallets ? proveedores : comisionistasFiducias
               const abierto = bancosAbiertos[rama.id]
-              const icono = esBancos ? <Landmark className="h-4 w-4" /> : esBrokers ? <TrendingUp className="h-4 w-4" /> : <Wallet className="h-4 w-4" />
+              const icono = esBancos ? <Landmark className="h-4 w-4" /> : esBrokers ? <TrendingUp className="h-4 w-4" /> : esWallets ? <Wallet className="h-4 w-4" /> : <BriefcaseBusiness className="h-4 w-4" />
               return (
                 <div key={rama.id}>
                   <div className="flex items-center rounded-md hover:bg-gray-100">
@@ -150,7 +157,7 @@ export default function EmpresaLayout() {
                       {elementos.map((elemento) => {
                         const hijos = esBancos ? (cuentasPorBanco[elemento.id] ?? []) : esWallets ? (walletsPorProveedor[elemento.id] ?? []) : []
                         const elementoAbierto = bancosAbiertos[elemento.id]
-                        const nombre = esBancos ? elemento.nombre_banco : esBrokers ? elemento.nombre_broker : elemento.nombre_proveedor
+                        const nombre = esBancos ? elemento.nombre_banco : esBrokers ? elemento.nombre_broker : esWallets ? elemento.nombre_proveedor : elemento.nombre
                         return (
                           <div key={elemento.id}>
                             <button type="button" onClick={() => {
@@ -161,7 +168,7 @@ export default function EmpresaLayout() {
                               {esWallets ? <Wallet className="h-3.5 w-3.5" /> : esBancos ? <Landmark className="h-3.5 w-3.5" /> : null}
                               <span className="truncate">{nombre}</span>
                             </button>
-                            {!esBrokers && elementoAbierto && (
+                            {!esBrokers && !esComisionistas && elementoAbierto && (
                               <div className="ml-4 space-y-1">
                                 {hijos.map((hijo) => (
                                   <button key={hijo.id} type="button" onClick={() => navigate(esBancos ? `/empresa/${empresaId}/cuentas/${hijo.id}` : `/empresa/${empresaId}/wallets/proveedor/${elemento.id}/wallet/${hijo.id}`)} className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-gray-500 hover:bg-gray-100">

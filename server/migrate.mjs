@@ -7,6 +7,18 @@ const schema = await readFile(new URL('./schema.sql', import.meta.url), 'utf8')
 await pool.query(schema)
 // Compatibilidad con instalaciones existentes: schema.sql usa IF NOT EXISTS
 await query('alter table cuentas add column if not exists pdf_password_encrypted text')
+await query(`create table if not exists comisionistas_fiducias (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  pais text not null,
+  nombre text not null,
+  created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+)`)
+await query('create unique index if not exists comisionistas_fiducias_unique_active_idx on comisionistas_fiducias (empresa_id, pais, nombre) where deleted_at is null')
+await query('create index if not exists comisionistas_fiducias_empresa_idx on comisionistas_fiducias (empresa_id) where deleted_at is null')
 
 const email = process.env.ADMIN_EMAIL?.trim().toLowerCase()
 const password = process.env.ADMIN_PASSWORD
