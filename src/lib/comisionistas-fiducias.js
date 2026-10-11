@@ -15,8 +15,8 @@ export const COMISIONISTAS_FIDUCIAS_CO = [
   'Fiducoomeva',
   'Skandia Sociedad Fiduciaria',
   'Credicorp Capital Fiduciaria',
-  'Trii',
-  'Acciones y Valores S.A.',
+  'trii',
+  'acciones y valores S.A.',
 ]
 
 export async function listarComisionistasFiducias(empresaId) {

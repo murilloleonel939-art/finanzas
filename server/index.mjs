@@ -498,8 +498,14 @@ app.post('/api/empresas/:empresaId/comisionistas-fiducias', requireAuth, async (
   const pais = req.body.pais?.trim().toUpperCase()
   const nombre = req.body.nombre?.trim()
   if (!pais || !nombre) return error(res, 400, 'País y nombre son obligatorios.')
-  const created = await query('insert into comisionistas_fiducias (empresa_id, pais, nombre, created_by) values ($1, $2, $3, $4) returning id, empresa_id, pais, nombre', [req.params.empresaId, pais, nombre, req.auth.sub])
-  res.status(201).json({ comisionista: created.rows[0] })
+  if (!/^[A-Z]{2}$/.test(pais)) return error(res, 400, 'El país debe usar un código ISO de dos letras.')
+  try {
+    const created = await query('insert into comisionistas_fiducias (empresa_id, pais, nombre, created_by) values ($1, $2, $3, $4) returning id, empresa_id, pais, nombre', [req.params.empresaId, pais, nombre, req.auth.sub])
+    return res.status(201).json({ comisionista: created.rows[0] })
+  } catch (err) {
+    if (err.code === '23505') return error(res, 409, 'Ya existe esta entidad para el país seleccionado.')
+    throw err
+  }
 })
 
 app.delete('/api/empresas/:empresaId/comisionistas-fiducias/:id', requireAuth, async (req, res) => {
