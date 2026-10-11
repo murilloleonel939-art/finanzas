@@ -19,7 +19,7 @@ import { formatFecha } from '@/lib/utils'
 
 /**
  * CRUD de empresas .
- * Escritura solo para super_admin — lo garantiza el RLS (0006), no esta página.
+ * Escritura solo para super_admin — lo garantiza la API, no esta página.
  */
 export default function EmpresasPage() {
   const [busqueda, setBusqueda] = useState('')

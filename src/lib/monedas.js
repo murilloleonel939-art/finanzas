@@ -66,8 +66,8 @@ export function esCripto(codigo) {
 /**
  * Metadatos de una moneda. Un código desconocido (texto libre en la base)
  * devuelve una entrada sintética en vez de `undefined`, para que la UI pueda
- * pintar la fila sin comprobaciones: el RLS y el PRD permiten cualquier
- * código, no solo los del catálogo.
+ * pintar la fila sin comprobaciones: la API y las reglas de negocio permiten
+ * cualquier código, no solo los del catálogo.
  */
 export function moneda(codigo) {
   if (!codigo) return null

@@ -6,17 +6,10 @@ import { Wallet } from 'lucide-react'
 /**
  * Registro público DESACTIVADO.
  *
- * En este proyecto los usuarios solo entran por invitación (decisión D10):
- * el super_admin invita, Supabase manda el correo, y el trigger
- * handle_new_user() crea el profile y asigna las empresas.
- *
- * Requisito de configuración: en Auth → Providers → Email debe estar
- * desactivado "Enable email signups". Si esa opción sigue activa, alguien
- * podría registrarse solo y quedaría con un perfil sin ninguna empresa.
- *
- * El enlace de la invitación llega con un token; al abrirlo Supabase crea la
- * sesión y el usuario establece su contraseña. Ese flujo se construye en la
- * La Edge Function de invitación hace el alta real.
+ * En este proyecto los usuarios solo entran por invitación.
+ * El super_admin crea la cuenta, asigna las empresas y comunica las credenciales
+ * por un canal seguro.
+
  */
 export default function Register() {
   return (

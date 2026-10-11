@@ -10,7 +10,7 @@ export function cn(...inputs) {
  * Fecha de un timestamptz en formato corto local (dd/mm/aaaa).
  *
  * Se usa `toLocaleDateString` en vez de cortar el string ISO a propósito:
- * Supabase devuelve UTC, y en zonas como Colombia (UTC-5) un alta de las
+ * PostgreSQL devuelve timestamps UTC, y en zonas como Colombia (UTC-5) un alta de las
  * 20:00 se mostraría con la fecha del día siguiente si se imprimiera el ISO.
  * `Intl` ya conoce la zona del navegador, así que no hay que codificarla.
  */

@@ -2,13 +2,11 @@
  * Verificador de columnas.
  *
  * POR QUÉ EXISTE: `npm run build` solo valida sintaxis. Las columnas de
- * PostgREST son strings (`select('saldo_actual')`) y no hay tipos que las
- * comprueben, así que una columna inventada compila perfectamente y solo
- * revienta en el navegador con `column does not exist`.
+ * Las consultas y nombres de columnas son strings y no hay tipos que las
+ * comprueben, así que una columna inventada compila perfectamente.
  *
- * Este script lee las migraciones (fuente de verdad del esquema) y comprueba
- * contra ellas cada columna que el código menciona. No sustituye a probar la
- * app contra Supabase, pero cierra el agujero que dejó pasar una revisión anterior.
+ * Este script lee el esquema PostgreSQL (fuente de verdad) y comprueba contra él
+ * las columnas que el código menciona.
  *
  * Uso:  node scripts/verificar-columnas.mjs
  */
@@ -16,7 +14,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, extname } from 'node:path'
 
 const RAIZ = process.cwd()
-const MIGRACIONES = join(RAIZ, 'supabase/migrations')
+const ESQUEMA = join(RAIZ, 'server/schema.sql')
 const SRC = join(RAIZ, 'src')
 
 // ---------------------------------------------------------------------
@@ -38,11 +36,11 @@ function sinComentarios(sql) {
 
 const TIPOS_SQL = /^(uuid|text|numeric|date|timestamptz|integer|boolean|smallint|bigint|jsonb|public\.)/
 
-for (const archivo of readdirSync(MIGRACIONES).filter((f) => f.endsWith('.sql')).sort()) {
-  const sql = sinComentarios(readFileSync(join(MIGRACIONES, archivo), 'utf8'))
+for (const archivo of [ESQUEMA]) {
+  const sql = sinComentarios(readFileSync(archivo, 'utf8'))
 
   // --- Tablas: `create table [if not exists] public.X (`
-  const reTabla = /create table (?:if not exists )?public\.(\w+)\s*\(/g
+  const reTabla = /create table (?:if not exists )?(?:public\.)?(\w+)\s*\(/g
   let m
   while ((m = reTabla.exec(sql))) {
     const nombre = m[1]
@@ -108,7 +106,7 @@ function archivosJs(dir) {
   return salida
 }
 
-const CAMPOS_POSTGREST = ['select', 'eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'is', 'in', 'order', 'filter', 'contains', 'match']
+const CAMPOS_CONSULTA = ['select', 'eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'is', 'in', 'order', 'filter', 'contains', 'match']
 
 for (const ruta of archivosJs(SRC)) {
   const codigo = readFileSync(ruta, 'utf8')
@@ -145,7 +143,7 @@ for (const ruta of archivosJs(SRC)) {
       for (const bruto of s[2].split(',')) {
         const campo = bruto.trim()
         if (!campo || campo === '*') continue
-        // `alias: columna` (rename de PostgREST) → cuenta la columna original
+        // `alias: columna` → cuenta la columna original
         const mm = /(?:([a-z_][a-z0-9_]*)\s*:\s*)?([a-z_][a-z0-9_]*)/.exec(campo)
         if (!mm) continue
         const columna = mm[2]
@@ -157,7 +155,7 @@ for (const ruta of archivosJs(SRC)) {
     }
 
     // .eq('col', ...) etc.
-    for (const campo of CAMPOS_POSTGREST) {
+    for (const campo of CAMPOS_CONSULTA) {
       const re = new RegExp(`\\.${campo}\\(\\s*['"]([a-z_][a-z0-9_]*)['"]`, 'g')
       let c
       while ((c = re.exec(cuerpo))) {

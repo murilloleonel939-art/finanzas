@@ -20,7 +20,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 
-// Imports simulados (no queremos inicializar Supabase)
+// Verificación estática para mantener el smoke test sin conexiones externas.
 let checkCount = 0;
 let passCount = 0;
 let failCount = 0;
@@ -62,12 +62,8 @@ assert(datosContent.includes('export async function subirExtractoPDF'), 'Exporta
 // viven ahora en el backend/worker local; el cliente solo transporta el PDF.
 assert(datosContent.includes("/api/empresas/${empresa_id}/import-jobs"), 'Crea jobs mediante la API local');
 assert(datosContent.includes('Los jobs de importación solo los actualiza el worker/backend local') || datosContent.includes('solo los actualiza el worker'), 'Impide actualizar jobs desde el cliente');
-assert(!datosContent.includes("from './supabase.js'"), 'No importa el cliente de Supabase');
-assert(workerContentPlaceholder(), 'La lógica del worker queda fuera del navegador');
-
-function workerContentPlaceholder() {
-  return !datosContent.includes('supabase.') && datosContent.includes('crearMovimientosDesdeImportacion');
-}
+assert(!datosContent.includes("from './db.js'"), 'No importa un adaptador de base de datos legado');
+assert(datosContent.includes('crearMovimientosDesdeImportacion'), 'La lógica de movimientos existe en el cliente API');
 
 // 2. Verificar imports-prompts.js
 console.log('\n2️⃣  Archivo imports-prompts.js');
@@ -90,17 +86,15 @@ assert(promptsContent.includes('Retorna un array JSON'), 'Especifica formato JSO
 assert(promptsContent.includes('status'), 'Menciona validación de status');
 assert(promptsContent.includes('complete') || promptsContent.includes('completed'), 'Define status permitidos');
 
-// 3. Verificar Edge Function
-console.log('\n3️⃣  Edge Function: crear-import-job');
-const efPath = path.join(rootDir, 'supabase/functions/crear-import-job/index.ts');
-const efContent = fs.readFileSync(efPath, 'utf8');
+// 3. Verificar API local
+console.log('\n3️⃣  API local: creación de importaciones');
+const apiPath = path.join(rootDir, 'server/index.mjs');
+const apiContent = fs.readFileSync(apiPath, 'utf8');
 
-assert(efContent.includes('POST'), 'Verifica método POST');
-assert(efContent.includes('FormData'), 'Recibe FormData del navegador');
-assert(efContent.includes('application/pdf'), 'Valida tipo PDF');
-assert(efContent.includes('supabase.storage'), 'Sube a Storage');
-assert(efContent.includes('import_jobs'), 'Crea job en tabla');
-assert(efContent.includes('estado: \'pendiente\''), 'Inicializa con estado pendiente');
+assert(apiContent.includes("app.post('/api/empresas/:empresaId/import-jobs"), 'Expone endpoint POST local');
+assert(apiContent.includes('Buffer.from') && apiContent.includes("subarray(0, 4).toString() !== '%PDF'"), 'Valida archivos PDF codificados');
+assert(apiContent.includes('import_jobs'), 'Crea job en PostgreSQL');
+assert(apiContent.includes("'pendiente'") || apiContent.includes('pendiente'), 'Inicializa con estado pendiente');
 
 // 4. Verificar Worker
 console.log('\n4️⃣  Worker: worker-import.mjs');

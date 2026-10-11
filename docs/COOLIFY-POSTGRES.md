@@ -1,6 +1,6 @@
 # Despliegue local con Coolify y PostgreSQL
 
-Esta versión ya no requiere variables `VITE_SUPABASE_*`, token de Supabase ni despliegue de Edge Functions. El navegador y la API se sirven desde la misma aplicación; PostgreSQL queda privado dentro de Coolify.
+El navegador y la API se sirven desde la misma aplicación; PostgreSQL queda privado dentro de Coolify.
 
 ## 1. Variables del servicio de la aplicación
 
@@ -27,7 +27,7 @@ El contenedor ejecuta la migración idempotente en cada arranque. Crea las tabla
 
 ## 3. Comprobar
 
-Al terminar el despliegue, abre el dominio de la aplicación. Debe aparecer la pantalla de acceso sin pedir claves de Supabase. Inicia sesión con el correo y contraseña de `ADMIN_*`.
+Al terminar el despliegue, abre el dominio de la aplicación e inicia sesión con el correo y contraseña de `ADMIN_*`.
 
 En esta versión funcionan con la API propia y PostgreSQL: inicio de sesión, sesión JWT, superusuario, empresas, usuarios, bancos, cuentas, brokers, wallets, movimientos, importación de PDFs y precios.
 
@@ -35,4 +35,4 @@ La autorización se valida en el backend y se aplica por empresa; no depende ún
 
 ## 4. Contraseñas
 
-Las contraseñas se guardan con hash bcrypt en PostgreSQL. El primer `ADMIN_PASSWORD` requiere mínimo 12 caracteres; las contraseñas creadas o restablecidas por un administrador desde la aplicación requieren mínimo 6 caracteres. Comunica las contraseñas iniciales por un canal seguro. La recuperación por correo se añadirá al configurar SMTP propio; no se envían correos mediante Supabase.
+Las contraseñas se guardan con hash bcrypt en PostgreSQL. El primer `ADMIN_PASSWORD` requiere mínimo 12 caracteres; las contraseñas creadas o restablecidas por un administrador desde la aplicación requieren mínimo 6 caracteres. Comunica las contraseñas iniciales por un canal seguro. La recuperación por correo se añadirá al configurar SMTP propio.

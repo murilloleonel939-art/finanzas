@@ -19,7 +19,7 @@ import { AlertCircle, Loader2, ChevronLeft } from 'lucide-react'
  *   - La moneda va por fila (`tipo_moneda`), no es la de la cuenta. Una wallet
  *     cripto puede recibir BTC en un movimiento y USDT en el siguiente.
  *   - No hay `orden` de desempate dentro del día: `movimientos_wallet` no tiene
- *     esa columna. El desempate es `created_at`, que ya asigna Supabase.
+ *     esa columna. El desempate es `created_at`, que asigna PostgreSQL.
  *   - Después de guardar se recalculan los saldos (`recalcularSaldosWallet`):
  *     `wallet_saldos` no se actualiza sola — es una tabla de valores que el
  *     código mantiene, igual que `cuentas.monto` lo mantiene

@@ -1,8 +1,7 @@
 /**
  * Capa de datos del módulo de wallets .
  *
- * COLUMNAS REALES (migraciones 0004 y 0005) — comprobadas contra las
- * migraciones antes de escribir una línea, que es lo que una revisión anterior no hizo:
+ * COLUMNAS REALES — comprobadas contra server/schema.sql antes de escribir código:
  *
  *   wallet_providers   id, empresa_id, tipo, nombre_proveedor, created_by,
  *                      created_at, updated_at, deleted_at
@@ -11,7 +10,7 @@
  *                      updated_at, deleted_at
  *   wallet_saldos      wallet_id, moneda, monto, updated_at
  *                      → PK compuesta (wallet_id, moneda). **No tiene id**:
- *                        es una tabla de valores, no una entidad (D12).
+ *                        es una tabla de valores, no una entidad.
  *   movimientos_wallet id, empresa_id, proveedor_id, wallet_id, fecha,
  *                      descripcion, tipo, monto, tipo_moneda, external_id,
  *                      source_file, created_by, created_at, updated_at,
@@ -30,10 +29,8 @@
  *   · `wallets.proveedor_nombre` ni `wallets.empresa_nombre` — son columnas de
  *     la vista, no de la tabla (D8).
  *
- * El borrado es lógico (D7). Las vistas ya filtran por dentro; las tablas no, y
- * por eso cada consulta a una tabla lleva su `.is('deleted_at', null)`. Las de
- * `wallet_saldos` no lo llevan porque la tabla **no tiene** esa columna: su
- * visibilidad la decide el RLS con un EXISTS contra `wallets` (0006).
+ * El borrado es lógico. Las vistas ya filtran por dentro; las tablas no, y por
+ * eso cada consulta a una tabla lleva su filtro de `deleted_at` cuando aplica.
  */
 import { api, apiJson } from '@/lib/api'
 import { esInteres } from '@/lib/earnConfig'
@@ -110,7 +107,7 @@ export async function obtenerWallet(walletId) {
  * una fila que lo explique: un saldo sin movimiento es un descuadre imposible
  * de auditar después (mismo criterio que `CrearCuenta`).
  *
- * Va en dos pasos y no en una transacción (PostgREST no las expone desde el
+ * Va en dos pasos y usa endpoints separados de la API local; cada operación
  * cliente). Si falla el segundo, queda una wallet sin saldo —molesta pero
  * coherente— en vez de un saldo sin wallet, que no puede existir por la FK.
  *

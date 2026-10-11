@@ -1,7 +1,7 @@
 /**
  * Compatibilidad de datos para importaciones.
  * Los modales activos usan `import-jobs.js`; este módulo conserva la API
- * histórica sin volver a depender del cliente de Supabase.
+ * histórica sobre los endpoints locales.
  */
 import { api, apiJson } from './api'
 

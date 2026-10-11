@@ -13,7 +13,7 @@
  * El proyecto no tiene runner de tests. Se sigue el mismo patrón que en los demás módulos.
  *
  * Este script carga `precios-sync.js` directamente sin bundles, porque no
- * toca el navegador ni necesita Supabase real.
+ * toca el navegador ni necesita una base de datos real.
  */
 
 import { strict as assert } from 'node:assert'

@@ -4,9 +4,8 @@ import { formatearFecha, getEtiquetaEstado, getColorEstado } from '@/lib/admin-u
 /**
  * Tabla de jobs de precios.
  *
- * Los campos son los de `precios_jobs` (migración 0009): `creado_en` /
- * `terminado_en` vienen ya normalizados por la Edge Function `admin-list-jobs`,
- * que traduce `created_at` / `finished_at`.
+ * Los campos son los de `precios_jobs` en PostgreSQL y llegan normalizados por
+ * la API administrativa local.
  *
  * Se usa una tabla HTML plana y no el componente `Table` de ui/: aquí hacen
  * falta columnas de desglose (actualizados / total) y el wrapper añadía más

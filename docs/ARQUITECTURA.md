@@ -1,104 +1,63 @@
-# ARQUITECTURA — FinanzAdmin Pro
+# Arquitectura — FinanzAdmin Pro
 
-> **Este archivo es el punto de entrada.** Contiene lo necesario para entender el
-> proyecto sin releer el PRD ni reconstruir las decisiones ya tomadas: qué se está
-> construyendo, dónde vive cada pieza y qué reglas están cerradas.
+## Qué se está construyendo
 
----
+FinanzAdmin Pro es un SaaS multiempresa para gestión administrativa y financiera. Un superadministrador gestiona empresas y usuarios; cada empresa tiene cuentas bancarias, brokers, wallets, movimientos, importaciones de PDF y precios.
 
-## 1. Qué se está construyendo
+## Arquitectura actual
 
-**FinanzAdmin Pro** — SaaS multi-tenant para gestión administrativa y financiera de
-múltiples empresas. El PRD completo está en `docs/PRD.md`.
+```text
+React/Vite ──► Node/Express API ──► PostgreSQL
+                         │
+                         ├── worker-import  (PDF → texto → NVIDIA Nemotron)
+                         └── worker-precios (cola y barrido de precios)
+```
 
-Resumen: un super administrador gestiona empresas clientes y sus usuarios. Cada empresa
-tiene tres ramas paralelas — **cuentas bancarias**, **brokers** y **wallets cripto/fiat**.
-Los datos financieros se ingresan a mano o se **importan desde PDFs** mediante IA. Los
-productos **Earn** (staking/savings) tienen tratamiento especial con reglas por proveedor.
-
-## 2. Estado actual
-
-La aplicación está construida y desplegada en `finanzas.zottagroup.com`. El esquema de
-base de datos va por la migración `0015` (ver `supabase/migrations/`). La app original
-descrita en el PRD vive en Base44 y **no se migra**: se reconstruyó desde cero, sin datos
-que preservar.
-
-## 3. Arquitectura decidida
-
-| Pieza | Dónde vive |
+| Pieza | Implementación |
 |---|---|
-| Base de datos (Postgres + RLS) | **Supabase Cloud** — proyecto propio en supabase.com |
-| Auth (email/password + Google OAuth) | Supabase Cloud |
-| Storage (PDFs de extractos) | Supabase Cloud — bucket **privado** con URLs firmadas |
-| Realtime | Supabase Cloud — requiere añadir tablas a la publicación |
-| Edge Functions | Supabase Cloud — solo tareas cortas |
-| **Frontend (React + Vite)** | **EC2 + Coolify** |
-| **Workers** (importación de PDFs, precios) | **EC2 + Coolify** — NO en Edge Functions |
+| Frontend | React 18, Vite, Tailwind y React Query |
+| API | Node.js, Express, JWT |
+| Base de datos | PostgreSQL privado en Coolify |
+| Contraseñas | bcrypt |
+| Importación | Worker Node.js, `pdftotext` y NVIDIA NIM |
+| Precios | Worker Node.js y APIs de mercado |
+| Despliegue | Dockerfile y Coolify |
 
-**Frontend:** React 18 + Vite + Tailwind CSS + shadcn/ui + lucide-react.
-**Routing:** react-router-dom v6. **Data:** @tanstack/react-query + supabase-js.
+La aplicación principal sirve el frontend compilado y la API desde el mismo contenedor. `server/schema.sql` es la fuente de verdad del esquema y `server/migrate.mjs` aplica el esquema de forma idempotente.
 
-## 4. Decisiones tomadas (no volver a preguntar)
+## Reglas de diseño
 
-Estas ya se discutieron y están cerradas. El detalle y el razonamiento están en
-`docs/DECISIONES.md`, que llega hasta D35.
+1. Toda entidad financiera pertenece a una empresa mediante `empresa_id`.
+2. El backend valida JWT y acceso a empresa en cada endpoint protegido.
+3. El frontend nunca contiene secretos de base de datos, JWT o NVIDIA.
+4. El dinero usa tipos `numeric` en PostgreSQL; no se usan floats para saldos.
+5. Los borrados financieros son lógicos mediante `deleted_at` cuando corresponde.
+6. Las importaciones se procesan asíncronamente mediante `import_jobs`.
+7. Los PDFs se guardan en el almacenamiento local configurado por `IMPORT_STORAGE_DIR`.
+8. La extracción de texto se ejecuta con `pdftotext`; Nemotron recibe texto, no el PDF binario.
+9. Los workers comparten `DATABASE_URL` con la API.
+10. PostgreSQL debe permanecer privado y contar con backups antes de cargar datos productivos.
 
-1. **Se reconstruye desde cero**, no se migra Base44.
-2. **Supabase Cloud** para datos/auth/storage. EC2/Coolify solo para frontend y worker IA.
-3. **`numeric` para todo el dinero**, nunca float. `numeric(20,8)` montos, `numeric(28,10)` cantidades.
-4. **Sin conversión de moneda.** La moneda es atributo de cada entidad (cuenta, broker, wallet).
-   Los resúmenes muestran **subtotales por moneda**, una línea por moneda, **sin total
-   consolidado**. No hay tabla `tipos_cambio` ni `empresas.moneda_base`.
-5. **`cliente` es dueño de la empresa con acceso COMPLETO de escritura** — crear cuentas,
-   importar, exportar, editar. Igual que `contador`.
-6. **`cliente` y `contador` tienen los mismos permisos dentro de la empresa.** La única
-   diferencia posible es en operaciones destructivas (ver decisión 7).
-7. **Borrado lógico con `deleted_at`** en lugar de `DELETE` físico. Protege el histórico
-   financiero y evita cascadas irreversibles.
-8. **`UserEmpresa.rol` es la única fuente de verdad** de permisos por empresa. `app_role`
-   queda reducido a `super_admin` vs `usuario` (sirve para redirect post-login y estadísticas).
-9. **Se eliminan los campos desnormalizados** (`empresa_nombre`, `banco_nombre`,
-   `broker_nombre`, `cuenta_numero`, `wallet_direccion`). Se resuelven con **vistas** que
-   hacen JOIN, y un adaptador en el frontend para no tocar los componentes.
-10. **`external_id` + índice único** para deduplicar importaciones de PDF.
-11. **Se elimina `PendingUser`**. Las invitaciones usan `auth.admin.inviteUserByEmail` +
-    trigger en `auth.users` que crea el profile y los vínculos `user_empresa` (atómico).
-12. **La extracción de PDFs corre en un worker en EC2**, no en Edge Functions (límite de
-    tiempo de reloj). Con tabla `import_jobs` para estado, historial y errores.
-13. **`wallet_saldos`** como tabla aparte: una wallet puede tener saldo en varias monedas
-    a la vez (BTC + ETH + USDT). `Wallet.monto` escalar no lo soporta.
-14. **Precios desde una API de mercado real** (Finnhub / Alpha Vantage / Yahoo), NO pidiéndole
-    precios a un LLM con búsqueda web como hace el PRD original.
-15. **RDS no se usa** para la base — se descartó por incompatibilidad de extensiones.
+## Estructura principal
 
-## 5. Contradicciones del PRD ya resueltas
+- `src/`: frontend y cliente de la API.
+- `server/index.mjs`: endpoints, autenticación y autorización.
+- `server/schema.sql`: tablas, índices y vistas.
+- `server/migrate.mjs`: migración y creación del administrador inicial.
+- `worker-import.mjs`: procesamiento de PDFs con NVIDIA Nemotron.
+- `worker-precios.mjs`: actualización de precios.
+- `deploy/`: ejemplos de servicios y variables de workers.
+- `scripts/`: verificadores y pruebas locales.
 
-El PRD original tiene inconsistencias internas. Estas son las resoluciones adoptadas:
+## Flujo de importación
 
-| Contradicción | Resolución |
-|---|---|
-| §8.2 vs §8.3: "invertido" = egresos con "subscription" vs "suma de egresos" | Usar **egresos con "subscription"** (§8.2) |
-| §8.2 vs §8.3: "redimido" = ingresos con "redemption" vs "otros ingresos" | Usar **ingresos con "redemption"** (§8.2, confirmado por §15.2.3) |
-| §6.4 `PrecioActivo` admin-only vs §6.5 pestaña Precios visible a todos | Abrir **lectura** a quien tenga acceso a la empresa; escritura solo admin |
-| §15.5 importar desde tarjeta del proveedor sin wallet asignada | La importación **exige elegir wallet destino** antes de subir el PDF |
-| §2.1 `role` y `app_role` redundantes | Colapsar en un campo: `app_role` |
-| §5.3 `orden`: "menor = más reciente arriba" | Usar `orden` entero, ascendente = orden de aparición |
+1. El usuario selecciona empresa, destino y PDF.
+2. La API valida JWT, permisos, destino, tamaño y firma `%PDF`.
+3. La API guarda el archivo y crea un job `pendiente`.
+4. El worker obtiene el job, convierte el PDF a texto y llama a NVIDIA NIM.
+5. La respuesta se valida, se deduplican movimientos y se guarda el resultado.
+6. La interfaz consulta el estado hasta `hecho` o `error`.
 
-## 6. Reglas de negocio clave
+## Operación
 
-- **Importación:** solo movimientos con status `complete`/`completed`. Monto siempre positivo,
-  `tipo` indica dirección. Fecha `YYYY-MM-DD`. Moneda individual por fila.
-- **Earn:** Coindepo = todos sus movimientos son Earn (`EARN_ALL_MOVEMENTS_PROVIDERS`).
-  Otros proveedores: solo descripciones con `earn|subscription|interest|staking|savings|redemption|redeem`.
-- **Intereses ganados:** ingresos cuyo concepto coincide con `interes|interest|rendimiento|ganancia|yield`.
-- **Salidas (neto) Earn:** `recompensas + redimido - invertido`.
-- **Opción "Otro"** en formularios de banco, broker y proveedor de wallet para nombres fuera de catálogo.
-
-## 7. Cómo continuar
-
-El estado del proyecto vive en el código y en `docs/DECISIONES.md`, no en un documento
-aparte: cada decisión cerrada queda ahí con su razonamiento, y el esquema se lee de
-`supabase/migrations/`.
-
-**Regla de trabajo:** cambios pequeños y verificables. Al cerrar uno, añade la decisión
-nueva a `docs/DECISIONES.md` y aplica la migración correspondiente en Supabase.
+Los cambios de esquema se realizan en `server/schema.sql`; después se ejecuta `npm run db:migrate`. Antes de publicar se ejecutan `npm run build`, `npm run verificar` y las suites de pruebas relevantes.

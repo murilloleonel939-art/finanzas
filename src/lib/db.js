@@ -3,8 +3,7 @@
  *
  * Las pantallas activas ya usan los endpoints locales de `src/lib/api.js`.
  * Se conserva la forma de exportación para evitar romper imports antiguos, pero
- * se rechaza explícitamente cualquier uso nuevo: este módulo no debe reabrir una
- * conexión de Supabase ni saltarse la autorización derivada del JWT.
+ * se rechaza explícitamente cualquier uso nuevo: usa los endpoints locales de la API.
  */
 
 export const FUENTES_DISPONIBLES = [

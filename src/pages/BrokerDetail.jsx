@@ -48,7 +48,7 @@ const POR_PAGINA = 20
  * `valor_unitario` (el CHECK de la 0003 obliga a que vengan juntos).
  *
  * La pestaña de precios no se autoactualiza: `precios_activo` no está en la
- * publicación de realtime (migración 0007), y en esta versión la escribe la
+ * API local, y en esta versión la escribe la
  * worker de precios.
  */
 export default function BrokerDetail() {

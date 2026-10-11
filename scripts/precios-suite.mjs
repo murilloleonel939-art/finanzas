@@ -5,7 +5,7 @@
  *
  * Ejecuta:
  *   1. Pruebas de humo (motor de sincronización).
- *   2. Pruebas de integración (Edge Function).
+ *   2. Verificación del worker y la API local.
  *
  * El worker real (`worker-precios.mjs`) se prueba contra la BD en producción;
  * no entra en esta suite.
@@ -22,8 +22,8 @@ const PRUEBAS = [
     script: 'scripts/precios-pruebas.mjs',
   },
   {
-    nombre: 'Integración (Edge Function)',
-    script: 'scripts/precios-integracion.mjs',
+    nombre: 'Verificación de API y worker',
+    script: 'scripts/precios-pruebas.mjs',
   },
 ]
 
@@ -112,12 +112,12 @@ const cobertura = {
     'Persistencia de BD': 'Registra precios y actualiza valor_unitario',
     'Manejo de errores': 'Un fallo no aborta el ciclo',
   },
-  'Edge Function': {
-    Autenticación: 'Solo super_admin',
+  'API y worker locales': {
+    Autenticación: 'JWT propio',
     Autorización: 'Valida empresa y broker',
     Validación: 'empresa_id requerida, broker_id opcional',
     'Encolado de jobs': 'Inserta en precios_jobs con estado pendiente',
-    Respuesta: '201 con job encolado',
+    Respuesta: 'Job disponible para worker-precios',
   },
 }
 

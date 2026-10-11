@@ -15,7 +15,7 @@ import { AlertCircle, Loader2, ChevronLeft } from 'lucide-react'
  *
  * Columnas reales (migración 0002): `cuentas` tiene `numero_cuenta`,
  * `tipo_cuenta`, `tipo_moneda` y `monto` (el saldo actual). **No hay
- * `saldo_actual`**: ese nombre no existe y PostgREST lo rechazaría.
+ * `saldo_actual`**: ese nombre no existe en PostgreSQL.
  *
  * `tipo_cuenta` es el enum `tipo_cuenta` con **dos** valores, `ahorros` y
  * `corriente`, no una lista abierta. Ofrecer «nómina» o «plazo fijo» daría un

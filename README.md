@@ -14,7 +14,7 @@ API Node/Express ─────► PostgreSQL
         └── worker-precios  (cola y barrido de precios)
 ```
 
-La aplicación principal sirve el frontend compilado y la API desde el mismo servicio. PostgreSQL es la fuente de verdad para usuarios, empresas y datos financieros. Supabase queda únicamente como respaldo histórico/legacy; el flujo operativo local usa la API propia y PostgreSQL.
+La aplicación principal sirve el frontend compilado y la API desde el mismo servicio. PostgreSQL es la fuente de verdad para usuarios, empresas y datos financieros; el flujo operativo usa únicamente la API propia y PostgreSQL.
 
 ## Stack
 
