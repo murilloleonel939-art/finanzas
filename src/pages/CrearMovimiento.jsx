@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '@/contexts/AuthContext'
 import { formatearMonto } from '@/lib/monedas'
 import { hoyLocal } from '@/lib/utils'
-import { obtenerCuenta, crearMovimiento, recalcularSaldoCuenta } from '@/lib/cuentas'
+import { obtenerCuenta, crearMovimiento } from '@/lib/cuentas'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -16,8 +15,8 @@ import { AlertCircle, Loader2, ChevronLeft } from 'lucide-react'
  * CrearMovimiento: alta manual de un movimiento bancario (PRD §4).
  *
  * La columna de texto es `descripcion`, no `concepto`. Y no existe
- * `saldo_resultante`: el saldo se recalcula en `cuentas.monto` con
- * `recalcularSaldoCuenta()`, que suma todos los movimientos de la cuenta.
+ * `saldo_resultante`: el saldo se recalcula en `cuentas.monto` dentro de la
+ * transacción del backend, sumando todos los movimientos de la cuenta.
  *
  * Se recalcula en vez de incrementar porque con un incremento cualquier
  * borrado o edición posterior desviaría el saldo para siempre; recalcular
@@ -29,7 +28,6 @@ import { AlertCircle, Loader2, ChevronLeft } from 'lucide-react'
 export default function CrearMovimiento() {
   const { empresaId, cuentaId } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
   const queryClient = useQueryClient()
 
   const hoy = hoyLocal()
@@ -64,11 +62,7 @@ export default function CrearMovimiento() {
         descripcion: descripcion.trim(),
         tipo,
         monto: montoNum,
-        userId: user?.id,
       })
-
-      // El saldo de la cuenta se deriva de sus movimientos.
-      await recalcularSaldoCuenta(cuentaId)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['movimientos', cuentaId] })

@@ -82,7 +82,7 @@ export default function CuentaDetail() {
   const resumen = useMemo(() => resumenPeriodo(filtrados), [filtrados])
 
   const { mutate: eliminar, isPending: borrando } = useMutation({
-    mutationFn: (mov) => borrarMovimiento(mov.id, cuentaId),
+    mutationFn: (mov) => borrarMovimiento(empresaId, cuentaId, mov.id),
     onSuccess: () => {
       setMovimientoABorrar(null)
       queryClient.invalidateQueries({ queryKey: ['movimientos', cuentaId] })

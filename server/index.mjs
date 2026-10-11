@@ -268,8 +268,8 @@ app.post('/api/empresas/:empresaId/cuentas', requireAuth, async (req, res) => {
     }
     const created = await client.query(
       `insert into cuentas (empresa_id, banco_id, numero_cuenta, tipo_cuenta, tipo_moneda, monto, created_by)
-       values ($1, $2, $3, $4, $5, $6, $7) returning id`,
-      [req.params.empresaId, bancoId, numeroCuenta.trim(), tipoCuenta, tipoMoneda.trim(), monto, req.auth.sub]
+       values ($1, $2, $3, $4, $5, 0, $6) returning id`,
+      [req.params.empresaId, bancoId, numeroCuenta.trim(), tipoCuenta, tipoMoneda.trim(), req.auth.sub]
     )
     if (monto > 0) {
       await client.query(
@@ -283,6 +283,131 @@ app.post('/api/empresas/:empresaId/cuentas', requireAuth, async (req, res) => {
   } catch (err) {
     await client.query('rollback')
     if (err.code === '23505') return error(res, 409, 'Ese número de cuenta ya existe en este banco.')
+    throw err
+  } finally {
+    client.release()
+  }
+})
+
+app.get('/api/cuentas/:cuentaId', requireAuth, async (req, res) => {
+  const result = await query(
+    `select c.id, c.empresa_id, c.banco_id, b.nombre_banco as banco_nombre, b.pais as banco_pais,
+            c.numero_cuenta, c.tipo_cuenta, c.tipo_moneda, c.monto
+     from cuentas c join bancos b on b.id = c.banco_id and b.deleted_at is null
+     where c.id = $1 and c.deleted_at is null`,
+    [req.params.cuentaId]
+  )
+  const cuenta = result.rows[0]
+  if (!cuenta) return error(res, 404, 'Cuenta no encontrada.')
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, cuenta.empresa_id)) {
+    return error(res, 403, 'No tienes acceso a esta empresa.')
+  }
+  res.json({ cuenta })
+})
+
+app.get('/api/cuentas/:cuentaId/movimientos', requireAuth, async (req, res) => {
+  const account = await query(
+    'select empresa_id from cuentas where id = $1 and deleted_at is null',
+    [req.params.cuentaId]
+  )
+  if (!account.rowCount) return error(res, 404, 'Cuenta no encontrada.')
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, account.rows[0].empresa_id)) {
+    return error(res, 403, 'No tienes acceso a esta empresa.')
+  }
+  const result = await query(
+    `select id, fecha, descripcion, tipo, monto, orden
+     from movimientos where cuenta_id = $1 and deleted_at is null
+     order by fecha desc, orden desc, created_at desc`,
+    [req.params.cuentaId]
+  )
+  res.json({ movimientos: result.rows })
+})
+
+app.post('/api/empresas/:empresaId/cuentas/:cuentaId/movimientos', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) {
+    return error(res, 403, 'No tienes acceso a esta empresa.')
+  }
+  const fecha = req.body.fecha
+  const descripcion = req.body.descripcion?.trim()
+  const tipo = req.body.tipo
+  const monto = Number(req.body.monto)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || '')) return error(res, 400, 'La fecha no es válida.')
+  if (!descripcion) return error(res, 400, 'La descripción es obligatoria.')
+  if (!['ingreso', 'egreso'].includes(tipo)) return error(res, 400, 'Tipo de movimiento inválido.')
+  if (!Number.isFinite(monto) || monto <= 0) return error(res, 400, 'El monto debe ser mayor que cero.')
+
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const account = await client.query(
+      'select id from cuentas where id = $1 and empresa_id = $2 and deleted_at is null for update',
+      [req.params.cuentaId, req.params.empresaId]
+    )
+    if (!account.rowCount) {
+      await client.query('rollback')
+      return error(res, 404, 'Cuenta no encontrada.')
+    }
+    const order = await client.query(
+      'select coalesce(max(orden), -1) + 1 as siguiente from movimientos where cuenta_id = $1 and fecha = $2 and deleted_at is null',
+      [req.params.cuentaId, fecha]
+    )
+    const created = await client.query(
+      `insert into movimientos (empresa_id, cuenta_id, fecha, descripcion, tipo, monto, orden, created_by)
+       values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`,
+      [req.params.empresaId, req.params.cuentaId, fecha, descripcion, tipo, monto, order.rows[0].siguiente, req.auth.sub]
+    )
+    await client.query(
+      `update cuentas set monto = coalesce((
+        select sum(case when tipo = 'ingreso' then monto else -monto end)
+        from movimientos where cuenta_id = $1 and deleted_at is null
+      ), 0) where id = $1`,
+      [req.params.cuentaId]
+    )
+    await client.query('commit')
+    res.status(201).json({ movimientoId: created.rows[0].id })
+  } catch (err) {
+    await client.query('rollback')
+    throw err
+  } finally {
+    client.release()
+  }
+})
+
+app.delete('/api/empresas/:empresaId/cuentas/:cuentaId/movimientos/:movimientoId', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) {
+    return error(res, 403, 'No tienes acceso a esta empresa.')
+  }
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const account = await client.query(
+      'select id from cuentas where id = $1 and empresa_id = $2 and deleted_at is null for update',
+      [req.params.cuentaId, req.params.empresaId]
+    )
+    if (!account.rowCount) {
+      await client.query('rollback')
+      return error(res, 404, 'Cuenta no encontrada.')
+    }
+    const deleted = await client.query(
+      `update movimientos set deleted_at = now()
+       where id = $1 and cuenta_id = $2 and empresa_id = $3 and deleted_at is null`,
+      [req.params.movimientoId, req.params.cuentaId, req.params.empresaId]
+    )
+    if (!deleted.rowCount) {
+      await client.query('rollback')
+      return error(res, 404, 'Movimiento no encontrado.')
+    }
+    await client.query(
+      `update cuentas set monto = coalesce((
+        select sum(case when tipo = 'ingreso' then monto else -monto end)
+        from movimientos where cuenta_id = $1 and deleted_at is null
+      ), 0) where id = $1`,
+      [req.params.cuentaId]
+    )
+    await client.query('commit')
+    res.status(204).end()
+  } catch (err) {
+    await client.query('rollback')
     throw err
   } finally {
     client.release()

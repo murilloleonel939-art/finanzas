@@ -14,33 +14,20 @@
  * No existe `saldo_resultante`: el saldo de la cuenta vive en `cuentas.monto`
  * y el historial no guarda el saldo de cada fila. Se reconstruye aquí.
  */
-import { supabase } from '@/lib/supabase'
+import { api, apiJson } from '@/lib/api'
 
 // ---------------------------------------------------------------------
 // Consultas
 // ---------------------------------------------------------------------
 
 export async function listarCuentas(empresaId) {
-  const { data, error } = await supabase
-    .from('cuentas_view')
-    .select('id, banco_id, banco_nombre, banco_pais, numero_cuenta, tipo_cuenta, tipo_moneda, monto')
-    .eq('empresa_id', empresaId)
-    .order('banco_nombre')
-    .order('numero_cuenta')
-
-  if (error) throw error
-  return data ?? []
+  const { cuentas } = await api(`/api/empresas/${empresaId}/cuentas`)
+  return cuentas
 }
 
 export async function obtenerCuenta(cuentaId) {
-  const { data, error } = await supabase
-    .from('cuentas_view')
-    .select('id, empresa_id, banco_id, banco_nombre, numero_cuenta, tipo_cuenta, tipo_moneda, monto')
-    .eq('id', cuentaId)
-    .maybeSingle()
-
-  if (error) throw error
-  return data ?? null
+  const { cuenta } = await api(`/api/cuentas/${cuentaId}`)
+  return cuenta
 }
 
 /**
@@ -52,100 +39,23 @@ export async function obtenerCuenta(cuentaId) {
  * mismo día en un orden arbitrario en cada recarga.
  */
 export async function listarMovimientos(cuentaId) {
-  const { data, error } = await supabase
-    .from('movimientos_view')
-    .select('id, fecha, descripcion, tipo, monto, orden, external_id')
-    .eq('cuenta_id', cuentaId)
-    .order('fecha', { ascending: false })
-    .order('orden', { ascending: false })
-
-  if (error) throw error
-  return data ?? []
+  const { movimientos } = await api(`/api/cuentas/${cuentaId}/movimientos`)
+  return movimientos
 }
 
-export async function crearMovimiento({
-  empresaId,
-  cuentaId,
-  fecha,
-  descripcion,
-  tipo,
-  monto,
-  userId,
-}) {
-  // `orden`: siguiente posición dentro del mismo día, para que dos altas
-  // seguidas no queden empatadas. Se lee el máximo del día.
-  const { data: ultimo } = await supabase
-    .from('movimientos')
-    .select('orden')
-    .eq('cuenta_id', cuentaId)
-    .eq('fecha', fecha)
-    .is('deleted_at', null)
-    .order('orden', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  const orden = (ultimo?.orden ?? -1) + 1
-
-  const { data, error } = await supabase
-    .from('movimientos')
-    .insert({
-      empresa_id: empresaId,
-      cuenta_id: cuentaId,
-      fecha,
-      descripcion,
-      tipo,
-      monto,
-      orden,
-      created_by: userId,
-    })
-    .select('id')
-    .single()
-
-  if (error) throw error
-  return data
+export function crearMovimiento({ empresaId, cuentaId, fecha, descripcion, tipo, monto }) {
+  return apiJson(`/api/empresas/${empresaId}/cuentas/${cuentaId}/movimientos`, 'POST', {
+    fecha,
+    descripcion,
+    tipo,
+    monto,
+  })
 }
 
-/**
- * Actualiza `cuentas.monto` a partir de TODOS los movimientos de la cuenta.
- *
- * Es un recálculo completo, no un incremento. La razón: con un incremento,
- * cualquier movimiento borrado, editado o importado por otra vía dejaría el
- * saldo desviado sin que nadie lo note, y en una app financiera ese descuadre
- * se arrastra para siempre. Recalcular cuesta una consulta y siempre converge.
- *
- * Se ejecuta después de crear o borrar un movimiento.
- */
-export async function recalcularSaldoCuenta(cuentaId) {
-  const { data, error } = await supabase
-    .from('movimientos')
-    .select('tipo, monto')
-    .eq('cuenta_id', cuentaId)
-    .is('deleted_at', null)
-
-  if (error) throw error
-
-  const total = (data ?? []).reduce((acc, m) => {
-    const monto = Number(m.monto ?? 0)
-    return acc + (m.tipo === 'ingreso' ? monto : -monto)
-  }, 0)
-
-  const { error: errUpdate } = await supabase
-    .from('cuentas')
-    .update({ monto: Number(total.toFixed(8)) })
-    .eq('id', cuentaId)
-
-  if (errUpdate) throw errUpdate
-  return Number(total.toFixed(8))
-}
-
-export async function borrarMovimiento(id, cuentaId) {
-  const { error } = await supabase
-    .from('movimientos')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', id)
-
-  if (error) throw error
-  await recalcularSaldoCuenta(cuentaId)
+export function borrarMovimiento(empresaId, cuentaId, movimientoId) {
+  return api(`/api/empresas/${empresaId}/cuentas/${cuentaId}/movimientos/${movimientoId}`, {
+    method: 'DELETE',
+  })
 }
 
 // ---------------------------------------------------------------------
