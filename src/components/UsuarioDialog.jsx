@@ -241,12 +241,12 @@ export default function UsuarioDialog({ abierto, onCerrar, usuario }) {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  minLength={12}
+                  minLength={6}
                   required
                   autoComplete="new-password"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Mínimo 12 caracteres. Compártela por un canal seguro.
+                  Mínimo 6 caracteres. Compártela por un canal seguro.
                 </p>
               </div>
             ) : (
@@ -258,14 +258,14 @@ export default function UsuarioDialog({ abierto, onCerrar, usuario }) {
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    minLength={12}
-                    placeholder="Nueva contraseña (mínimo 12)"
+                    minLength={6}
+                    placeholder="Nueva contraseña (mínimo 6)"
                     autoComplete="new-password"
                   />
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={newPassword.length < 12 || restablecerContrasena.isPending}
+                    disabled={newPassword.length < 6 || restablecerContrasena.isPending}
                     onClick={() => restablecerContrasena.mutate()}
                   >
                     {restablecerContrasena.isPending ? 'Actualizando…' : 'Actualizar'}

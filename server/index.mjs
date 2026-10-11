@@ -72,7 +72,7 @@ function validateUserInput(body, { creating = false } = {}) {
   const password = body.password
 
   if (creating && (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return 'Escribe un email válido.'
-  if (creating && (!password || password.length < 12)) return 'La contraseña inicial debe tener al menos 12 caracteres.'
+  if (creating && (!password || password.length < 6)) return 'La contraseña inicial debe tener al menos 6 caracteres.'
   if (!['super_admin', 'usuario'].includes(appRole)) return 'Rol global inválido.'
   if (!['activo', 'inactivo'].includes(estado)) return 'Estado inválido.'
   if (!Array.isArray(body.empresas)) return 'Empresas inválidas.'
@@ -1007,7 +1007,7 @@ app.patch('/api/admin/usuarios/:id', requireAuth, requireAdmin, async (req, res)
 
 app.post('/api/admin/usuarios/:id/password', requireAuth, requireAdmin, async (req, res) => {
   const password = req.body.password
-  if (!password || password.length < 12) return error(res, 400, 'La contraseña debe tener al menos 12 caracteres.')
+  if (!password || password.length < 6) return error(res, 400, 'La contraseña debe tener al menos 6 caracteres.')
   const passwordHash = await bcrypt.hash(password, 12)
   const updated = await query('update usuarios set password_hash = $2 where id = $1', [req.params.id, passwordHash])
   if (!updated.rowCount) return error(res, 404, 'Usuario no encontrado.')
