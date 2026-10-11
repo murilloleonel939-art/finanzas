@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import ExportButtons from '@/components/ExportButtons'
+import ImportarMovimientosModal from '@/components/ImportarMovimientosModal'
 import { prepararMovimientosExportacion } from '@/lib/exportUtils'
 import {
   Loader2,
@@ -48,6 +49,7 @@ export default function CuentaDetail() {
   const [mes, setMes] = useState(MES_TODOS)
   const [pagina, setPagina] = useState(0)
   const [movimientoABorrar, setMovimientoABorrar] = useState(null)
+  const [importarAbierto, setImportarAbierto] = useState(false)
 
   const { data: cuenta, isLoading: cargandoCuenta, error: errorCuenta } = useQuery({
     queryKey: ['cuenta', cuentaId],
@@ -145,7 +147,10 @@ export default function CuentaDetail() {
             </div>
           </div>
           <div className="flex gap-2 items-center flex-wrap justify-end">
-            <ExportButtons
+            <Button onClick={() => setImportarAbierto(true)} variant="outline" className="gap-2">
+               Importar movimientos
+             </Button>
+             <ExportButtons
               datos={conSaldo}
               columnas={[
                 { key: 'fecha', label: 'Fecha' },
@@ -360,7 +365,18 @@ export default function CuentaDetail() {
         }
         onConfirm={() => eliminar(movimientoABorrar)}
         isLoading={borrando}
-      />
+       />
+
+       <ImportarMovimientosModal
+         isOpen={importarAbierto}
+         onClose={() => setImportarAbierto(false)}
+         cuentaId={cuentaId}
+         empresaId={empresaId}
+         onSuccess={() => {
+           queryClient.invalidateQueries({ queryKey: ['movimientos', cuentaId] })
+           queryClient.invalidateQueries({ queryKey: ['cuenta', cuentaId] })
+         }}
+       />
     </div>
   )
 }

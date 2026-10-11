@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import fs from 'node:fs'
 import path from 'node:path'
+import XLSX from 'xlsx'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { query, pool } from './server/db.mjs'
@@ -27,19 +28,28 @@ function fileForJob(job) {
 }
 function asArray(value) { return Array.isArray(value) ? value : [] }
 
-async function textoDelPdf(pdfPath) {
-  try {
-    const { stdout } = await execFileAsync(process.env.PDFTOTEXT_BIN || 'pdftotext', ['-layout', pdfPath, '-'], { maxBuffer: 16 * 1024 * 1024 })
-    const texto = stdout.trim()
-    if (!texto) throw new Error('El PDF no contiene texto extraíble.')
-    return texto
-  } catch (error) {
-    if (error.code === 'ENOENT') throw new Error('Falta pdftotext en la imagen del worker NVIDIA.')
-    throw new Error(`No se pudo extraer texto del PDF: ${error.message}`)
+async function textoDelArchivo(filePath) {
+  const extension = path.extname(filePath).toLowerCase()
+  if (extension === '.pdf') {
+    try {
+      const { stdout } = await execFileAsync(process.env.PDFTOTEXT_BIN || 'pdftotext', ['-layout', filePath, '-'], { maxBuffer: 16 * 1024 * 1024 })
+      const texto = stdout.trim()
+      if (!texto) throw new Error('El PDF no contiene texto extraíble.')
+      return texto
+    } catch (error) {
+      if (error.code === 'ENOENT') throw new Error('Falta pdftotext en la imagen del worker NVIDIA.')
+      throw new Error(`No se pudo extraer texto del PDF: ${error.message}`)
+    }
   }
+  if (extension === '.csv') return fs.readFileSync(filePath, 'utf8').slice(0, 16 * 1024 * 1024)
+  if (extension === '.xls' || extension === '.xlsx') {
+    const workbook = XLSX.readFile(filePath, { cellDates: true })
+    return workbook.SheetNames.map((name) => `HOJA: ${name}\n${XLSX.utils.sheet_to_csv(workbook.Sheets[name])}`).join('\n\n')
+  }
+  throw new Error('Formato de archivo no soportado.')
 }
 
-async function extraerDatos(pdfPath, job, contexto) {
+async function extraerDatos(filePath, job, contexto) {
   const apiKey = process.env.NVIDIA_API_KEY
   if (!apiKey) throw new Error('Falta NVIDIA_API_KEY para extraer el PDF.')
   const prompt = job.target === 'cuenta'
@@ -47,7 +57,7 @@ async function extraerDatos(pdfPath, job, contexto) {
     : job.target === 'broker'
       ? generarPromptMovimientosBroker(contexto)
       : generarPromptMovimientosWallet({ ...contexto, proveedor: job.proveedor })
-  const contenido = `${prompt}\n\nEXTRACTO PDF (texto extraído):\n${await textoDelPdf(pdfPath)}\n\nExtrae todos los datos. Retorna solo JSON válido.`
+  const contenido = `${prompt}\n\nEXTRACTO (texto extraído):\n${await textoDelArchivo(filePath)}\n\nExtrae todos los datos. Retorna solo JSON válido.`
   const response = await fetch(process.env.NVIDIA_API_URL || 'https://integrate.api.nvidia.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
@@ -133,10 +143,10 @@ async function procesarJob(job) {
     const claimed = await client.query(`update import_jobs set estado = 'procesando', started_at = now(), intentos = intentos + 1, updated_at = now() where id = $1 and estado = 'pendiente' returning *`, [job.id])
     if (!claimed.rowCount) { await client.query('rollback'); return }
     const current = claimed.rows[0]
-    const pdfPath = fileForJob(current)
-    if (!fs.existsSync(pdfPath)) throw new Error(`PDF no encontrado: ${current.storage_path}`)
+    const filePath = fileForJob(current)
+    if (!fs.existsSync(filePath)) throw new Error(`Archivo no encontrado: ${current.storage_path}`)
     const contexto = await contextoDestino(client, current)
-    const datos = await extraerDatos(pdfPath, current, contexto)
+    const datos = await extraerDatos(filePath, current, contexto)
     const result = current.target === 'cuenta' ? await procesarCuenta(client, current, datos) : current.target === 'wallet' ? await procesarWallet(client, current, datos) : await procesarBroker(client, current, datos)
     await client.query(`update import_jobs set estado = 'hecho', movimientos_creados = $2, activos_creados = $3, duplicados_omitidos = $4, finished_at = now(), updated_at = now() where id = $1`, [current.id, result.creados ?? 0, result.activos ?? 0, result.duplicados ?? 0])
     await client.query('commit'); log(`Job ${current.id} completado`)
