@@ -214,6 +214,34 @@ create table if not exists usuario_empresa (
 create index if not exists usuario_empresa_usuario_idx on usuario_empresa (usuario_id) where deleted_at is null;
 create index if not exists usuario_empresa_empresa_idx on usuario_empresa (empresa_id) where deleted_at is null;
 
+create table if not exists import_jobs (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  cuenta_id uuid references cuentas(id) on delete cascade,
+  wallet_id uuid references wallets(id) on delete cascade,
+  broker_id uuid references brokers(id) on delete cascade,
+  target text not null check (target in ('cuenta', 'wallet', 'broker')),
+  storage_path text not null,
+  proveedor text,
+  estado text not null default 'pendiente' check (estado in ('pendiente', 'procesando', 'hecho', 'error')),
+  movimientos_creados integer not null default 0,
+  activos_creados integer not null default 0,
+  duplicados_omitidos integer not null default 0,
+  error_mensaje text,
+  intentos integer not null default 0,
+  started_at timestamptz,
+  finished_at timestamptz,
+  created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint import_jobs_destino_coherente check (
+    (target = 'cuenta' and cuenta_id is not null and wallet_id is null and broker_id is null)
+    or (target = 'wallet' and wallet_id is not null and cuenta_id is null and broker_id is null)
+    or (target = 'broker' and broker_id is not null and cuenta_id is null and wallet_id is null)
+  )
+);
+create index if not exists import_jobs_empresa_idx on import_jobs (empresa_id, created_at desc);
+
 create table if not exists admin_logs (
   id bigserial primary key,
   admin_id uuid references usuarios(id) on delete set null,

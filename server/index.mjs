@@ -1,6 +1,8 @@
 import 'dotenv/config'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { mkdir, writeFile } from 'node:fs/promises'
+import crypto from 'node:crypto'
 import express from 'express'
 import cors from 'cors'
 import bcrypt from 'bcryptjs'
@@ -17,7 +19,7 @@ if (!jwtSecret || jwtSecret.length < 32) {
 
 app.disable('x-powered-by')
 app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',').map((v) => v.trim()).filter(Boolean) || true }))
-app.use(express.json({ limit: '200kb' }))
+app.use(express.json({ limit: '15mb' }))
 
 const publicUserFields = `id, email, full_name, app_role, estado, created_at, updated_at`
 
@@ -762,6 +764,37 @@ app.get('/api/admin/empresas-recientes', requireAuth, requireAdmin, async (req, 
   const result = await query(`select id, nombre, estado, pais, created_at
     from empresas where deleted_at is null order by created_at desc limit $1`, [limite])
   res.json({ empresas: result.rows })
+})
+
+app.post('/api/empresas/:empresaId/import-jobs', requireAuth, async (req, res) => {
+  const empresaId = req.params.empresaId
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const target = String(req.body.target || '')
+  const destinoId = String(req.body.destino_id || '')
+  const archivo = req.body.archivo
+  if (!['cuenta', 'wallet', 'broker'].includes(target) || !destinoId || typeof archivo !== 'string') return error(res, 400, 'Datos de importación inválidos.')
+  const table = target === 'cuenta' ? 'cuentas' : target === 'wallet' ? 'wallets' : 'brokers'
+  const destination = await query(`select id, empresa_id from ${table} where id = $1 and empresa_id = $2 and deleted_at is null`, [destinoId, empresaId])
+  if (!destination.rowCount) return error(res, 404, 'Destino no encontrado.')
+  const raw = archivo.replace(/^data:application\/pdf;base64,/, '')
+  const content = Buffer.from(raw, 'base64')
+  if (content.length < 5 || content.subarray(0, 4).toString() !== '%PDF') return error(res, 400, 'El archivo debe ser un PDF válido.')
+  if (content.length > 10 * 1024 * 1024) return error(res, 413, 'El PDF supera el límite de 10 MB.')
+  const directory = path.join(process.env.IMPORT_STORAGE_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), 'uploads'), empresaId)
+  await mkdir(directory, { recursive: true })
+  const jobId = crypto.randomUUID()
+  const storagePath = path.join(directory, `${jobId}.pdf`)
+  await writeFile(storagePath, content, { flag: 'wx' })
+  const columns = target === 'cuenta' ? '(empresa_id, cuenta_id, target, storage_path, proveedor, created_by)' : target === 'wallet' ? '(empresa_id, wallet_id, target, storage_path, proveedor, created_by)' : '(empresa_id, broker_id, target, storage_path, proveedor, created_by)'
+  const values = target === 'cuenta' ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, req.auth.sub] : target === 'wallet' ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, req.auth.sub] : [empresaId, destinoId, target, storagePath, null, req.auth.sub]
+  const inserted = await query(`insert into import_jobs ${columns} values ($1, $2, $3, $4, $5, $6) returning *`, values)
+  res.status(201).json({ job: inserted.rows[0] })
+})
+
+app.get('/api/import-jobs/:jobId', requireAuth, async (req, res) => {
+  const result = await query('select * from import_jobs where id = $1', [req.params.jobId])
+  if (!result.rowCount || !await requireCompanyAccess(req.auth.sub, req.auth.role, result.rows[0].empresa_id)) return error(res, 404, 'Job no encontrado.')
+  res.json({ job: result.rows[0] })
 })
 
 app.get('/api/admin/logs', requireAuth, requireAdmin, async (req, res) => {

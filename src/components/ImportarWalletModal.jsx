@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { crearImportJob, obtenerImportJob } from '../lib/import-jobs';
 import { Button } from '@radix-ui/react-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@radix-ui/react-dialog';
 import { AlertCircle, Upload, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
@@ -47,29 +47,7 @@ export function ImportarWalletModal({
     setEstado('subiendo');
 
     try {
-      const formData = new FormData();
-      formData.append('archivo', archivo);
-      formData.append('empresa_id', empresaId);
-      formData.append('destino', 'wallet'); // Especifica destino wallet
-      formData.append('destino_id', walletId);
-      if (walletProveedor) {
-        formData.append('proveedor', walletProveedor);
-      }
-
-      const response = await fetch('/functions/v1/crear-import-job', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Error al crear el job');
-      }
-
-      const { job } = await response.json();
+      const { job } = await crearImportJob({ empresaId, target: 'wallet', destinoId: walletId, proveedor: walletProveedor, archivo });
       setJobId(job.id);
       setEstado('pendiente');
       monitorearJob(job.id);
@@ -88,13 +66,7 @@ export function ImportarWalletModal({
 
     const verificar = async () => {
       try {
-        const { data: job, error } = await supabase
-          .from('import_jobs')
-          .select('*')
-          .eq('id', id)
-          .single();
-
-        if (error) throw error;
+        const job = await obtenerImportJob(id);
         setEstado(job.estado);
 
         if (job.estado === 'hecho') {
@@ -107,7 +79,7 @@ export function ImportarWalletModal({
         }
 
         if (job.estado === 'error') {
-          setError(job.error_msg || 'Error desconocido');
+          setError(job.error_mensaje || 'Error desconocido');
           setCargando(false);
           return;
         }
