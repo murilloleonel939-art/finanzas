@@ -797,6 +797,19 @@ app.get('/api/import-jobs/:jobId', requireAuth, async (req, res) => {
   res.json({ job: result.rows[0] })
 })
 
+app.post('/api/empresas/:empresaId/precios-jobs', requireAuth, async (req, res) => {
+  const empresaId = req.params.empresaId
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const brokerId = req.body.broker_id || null
+  if (brokerId) {
+    const broker = await query('select id from brokers where id = $1 and empresa_id = $2 and deleted_at is null', [brokerId, empresaId])
+    if (!broker.rowCount) return error(res, 404, 'Broker no encontrado.')
+  }
+  const inserted = await query(`insert into precios_jobs (empresa_id, broker_id, estado, created_by)
+    values ($1, $2, 'pendiente', $3) returning *`, [empresaId, brokerId, req.auth.sub])
+  res.status(201).json({ job: inserted.rows[0] })
+})
+
 app.get('/api/admin/jobs', requireAuth, requireAdmin, async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200)
   const offset = Math.max(Number(req.query.offset) || 0, 0)
