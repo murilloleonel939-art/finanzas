@@ -791,6 +791,17 @@ app.post('/api/empresas/:empresaId/import-jobs', requireAuth, async (req, res) =
   res.status(201).json({ job: inserted.rows[0] })
 })
 
+app.get('/api/empresas/:empresaId/import-jobs', requireAuth, async (req, res) => {
+  const empresaId = req.params.empresaId
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200)
+  const estado = req.query.estado ? String(req.query.estado) : null
+  const result = await query(`select * from import_jobs
+    where empresa_id = $1 and ($2::text is null or estado = $2)
+    order by created_at desc limit $3`, [empresaId, estado, limit])
+  res.json({ jobs: result.rows })
+})
+
 app.get('/api/import-jobs/:jobId', requireAuth, async (req, res) => {
   const result = await query('select * from import_jobs where id = $1', [req.params.jobId])
   if (!result.rowCount || !await requireCompanyAccess(req.auth.sub, req.auth.role, result.rows[0].empresa_id)) return error(res, 404, 'Job no encontrado.')
