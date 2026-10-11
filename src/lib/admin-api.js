@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { api } from './api'
+import { api, apiJson } from './api'
 
 /**
  * APIs del panel admin
@@ -112,137 +112,39 @@ export async function listAdminLogs(options = {}) {
  * Obtener configuración
  */
 export async function getAdminConfig(clave = null) {
-  try {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) throw new Error('No autenticado')
-
-    const params = new URLSearchParams()
-    if (clave) params.append('clave', clave)
-
-    const response = await fetch(
-      `${ADMIN_API_BASE}/admin-update-config?${params}`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    )
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Error obteniendo configuración')
-    }
-
-    return await response.json()
-  } catch (error) {
-    console.error('getAdminConfig error:', error)
-    throw error
-  }
+  return api(`/api/admin/config${clave ? `?clave=${encodeURIComponent(clave)}` : ''}`)
 }
 
 /**
  * Actualizar configuración
  */
-export async function updateAdminConfig(clave, valor, tipo = 'string') {
-  try {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) throw new Error('No autenticado')
-
-    const response = await fetch(
-      `${ADMIN_API_BASE}/admin-update-config`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ clave, valor, tipo })
-      }
-    )
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Error actualizando configuración')
-    }
-
-    return await response.json()
-  } catch (error) {
-    console.error('updateAdminConfig error:', error)
-    throw error
-  }
+export function updateAdminConfig(clave, valor, tipo = 'string') {
+  return apiJson('/api/admin/config', 'POST', { clave, valor, tipo })
 }
 
 /**
  * Enviar un email .
  * Si se pasa `tipo` con una plantilla conocida, no hace falta asunto ni cuerpo.
  */
-export async function enviarEmail({ tipo, destinatario, asunto, cuerpo, variables }) {
-  try {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) throw new Error('No autenticado')
-
-    const response = await fetch(`${ADMIN_API_BASE}/enviar-email`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ tipo, destinatario, asunto, cuerpo, variables })
-    })
-
-    const datos = await response.json()
-    if (!response.ok) {
-      throw new Error(datos.error || 'Error enviando email')
-    }
-
-    return datos
-  } catch (error) {
-    console.error('enviarEmail error:', error)
-    throw error
-  }
+export function enviarEmail({ tipo, destinatario, asunto, cuerpo, variables }) {
+  return apiJson('/api/admin/notificaciones', 'POST', { tipo, destinatario, asunto, cuerpo, variables })
 }
 
 /**
  * Historial de notificaciones enviadas .
  */
-export async function listNotificaciones({ estado = null, limit = 50, offset = 0 } = {}) {
-  try {
-    let query = supabase
-      .from('notificaciones')
-      .select('id, tipo, destinatario, asunto, estado, error_mensaje, intentos, enviado_en, created_at', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1)
-
-    if (estado) query = query.eq('estado', estado)
-
-    const { data, error, count } = await query
-    if (error) throw error
-
-    return { notificaciones: data || [], total: count || 0 }
-  } catch (error) {
-    console.error('listNotificaciones error:', error)
-    throw error
-  }
+export function listNotificaciones({ estado = null, limit = 50, offset = 0 } = {}) {
+  const params = new URLSearchParams({ limit, offset })
+  if (estado) params.set('estado', estado)
+  return api(`/api/admin/notificaciones?${params}`)
 }
 
 /**
  * Plantillas de email disponibles .
  */
 export async function listPlantillas() {
-  try {
-    const { data, error } = await supabase
-      .from('notif_plantillas')
-      .select('id, clave, asunto, cuerpo, descripcion')
-      .order('clave')
-
-    if (error) throw error
-    return data || []
-  } catch (error) {
-    console.error('listPlantillas error:', error)
-    throw error
-  }
+  const { plantillas } = await api('/api/admin/notificacion-plantillas')
+  return plantillas || []
 }
 
 /**

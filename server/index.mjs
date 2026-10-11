@@ -764,6 +764,70 @@ app.get('/api/admin/empresas-recientes', requireAuth, requireAdmin, async (req, 
   res.json({ empresas: result.rows })
 })
 
+app.get('/api/admin/config', requireAuth, requireAdmin, async (req, res) => {
+  const params = []
+  let where = ''
+  if (req.query.clave) { params.push(req.query.clave); where = 'where clave = $1' }
+  const result = await query(`select id, clave, valor, tipo, descripcion, grupo, editable, updated_at
+    from admin_config ${where} order by grupo nulls first, clave`, params)
+  res.json({ datos: result.rows })
+})
+
+app.post('/api/admin/config', requireAuth, requireAdmin, async (req, res) => {
+  const clave = String(req.body.clave || '').trim()
+  const valor = req.body.valor
+  const tipo = String(req.body.tipo || 'string').trim()
+  if (!clave || !['string', 'integer', 'boolean', 'json'].includes(tipo) || valor === undefined || valor === null) {
+    return error(res, 400, 'Configuración inválida.')
+  }
+  const updated = await query(`update admin_config set valor = $2, tipo = $3, actualizado_por = $4
+    where clave = $1 and editable = true returning id, clave, valor, tipo, descripcion, grupo, editable, updated_at`,
+  [clave, String(valor), tipo, req.auth.sub])
+  if (!updated.rowCount) return error(res, 404, 'Configuración no encontrada o no editable.')
+  res.json({ configuracion: updated.rows[0] })
+})
+
+app.post('/api/admin/notificaciones', requireAuth, requireAdmin, async (req, res) => {
+  const tipo = String(req.body.tipo || 'personalizado')
+  const destinatario = String(req.body.destinatario || '').trim()
+  let asunto = req.body.asunto ? String(req.body.asunto) : ''
+  let cuerpo = req.body.cuerpo ? String(req.body.cuerpo) : ''
+  if (!destinatario || !destinatario.includes('@')) return error(res, 400, 'Destinatario inválido.')
+  if (!asunto || !cuerpo) {
+    const plantilla = await query('select asunto, cuerpo from notif_plantillas where clave = $1', [tipo])
+    if (plantilla.rowCount) { asunto ||= plantilla.rows[0].asunto; cuerpo ||= plantilla.rows[0].cuerpo }
+  }
+  if (!asunto || !cuerpo) return error(res, 400, 'Asunto y cuerpo son obligatorios.')
+  const variables = req.body.variables && typeof req.body.variables === 'object' ? req.body.variables : {}
+  for (const [clave, valor] of Object.entries(variables)) {
+    const reemplazo = String(valor)
+    asunto = asunto.replaceAll(`{{${clave}}}`, reemplazo)
+    cuerpo = cuerpo.replaceAll(`{{${clave}}}`, reemplazo)
+  }
+  const inserted = await query(`insert into notificaciones
+    (tipo, destinatario, asunto, cuerpo, estado, creado_por) values ($1, $2, $3, $4, 'pendiente', $5)
+    returning id, estado, created_at`, [tipo, destinatario, asunto, cuerpo, req.auth.sub])
+  res.status(201).json({ mensaje: 'Email encolado.', notificacion: inserted.rows[0] })
+})
+
+app.get('/api/admin/notificaciones', requireAuth, requireAdmin, async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200)
+  const offset = Math.max(Number(req.query.offset) || 0, 0)
+  const estado = req.query.estado ? String(req.query.estado) : null
+  if (estado && !['pendiente', 'enviado', 'error'].includes(estado)) return error(res, 400, 'Estado inválido.')
+  const [items, total] = await Promise.all([
+    query(`select id, tipo, destinatario, asunto, estado, error_mensaje, intentos, enviado_en, created_at
+      from notificaciones where ($1::text is null or estado = $1) order by created_at desc limit $2 offset $3`, [estado, limit, offset]),
+    query('select count(*)::integer as total from notificaciones where ($1::text is null or estado = $1)', [estado]),
+  ])
+  res.json({ notificaciones: items.rows, total: total.rows[0].total })
+})
+
+app.get('/api/admin/notificacion-plantillas', requireAuth, requireAdmin, async (_req, res) => {
+  const result = await query('select id, clave, asunto, cuerpo, descripcion from notif_plantillas order by clave')
+  res.json({ plantillas: result.rows })
+})
+
 app.get('/api/admin/usuarios', requireAuth, requireAdmin, async (_req, res) => {
   const result = await query(
     `select u.id, u.email, u.full_name, u.app_role, u.estado, u.created_at, u.updated_at, coalesce(

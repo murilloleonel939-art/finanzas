@@ -214,6 +214,63 @@ create table if not exists usuario_empresa (
 create index if not exists usuario_empresa_usuario_idx on usuario_empresa (usuario_id) where deleted_at is null;
 create index if not exists usuario_empresa_empresa_idx on usuario_empresa (empresa_id) where deleted_at is null;
 
+create table if not exists admin_config (
+  id bigserial primary key,
+  clave text not null unique,
+  valor text not null,
+  tipo text not null default 'string',
+  descripcion text,
+  grupo text,
+  editable boolean not null default true,
+  actualizado_por uuid references usuarios(id) on delete set null,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists notif_plantillas (
+  id bigserial primary key,
+  clave text not null unique,
+  asunto text not null,
+  cuerpo text not null,
+  descripcion text,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists notificaciones (
+  id bigserial primary key,
+  tipo text not null default 'personalizado',
+  destinatario text not null,
+  asunto text not null,
+  cuerpo text not null,
+  estado text not null default 'pendiente' check (estado in ('pendiente', 'enviado', 'error')),
+  error_mensaje text,
+  intentos integer not null default 0,
+  enviado_en timestamptz,
+  creado_por uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create index if not exists notificaciones_estado_idx on notificaciones (estado);
+create index if not exists notificaciones_created_idx on notificaciones (created_at desc);
+
+insert into admin_config (clave, valor, tipo, descripcion, grupo, editable) values
+  ('SISTEMA_NOMBRE', 'FinanzAdmin Pro', 'string', 'Nombre del sistema', 'sistema', true),
+  ('SISTEMA_VERSION', '2.0.0', 'string', 'Versión del sistema', 'sistema', false),
+  ('SISTEMA_TIMEZONE', 'America/Buenos_Aires', 'string', 'Zona horaria del servidor', 'sistema', true),
+  ('SISTEMA_MANTENIMIENTO', 'false', 'boolean', 'Modo de mantenimiento habilitado', 'sistema', true),
+  ('EMAIL_ACTIVO', 'false', 'boolean', 'Envío de emails habilitado', 'email', true),
+  ('EMAIL_REMITENTE', 'noreply@finanzas.local', 'string', 'Dirección de remitente', 'email', true),
+  ('EMAIL_SMTP_HOST', 'localhost', 'string', 'Host SMTP', 'email', true),
+  ('EMAIL_SMTP_PORT', '587', 'integer', 'Puerto SMTP', 'email', true),
+  ('EMAIL_SMTP_USER', '', 'string', 'Usuario SMTP', 'email', true),
+  ('EMAIL_SMTP_PASS', '', 'string', 'Contraseña SMTP', 'email', true),
+  ('EMAIL_SMTP_SECURE', 'false', 'boolean', 'Forzar TLS implícito', 'email', true)
+on conflict (clave) do nothing;
+
+insert into notif_plantillas (clave, asunto, cuerpo, descripcion) values
+  ('bienvenida', 'Bienvenido a FinanzAdmin Pro', E'Hola {{nombre}},\n\nTu cuenta ya está activa. Podés ingresar en {{url}}.\n\nSaludos.', 'Email de alta de usuario'),
+  ('prueba', 'Prueba de configuración SMTP', E'Este es un email de prueba enviado desde FinanzAdmin Pro.', 'Verificar SMTP')
+on conflict (clave) do nothing;
+
 create or replace function set_updated_at()
 returns trigger language plpgsql as $$
 begin
