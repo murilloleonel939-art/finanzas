@@ -14,10 +14,12 @@ export function ImportarMovimientosModal({
   onClose, 
   cuentaId, 
   empresaId,
+  banco = '',
   onSuccess 
 }) {
+  const proveedorAutomatico = /nequi/i.test(String(banco)) ? 'Nequi' : '';
   const [archivo, setArchivo] = useState(null);
-  const [proveedor, setProveedor] = useState('');
+  const [proveedor, setProveedor] = useState(proveedorAutomatico);
   const [periodo, setPeriodo] = useState('');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
@@ -111,7 +113,7 @@ export function ImportarMovimientosModal({
 
   const handleCerrar = () => {
     setArchivo(null);
-    setProveedor('');
+    setProveedor(proveedorAutomatico);
     setPeriodo('');
     setError('');
     setJobId('');
@@ -160,7 +162,12 @@ export function ImportarMovimientosModal({
                  <input type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
                </div>
 
-               {/* Selector de proveedor (opcional) */}
+               {/* Selector de proveedor: se oculta cuando el banco tiene reglas */}
+              {proveedorAutomatico ? (
+                <div className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                  Reglas automáticas aplicadas para {proveedorAutomatico}.
+                </div>
+              ) : (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Proveedor (opcional)
@@ -178,6 +185,7 @@ export function ImportarMovimientosModal({
                   Si es un proveedor conocido, selecciónalo para mejores resultados
                 </p>
               </div>
+              )}
             </>
           )}
 

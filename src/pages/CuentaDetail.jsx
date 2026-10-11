@@ -414,6 +414,7 @@ export default function CuentaDetail() {
          onClose={() => setImportarAbierto(false)}
          cuentaId={cuentaId}
          empresaId={empresaId}
+          banco={cuenta.banco_nombre || ''}
          onSuccess={() => {
            queryClient.invalidateQueries({ queryKey: ['movimientos', cuentaId] })
            queryClient.invalidateQueries({ queryKey: ['cuenta', cuentaId] })
