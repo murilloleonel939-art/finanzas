@@ -63,7 +63,7 @@ async function extraerDatos(filePath, job, contexto) {
     headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: process.env.IMPORT_MODEL || 'nvidia/nemotron-3-super-120b-a12b',
-      max_tokens: Number(process.env.IMPORT_MAX_TOKENS || 12000),
+      max_tokens: Number(process.env.IMPORT_MAX_TOKENS || 50000),
       messages: [{ role: 'system', content: 'Eres un extractor preciso. Devuelve únicamente JSON válido.' }, { role: 'user', content: contenido }],
     }),
   })
