@@ -214,6 +214,25 @@ create table if not exists usuario_empresa (
 create index if not exists usuario_empresa_usuario_idx on usuario_empresa (usuario_id) where deleted_at is null;
 create index if not exists usuario_empresa_empresa_idx on usuario_empresa (empresa_id) where deleted_at is null;
 
+create table if not exists precios_jobs (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid references empresas(id) on delete cascade,
+  broker_id uuid references brokers(id) on delete cascade,
+  estado text not null default 'pendiente' check (estado in ('pendiente', 'procesando', 'hecho', 'error')),
+  activos_totales integer not null default 0,
+  activos_actualizados integer not null default 0,
+  errores integer not null default 0,
+  detalles jsonb,
+  error_mensaje text,
+  intentos integer not null default 0,
+  started_at timestamptz,
+  finished_at timestamptz,
+  created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists precios_jobs_idx on precios_jobs (created_at desc);
+
 create table if not exists import_jobs (
   id uuid primary key default gen_random_uuid(),
   empresa_id uuid not null references empresas(id) on delete cascade,

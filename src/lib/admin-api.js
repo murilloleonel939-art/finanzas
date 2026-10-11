@@ -1,13 +1,9 @@
-import { supabase } from './supabase'
 import { api, apiJson } from './api'
 
 /**
  * APIs del panel admin
  * Todas requieren autenticación super_admin
  */
-
-// Base URL para Edge Functions
-const ADMIN_API_BASE = '/functions/v1'
 
 /**
  * Obtener estadísticas del sistema
@@ -19,42 +15,12 @@ export function getAdminStats() {
 /**
  * Listar jobs de precios
  */
-export async function listAdminJobs(options = {}) {
-  try {
-    const { 
-      estado = null, 
-      limit = 50, 
-      offset = 0 
-    } = options
-
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) throw new Error('No autenticado')
-
-    const params = new URLSearchParams()
-    if (estado) params.append('estado', estado)
-    params.append('limit', limit)
-    params.append('offset', offset)
-
-    const response = await fetch(
-      `${ADMIN_API_BASE}/admin-list-jobs?${params}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    )
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Error listando jobs')
-    }
-
-    return await response.json()
-  } catch (error) {
-    console.error('listAdminJobs error:', error)
-    throw error
+export function listAdminJobs(options = {}) {
+  const params = new URLSearchParams()
+  for (const key of ['estado', 'limit', 'offset']) {
+    if (options[key] !== null && options[key] !== undefined && options[key] !== '') params.set(key, options[key])
   }
+  return api(`/api/admin/jobs?${params}`)
 }
 
 /**

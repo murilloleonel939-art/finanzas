@@ -797,6 +797,26 @@ app.get('/api/import-jobs/:jobId', requireAuth, async (req, res) => {
   res.json({ job: result.rows[0] })
 })
 
+app.get('/api/admin/jobs', requireAuth, requireAdmin, async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200)
+  const offset = Math.max(Number(req.query.offset) || 0, 0)
+  const estado = req.query.estado ? String(req.query.estado) : null
+  const [items, stats, total] = await Promise.all([
+    query(`select id, empresa_id, broker_id, estado, activos_totales, activos_actualizados,
+      errores, detalles, error_mensaje, intentos, started_at, finished_at, created_by, created_at
+      from precios_jobs where ($1::text is null or estado = $1)
+      order by created_at desc limit $2 offset $3`, [estado, limit, offset]),
+    query(`select estado, count(*)::integer as cantidad from precios_jobs
+      where ($1::text is null or estado = $1) group by estado`, [estado]),
+    query('select count(*)::integer as total from precios_jobs where ($1::text is null or estado = $1)', [estado]),
+  ])
+  res.json({
+    jobs: items.rows,
+    estadisticas: Object.fromEntries(stats.rows.map((row) => [row.estado, row.cantidad])),
+    paginacion: { total: total.rows[0].total, limit, offset },
+  })
+})
+
 app.get('/api/admin/logs', requireAuth, requireAdmin, async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 1000)
   const offset = Math.max(Number(req.query.offset) || 0, 0)
