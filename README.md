@@ -1,204 +1,200 @@
 # FinanzAdmin Pro
 
-Aplicación SaaS multiempresa para administrar empresas, bancos, cuentas, brokers, activos, wallets y movimientos financieros. Incluye autenticación propia con JWT, PostgreSQL, importación de extractos PDF, CSV y Excel mediante Pateway Claude Haiku y sincronización de precios.
+Aplicación web multiempresa para administrar finanzas empresariales: bancos, cuentas bancarias, movimientos, brokers, activos, wallets, importación de extractos y el catálogo de comisionistas y fiducias.
 
-## Arquitectura actual
+## Funcionalidades disponibles
 
-```text
-Navegador React/Vite
-        │
-        ▼
-API Node/Express ─────► PostgreSQL
-        │
-        ├── worker-import   (PDF → texto → Pateway Claude Haiku → movimientos)
-        └── worker-precios  (cola y barrido de precios)
-```
+### Acceso y empresas
 
-La aplicación principal sirve el frontend compilado y la API desde el mismo servicio. PostgreSQL es la fuente de verdad para usuarios, empresas y datos financieros; el flujo operativo usa únicamente la API propia y PostgreSQL.
+- Inicio de sesión con JWT.
+- Usuarios activos e inactivos y roles `super_admin` / `usuario`.
+- Empresas aisladas por compañía con autorización en cada endpoint.
+- Gestión administrativa de empresas, usuarios, asignaciones y estadísticas.
+- Borrado lógico para conservar trazabilidad.
 
-## Stack
+### Bancos y cuentas
 
-- React 18, Vite, Tailwind CSS y shadcn/ui.
-- Node.js 22, Express y JWT.
-- PostgreSQL mediante `pg`.
-- Contraseñas con bcrypt.
-- Pateway compatible con Anthropic Messages para extracción de PDFs.
-- `pdftotext` de `poppler-utils` para convertir PDFs a texto.
-- Coolify para despliegue.
+- Bancos por empresa y país.
+- Cuentas de ahorros y corriente, moneda y saldo inicial.
+- Movimientos manuales de ingresos y egresos.
+- Filtros por período, resumen de ingresos, egresos y saldo resultante.
+- Eliminación de movimientos individuales o de un mes completo.
+- Indicadores para IVA, 4x1000, retenciones, intereses y comisiones.
+- Exportación de información a CSV, Excel y PDF.
+
+### Claves de PDF e importaciones
+
+- Importación de extractos en PDF, CSV, XLS y XLSX.
+- Procesamiento asíncrono mediante jobs y worker.
+- Extracción de texto PDF con Poppler (`pdfinfo` y `pdftotext`).
+- Detección de duplicados y seguimiento del estado del job.
+- La clave de un PDF se solicita desde el modal de importación cuando el archivo está protegido.
+- La clave se guarda cifrada y asociada a la cuenta bancaria para usarla automáticamente en futuros extractos.
+- La clave puede reemplazarse o eliminarse desde el detalle de la cuenta.
+- `PDF_PASSWORD_SECRET` debe tener al menos 32 caracteres y debe mantenerse estable: cambiarlo impide descifrar claves ya guardadas.
+- El worker soporta reglas específicas para proveedores como Nequi y extracción asistida por IA mediante Pateway.
+
+### Brokers e inversiones
+
+- Brokers por empresa y moneda.
+- Movimientos de brokers con cantidades, valores unitarios y deduplicación.
+- Activos de inversión: acciones, ETF, bonos, fondos, criptomonedas, opciones y otros.
+- Precios históricos por activo.
+- Jobs de actualización de precios y barridos automáticos.
+
+### Wallets
+
+- Proveedores de wallet de tipo cripto, fiat o ambos.
+- Wallets por proveedor, dirección y moneda.
+- Saldos por moneda y recálculo de saldos.
+- Movimientos de wallet con deduplicación e importación.
+
+### Comisionistas y fiducias
+
+- Menú nuevo dentro de cada empresa: **Comisionistas y fiducias**.
+- Creación obligatoria con selección de país.
+- Nombre libre para cualquier país.
+- Catálogo colombiano incluido:
+  - Fiduciaria Bancolombia
+  - Fiduciaria Bogotá
+  - Fidudavivienda
+  - Fiduciaria de Occidente (Fiduoccidente)
+  - Fiduciaria Popular
+  - BBVA Asset Management S.A. Sociedad Fiduciaria
+  - Fiducolpatria
+  - Servitrust GNB Sudameris
+  - Alianza Fiduciaria
+  - Acción Fiduciaria
+  - Fiducentral
+  - Fiducoomeva
+  - Skandia Sociedad Fiduciaria
+  - Credicorp Capital Fiduciaria
+  - trii
+  - acciones y valores S.A.
+- Listado y borrado lógico.
+- Prevención de duplicados activos por empresa, país y nombre.
+
+## Arquitectura
+
+- Frontend: React 18, Vite, React Router, TanStack React Query y Tailwind CSS.
+- Backend: Node.js 22, Express y PostgreSQL.
+- Autenticación: JWT y autorización por empresa.
+- Persistencia: PostgreSQL con `pgcrypto`, índices y borrado lógico.
+- Worker: proceso independiente para importaciones y jobs de precios.
+- Producción: Docker con Node 22 Alpine y Poppler instalado.
 
 ## Requisitos
 
-- Node.js 22 o superior.
-- PostgreSQL 14 o superior.
-- Para importar PDFs: `pdftotext`/`poppler-utils`.
-- Una clave de NVIDIA NIM para el worker de importaciones.
+- Node.js 22 o compatible.
+- PostgreSQL con una base de datos disponible.
+- Para importaciones PDF, `poppler-utils` (`pdfinfo` y `pdftotext`). La imagen Docker ya lo instala.
+- Una clave de proveedor de IA si se desea procesar extractos con el worker.
 
-## Instalación local
+## Configuración
 
-```bash
-git clone https://github.com/murilloleonel939-art/finanzas.git
-cd finanzas
-npm install
-cp .env.example .env
-```
-
-Configura `.env`:
+Copia `.env.example` a `.env` para ejecución local y completa los valores:
 
 ```env
-DATABASE_URL=postgresql://usuario:contrasena@host:5432/finanzadmin
+DATABASE_URL=postgresql://usuario:contrasena@host:5432/finanzas
 JWT_SECRET=una-clave-aleatoria-de-al-menos-32-caracteres
-PDF_PASSWORD_SECRET=otra-clave-aleatoria-larga-y-secreta
-ADMIN_EMAIL=admin@ejemplo.com
-ADMIN_PASSWORD=una-clave-inicial-de-al-menos-12-caracteres
-ADMIN_NAME=Administrador principal
-```
-
-Aplica el esquema y crea el primer superadministrador:
-
-```bash
-npm run db:migrate
-```
-
-La migración ejecuta [`server/schema.sql`](server/schema.sql), crea tablas, índices y vistas, y crea el administrador inicial solo si todavía no existe. Es idempotente y no borra datos existentes.
-
-Arranca la API y frontend compilado:
-
-```bash
-npm run build
-npm start
-```
-
-Para desarrollo del frontend usa `npm run dev`; para ejecutar la API separadamente usa `npm run dev:api`.
-
-## Despliegue en Coolify
-
-1. Crea un recurso PostgreSQL.
-2. Crea un servicio desde este repositorio de GitHub.
-3. Usa el `Dockerfile` incluido, puerto interno `3000` y comando de inicio por defecto.
-4. Configura estas variables secretas en la aplicación:
-
-```env
-DATABASE_URL=postgresql://...
-JWT_SECRET=clave-aleatoria-de-al-menos-32-caracteres
+PDF_PASSWORD_SECRET=otra-clave-aleatoria-de-al-menos-32-caracteres
 ADMIN_EMAIL=admin@tu-dominio.com
-ADMIN_PASSWORD=clave-inicial-de-al-menos-12-caracteres
+ADMIN_PASSWORD=una-contrasena-de-al-menos-12-caracteres
 ADMIN_NAME=Administrador principal
 ```
 
-El `Dockerfile` instala `poppler-utils`, compila la aplicación y ejecuta `node server/migrate.mjs` antes de iniciar la API. Por tanto, las tablas se crean automáticamente durante el arranque. También puedes ejecutar manualmente `npm run db:migrate` desde la terminal del contenedor.
+`PDF_PASSWORD_SECRET` no es la clave del banco. Es la llave maestra usada para cifrar las claves de los PDFs almacenadas en la base de datos. No debe cambiarse después de guardar claves.
 
-El primer inicio puede mostrar `Superusuario inicial creado`. En reinicios posteriores indicará que ya existe y no lo modificará.
+Para el worker de importación también configura la credencial y URL del proveedor de IA según el entorno. No guardes secretos reales en el repositorio.
 
-### Worker de importaciones
+## Ejecución local
 
-El contenedor principal inicia el worker junto con la API. Si usas un servicio separado en Coolify, comparte la misma `DATABASE_URL`, `IMPORT_STORAGE_DIR` persistente y ejecuta este comando:
+```bash
+npm install
+npm run db:migrate
+npm run dev:api
+npm run dev
+```
+
+Para ejecutar el worker de importación en otro proceso:
 
 ```bash
 npm run worker:import
 ```
 
-Variables adicionales:
+La aplicación frontend de Vite se ejecuta normalmente en `http://localhost:5173` y la API en el puerto definido por `PORT` o `3000`.
 
-```env
-PATEWAY_API_KEY=...
-PATEWAY_BASE_URL=https://api.pateway.ai
-IMPORT_MODEL=claude-haiku-4-5-20251001
-IMPORT_MAX_TOKENS=12288
-IMPORT_PDF_PAGES_PER_BATCH=1
-IMPORT_ROWS_PER_BATCH=500
-IMPORT_CONCURRENCY=3
-IMPORT_REQUEST_TIMEOUT_MS=180000
-IMPORT_STORAGE_DIR=/app/server/uploads
-IMPORT_POLL_INTERVAL_MS=5000
-```
+## Docker y despliegue
 
-El worker usa **Claude Haiku 4.5** mediante Pateway. Ejecuta `pdftotext` y procesa PDF por páginas, y CSV/Excel por filas. Las claves de PDF se configuran por cuenta, se almacenan cifradas con `PDF_PASSWORD_SECRET` y nunca se muestran; conserva esa variable igual en API y worker. La imagen del `Dockerfile` ya contiene `poppler-utils`.
+El `Dockerfile` instala dependencias, compila el frontend, ejecuta la migración y levanta la API junto con el worker de importaciones. En Coolify u otro proveedor define como mínimo:
 
-### Worker de precios
+- `DATABASE_URL`
+- `JWT_SECRET` con mínimo 32 caracteres
+- `PDF_PASSWORD_SECRET` con mínimo 32 caracteres
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD` con mínimo 12 caracteres
+- Credenciales del proveedor de IA para importaciones, si se usarán
 
-Crea otro servicio con la misma `DATABASE_URL` y ejecuta:
+El contenedor expone el puerto `3000`. La migración es idempotente y el superusuario inicial solo se crea si aún no existe.
 
-```bash
-npm run worker:precios
-```
+## Scripts principales
 
-Los workers deben usar la misma base PostgreSQL que la API. Revisa sus logs en Coolify después de desplegarlos.
-
-## Usuarios y contraseñas
-
-- El primer superadministrador se crea con `ADMIN_EMAIL`, `ADMIN_PASSWORD` y `ADMIN_NAME`.
-- Un administrador puede crear usuarios desde la aplicación.
-- Las contraseñas de usuarios nuevos y las restablecidas requieren mínimo 6 caracteres.
-- Las contraseñas se almacenan con hash bcrypt; nunca se guarda la contraseña en texto plano.
-- Comparte las contraseñas iniciales por un canal seguro.
-
-## Comandos
-
-| Comando | Función |
-|---|---|
-| `npm run dev` | Servidor de desarrollo Vite |
+| Comando | Uso |
+| --- | --- |
+| `npm run dev` | Desarrollo del frontend con Vite |
 | `npm run dev:api` | API local |
-| `npm run build` | Build de producción |
-| `npm start` | Migración y API de producción |
-| `npm run db:migrate` | Aplica el esquema PostgreSQL y crea el admin inicial |
-| `npm run worker:import` | Procesa jobs de importación PDF |
-| `npm run worker:precios` | Procesa cola y barrido de precios |
-| `npm run verificar` | Verifica columnas contra el esquema local |
+| `npm run build` | Compilación de producción del frontend |
+| `npm run start` | API en producción |
+| `npm run db:migrate` | Aplicar esquema y migraciones |
+| `npm run worker:import` | Worker de importaciones |
+| `npm run worker:precios` | Worker de actualización de precios |
+| `npm run verificar` | Verificar columnas esperadas |
 | `npm run pruebas` | Suite de precios |
-| `npm run pruebas:importacion` | Smoke test de importación |
-| `npm run pruebas:wallets` | Smoke test de wallets |
-| `npm run pruebas:brokers` | Smoke test de brokers |
+| `npm run pruebas:importacion` | Pruebas de importación |
 | `npm run pruebas:exportacion` | Pruebas de exportación |
-| `npm run verificar:precios` | Verificación completa de precios |
-| `npm run verificar:admin` | Verificación del panel administrativo |
+| `npm run verificar:admin` | Verificación administrativa |
 
-## Estructura importante
+## API principal
 
-```text
-server/schema.sql                 Esquema PostgreSQL completo
-server/migrate.mjs                Migración idempotente y admin inicial
-server/index.mjs                  API Express, JWT y autorización por empresa
-server/db.mjs                     Pool PostgreSQL
-worker-import.mjs                 Importación PDF con Pateway Claude Haiku
-worker-precios.mjs                Cola y sincronización de precios
-deploy/                           Ejemplos de variables y servicio del worker
-src/lib/api.js                    Cliente de la API propia
-src/lib/imports-datos.js          Jobs y datos de importación
-scripts/                          Verificadores y pruebas
-docs/COOLIFY-POSTGRES.md          Guía adicional de Coolify
-```
+Todos los recursos empresariales requieren autenticación JWT y acceso a la empresa correspondiente.
 
-## Verificación antes de publicar
+- `/api/auth/login`, `/api/auth/me`
+- `/api/empresas` y resumen empresarial
+- `/api/empresas/:empresaId/bancos`
+- `/api/empresas/:empresaId/cuentas`
+- `/api/cuentas/:cuentaId/pdf-password`
+- `/api/cuentas/:cuentaId/movimientos`
+- `/api/empresas/:empresaId/brokers`
+- `/api/brokers/:brokerId/movimientos`
+- `/api/brokers/:brokerId/activos`
+- `/api/brokers/:brokerId/precios`
+- `/api/empresas/:empresaId/wallet-providers`
+- `/api/empresas/:empresaId/wallets`
+- `/api/wallets/:walletId/movimientos`
+- `/api/empresas/:empresaId/comisionistas-fiducias`
+- `/api/empresas/:empresaId/import-jobs`
+- `/api/empresas/:empresaId/precios-jobs`
+- `/api/health`
+
+## Verificación
+
+La compilación frontend se verifica con:
 
 ```bash
 npm run build
-npm run verificar
-npm run pruebas:importacion
-npm run pruebas:wallets
-npm run pruebas:brokers
-npm run pruebas:exportacion
-npm run verificar:precios
 git diff --check
+node --check server/index.mjs
+node --check server/migrate.mjs
 ```
 
-## Seguridad y operación
+## Seguridad
 
-- Nunca subas `.env`, `DATABASE_URL`, `JWT_SECRET`, `NVIDIA_API_KEY` ni tokens de GitHub al repositorio.
-- Usa variables secretas de Coolify.
-- Mantén PostgreSQL privado dentro de la red de Coolify.
-- El backend valida el JWT y el acceso a cada empresa; no se confía solamente en el frontend.
-- Configura backups de PostgreSQL antes de cargar datos productivos.
-- Revisa los logs de la API y de ambos workers después de cada despliegue.
+- No subas `.env`, tokens, claves bancarias ni credenciales de IA al repositorio.
+- Revoca inmediatamente cualquier token compartido accidentalmente.
+- Usa secretos aleatorios largos en producción.
+- Conserva el mismo `PDF_PASSWORD_SECRET` durante toda la vida útil de las claves PDF cifradas.
+- El acceso a empresas y recursos se valida en el backend, no solo en la interfaz.
 
-## Documentación adicional
+## Licencia
 
-- [`docs/COOLIFY-POSTGRES.md`](docs/COOLIFY-POSTGRES.md): despliegue de la aplicación con PostgreSQL.
-- [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md): arquitectura y decisiones.
-- [`docs/DECISIONES.md`](docs/DECISIONES.md): decisiones técnicas.
-- [`docs/PRD.md`](docs/PRD.md): reglas de negocio.
-- [`deploy/worker-import.env.example`](deploy/worker-import.env.example): variables del worker PDF.
-- [`server/schema.sql`](server/schema.sql): tablas, índices y vistas PostgreSQL.
-
-## Estado
-
-La aplicación está preparada para operar con API propia y PostgreSQL en Coolify. El build y las suites locales de importación, precios, brokers, wallets y exportación deben ejecutarse antes de cada publicación.
+No se ha definido una licencia pública para este proyecto.
