@@ -34,6 +34,10 @@ export const BANCOS_POR_PAIS = {
     'Banco Caja Social',
     'Bancamía',
     'Nequi',
+    'Dale',
+    'Plata',
+    'DaviPlata',
+    'Nubank',
   ],
   MX: [
     'BBVA México',

@@ -37,12 +37,15 @@ export default function CrearBroker() {
 
   const [seleccion, setSeleccion] = useState('')
   const [escrito, setEscrito] = useState('')
+  const nombreEscrito = escrito.trim()
+  const brokerCatalogo = BROKERS.find((b) => b.nombre.trim().toLowerCase() === nombreEscrito.toLowerCase())
+  const seleccionNormalizada = brokerCatalogo?.nombre || (nombreEscrito ? OTRO_BROKER : '')
   const [moneda, setMoneda] = useState(searchParams.get('moneda') || MONEDA_DEFECTO.broker)
   const [error, setError] = useState('')
 
-  const delCatalogo = brokerDelCatalogo(seleccion)
-  const nombreFinal = resolverNombreBroker(seleccion, escrito)
-  const esOtro = seleccion === OTRO_BROKER
+  const delCatalogo = brokerDelCatalogo(seleccionNormalizada)
+  const nombreFinal = resolverNombreBroker(seleccionNormalizada, nombreEscrito)
+  const esOtro = seleccionNormalizada === OTRO_BROKER
 
   const { mutate: crear, isPending } = useMutation({
     mutationFn: async () => {
@@ -102,36 +105,20 @@ export default function CrearBroker() {
               <p className="text-xs text-muted-foreground mb-2">
                 Elige del catálogo o escribe uno que no esté.
               </p>
-              <Select value={seleccion} onValueChange={setSeleccion}>
-                <SelectTrigger id="broker">
-                  <SelectValue placeholder="Selecciona un broker" />
-                </SelectTrigger>
-                <SelectContent>
-                  {porTipo.map((grupo) => (
-                    <div key={grupo.valor}>
-                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                        {grupo.etiqueta}
-                      </div>
-                      {grupo.brokers.map((b) => (
-                        <SelectItem key={b.nombre} value={b.nombre}>
-                          {b.nombre}
-                        </SelectItem>
-                      ))}
-                    </div>
-                  ))}
-                  <SelectItem value={OTRO_BROKER}>Otro (escribir a mano)</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {esOtro && (
-                <Input
-                  className="mt-3"
-                  placeholder="Nombre del broker"
-                  value={escrito}
-                  onChange={(e) => setEscrito(e.target.value)}
-                  autoFocus
-                />
-              )}
+              <Input
+                id="broker"
+                list="brokers"
+                placeholder="Escribe o busca un broker"
+                value={escrito}
+                onChange={(e) => {
+                  setEscrito(e.target.value)
+                  setSeleccion('')
+                }}
+                autoFocus
+              />
+              <datalist id="brokers">
+                {BROKERS.map((b) => <option key={b.nombre} value={b.nombre} />)}
+              </datalist>
             </div>
 
             <div>

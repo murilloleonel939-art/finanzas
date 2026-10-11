@@ -33,10 +33,13 @@ export default function CrearBanco() {
   const [error, setError] = useState('')
 
   const catalogo = pais ? BANCOS_POR_PAIS[pais] ?? [] : []
+  const nombreBancoEscrito = escrito.trim()
+  const bancoCatalogo = catalogo.find((b) => b.toLowerCase() === nombreBancoEscrito.toLowerCase())
+  const seleccionNormalizada = bancoCatalogo || (nombreBancoEscrito ? OTRO_BANCO : '')
   const hayCatalogo = tieneCatalogo(pais)
 
   // El valor que se guardará: del catálogo, o el texto libre si es «Otro».
-  const nombreFinal = resolverNombreBanco(seleccion, escrito)
+  const nombreFinal = resolverNombreBanco(seleccionNormalizada, nombreBancoEscrito)
   // Un país sin catálogo exige escribir el nombre a mano.
   const nombreAMano = !hayCatalogo
 
@@ -119,19 +122,20 @@ export default function CrearBanco() {
                       <p className="text-xs text-muted-foreground">
                         {catalogo.length} bancos en el catálogo de {nombrePais(pais)}.
                       </p>
-                      <Select value={seleccion} onValueChange={setSeleccion}>
-                        <SelectTrigger id="banco">
-                          <SelectValue placeholder="Elige del catálogo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {catalogo.map((b) => (
-                            <SelectItem key={b} value={b}>
-                              {b}
-                            </SelectItem>
-                          ))}
-                          <SelectItem value={OTRO_BANCO}>Otro (escribir a mano)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Input
+                        id="banco"
+                        list="bancos-pais"
+                        placeholder="Escribe o busca un banco"
+                        value={escrito}
+                        onChange={(e) => {
+                          setEscrito(e.target.value)
+                          setSeleccion('')
+                        }}
+                        autoFocus
+                      />
+                      <datalist id="bancos-pais">
+                        {catalogo.map((b) => <option key={b} value={b} />)}
+                      </datalist>
                     </>
                   ) : (
                     <p className="text-xs text-muted-foreground">

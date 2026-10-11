@@ -16,6 +16,7 @@
 export const BROKERS = [
   // --- Brokers internacionales de acciones y ETFs ---
   { nombre: 'Interactive Brokers', tipo: 'internacional', monedaSugerida: 'USD' },
+  { nombre: 'Quotex', tipo: 'internacional', monedaSugerida: 'USD' },
   { nombre: 'Charles Schwab', tipo: 'internacional', monedaSugerida: 'USD' },
   { nombre: 'Fidelity', tipo: 'internacional', monedaSugerida: 'USD' },
   { nombre: 'TD Ameritrade', tipo: 'internacional', monedaSugerida: 'USD' },

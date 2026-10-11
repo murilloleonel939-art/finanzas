@@ -35,6 +35,7 @@ export default function CrearCuenta() {
   const bancoPreseleccionado = searchParams.get('banco') ?? ''
 
   const [bancoId, setBancoId] = useState(bancoPreseleccionado)
+  const [bancoNombre, setBancoNombre] = useState('')
   const [tipoCuenta, setTipoCuenta] = useState('ahorros')
   const [numeroCuenta, setNumeroCuenta] = useState('')
   const [tipoMoneda, setTipoMoneda] = useState('COP')
@@ -50,7 +51,9 @@ export default function CrearCuenta() {
     mutationFn: async () => {
       setError('')
 
-      if (!bancoId) throw new Error('Selecciona un banco.')
+      const bancoEncontrado = bancos.find((b) => b.nombre_banco.toLowerCase() === bancoNombre.trim().toLowerCase())
+      const bancoSeleccionadoId = bancoEncontrado?.id || bancoId
+      if (!bancoSeleccionadoId) throw new Error('Escribe o selecciona un banco.')
       if (!numeroCuenta.trim()) throw new Error('El número de cuenta es obligatorio.')
 
       const saldo = saldoInicial === '' ? 0 : Number(saldoInicial)
@@ -59,7 +62,7 @@ export default function CrearCuenta() {
       }
 
       const { cuentaId } = await crearCuentaApi(empresaId, {
-        banco_id: bancoId,
+        banco_id: bancoSeleccionadoId,
         numero_cuenta: numeroCuenta.trim(),
         tipo_cuenta: tipoCuenta,
         tipo_moneda: tipoMoneda,
@@ -122,18 +125,23 @@ export default function CrearCuenta() {
                   .
                 </div>
               ) : (
-                <Select value={bancoId} onValueChange={setBancoId}>
-                  <SelectTrigger id="banco" className="mt-2">
-                    <SelectValue placeholder="Selecciona un banco" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {bancos.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.nombre_banco}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <>
+                  <Input
+                    id="banco"
+                    list="bancos-existentes"
+                    className="mt-2"
+                    placeholder="Escribe o busca un banco"
+                    value={bancoNombre || bancos.find((b) => b.id === bancoId)?.nombre_banco || ''}
+                    onChange={(e) => {
+                      setBancoNombre(e.target.value)
+                      const encontrado = bancos.find((b) => b.nombre_banco.toLowerCase() === e.target.value.trim().toLowerCase())
+                      setBancoId(encontrado?.id || '')
+                    }}
+                  />
+                  <datalist id="bancos-existentes">
+                    {bancos.map((b) => <option key={b.id} value={b.nombre_banco} />)}
+                  </datalist>
+                </>
               )}
             </div>
 

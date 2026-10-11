@@ -34,6 +34,12 @@ const PROVEEDORES_AMBOS = [
   'Coinbase',
   'Binance',
   'Coindepo',
+  'Dolarapp',
+  'Plenti',
+  'Bitso',
+  'Littio',
+  'Wenia',
+  'YouHodler',
 ]
 
 const PROVEEDORES_CRIPTO = [

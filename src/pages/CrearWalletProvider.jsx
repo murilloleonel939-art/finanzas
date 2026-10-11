@@ -9,6 +9,7 @@ import {
   resolverTipoProveedor,
   TIPOS_PROVEEDOR,
   OTRO_PROVEEDOR,
+  claveProveedor,
 } from '@/lib/walletProviders'
 import { esProveedorEarn } from '@/lib/earnConfig'
 import { Button } from '@/components/ui/button'
@@ -40,13 +41,16 @@ export default function CrearWalletProvider() {
 
   const [seleccion, setSeleccion] = useState('')
   const [escrito, setEscrito] = useState('')
+  const nombreEscrito = escrito.trim()
+  const proveedorCatalogo = proveedoresPorTipo().find((p) => claveProveedor(p.nombre) === claveProveedor(nombreEscrito))
+  const seleccionNormalizada = proveedorCatalogo?.nombre || (nombreEscrito ? OTRO_PROVEEDOR : '')
   // `?tipo=cripto` permite entrar desde un filtro del listado.
   const [tipoOtro, setTipoOtro] = useState(searchParams.get('tipo') ?? '')
   const [error, setError] = useState('')
 
-  const esOtro = seleccion === OTRO_PROVEEDOR
-  const nombreFinal = resolverNombreProveedor(seleccion, escrito)
-  const tipoFinal = resolverTipoProveedor(seleccion, tipoOtro)
+  const esOtro = seleccionNormalizada === OTRO_PROVEEDOR
+  const nombreFinal = resolverNombreProveedor(seleccionNormalizada, nombreEscrito)
+  const tipoFinal = resolverTipoProveedor(seleccionNormalizada, tipoOtro)
   const seraTodoEarn = esProveedorEarn(nombreFinal)
 
   const { mutate: crear, isPending } = useMutation({
@@ -113,41 +117,26 @@ export default function CrearWalletProvider() {
               <p className="text-xs text-muted-foreground mb-2">
                 Elige del catálogo o escribe uno que no esté.
               </p>
-              <Select value={seleccion} onValueChange={setSeleccion}>
-                <SelectTrigger id="proveedor">
-                  <SelectValue placeholder="Selecciona un proveedor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {grupos.map((grupo) => (
-                    <div key={grupo.tipo}>
-                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                        {grupo.etiqueta}
-                      </div>
-                      {grupo.lista.map((p) => (
-                        <SelectItem key={`${grupo.tipo}-${p.nombre}`} value={p.nombre}>
-                          {p.nombre}
-                          {p.tipo === 'ambos' ? ' (cripto y fiat)' : ''}
-                        </SelectItem>
-                      ))}
-                    </div>
-                  ))}
-                  <SelectItem value={OTRO_PROVEEDOR}>Otro (escribir a mano)</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {esOtro && (
-                <Input
-                  className="mt-3"
-                  placeholder="Nombre del proveedor"
-                  value={escrito}
-                  onChange={(e) => setEscrito(e.target.value)}
-                  autoFocus
-                />
-              )}
+              <Input
+                id="proveedor"
+                list="proveedores-wallet"
+                placeholder="Escribe o busca un proveedor"
+                value={escrito}
+                onChange={(e) => {
+                  setEscrito(e.target.value)
+                  setSeleccion('')
+                }}
+                autoFocus
+              />
+              <datalist id="proveedores-wallet">
+                {grupos.flatMap((grupo) => grupo.lista).filter((p, i, lista) => lista.findIndex((x) => x.nombre === p.nombre) === i).map((p) => (
+                  <option key={p.nombre} value={p.nombre} label={p.tipo === 'ambos' ? `${p.nombre} (cripto y fiat)` : p.nombre} />
+                ))}
+              </datalist>
             </div>
 
             {/* El tipo solo se pregunta cuando la base no puede deducirlo. */}
-            {(esOtro || !seleccion) && (
+            {(esOtro || !seleccionNormalizada) && (
               <div>
                 <Label htmlFor="tipo">Tipo *</Label>
                 <p className="text-xs text-muted-foreground mb-2">
