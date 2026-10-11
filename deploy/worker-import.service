@@ -1,0 +1,21 @@
+# FinanzAdmin Pro — worker de importaciones (systemd)
+[Unit]
+Description=FinanzAdmin — worker de importaciones PDF
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/finanzadmin
+EnvironmentFile=/etc/worker-import.env
+ExecStart=/usr/bin/node worker-import.mjs
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=worker-import
+
+[Install]
+WantedBy=multi-user.target
