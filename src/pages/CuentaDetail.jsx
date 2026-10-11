@@ -130,6 +130,8 @@ export default function CuentaDetail() {
   }
 
   const periodo = mes === MES_TODOS ? 'acumulado' : formatMes(mes)
+  const esCuentaColombiana = String(cuenta.banco_pais || '').toUpperCase() === 'CO' && cuenta.tipo_moneda === 'COP'
+  const mostrarResumenEspecial = esCuentaColombiana || resumen.intereses > 0 || resumen.iva > 0 || resumen.cuatroPorMil > 0 || resumen.retenciones > 0 || resumen.comisiones > 0
 
   return (
     <div className="flex-1 p-6 md:p-8 overflow-y-auto">
@@ -222,7 +224,7 @@ export default function CuentaDetail() {
           </Card>
         </div>
 
-        {(resumen.intereses > 0 || resumen.iva > 0 || resumen.cuatroPorMil > 0 || resumen.retenciones > 0 || resumen.comisiones > 0) && (
+        {mostrarResumenEspecial && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             {resumen.intereses > 0 && (
               <Card className="p-3">
@@ -230,25 +232,25 @@ export default function CuentaDetail() {
                 <p className="text-lg font-semibold">{formatearMonto(resumen.intereses, cuenta.tipo_moneda)}</p>
               </Card>
             )}
-            {resumen.iva > 0 && (
+            {(resumen.iva > 0 || esCuentaColombiana) && (
               <Card className="p-3">
                 <p className="text-xs text-muted-foreground mb-1">IVA ({periodo})</p>
                 <p className="text-lg font-semibold">{formatearMonto(resumen.iva, cuenta.tipo_moneda)}</p>
               </Card>
             )}
-            {resumen.cuatroPorMil > 0 && (
+            {(resumen.cuatroPorMil > 0 || esCuentaColombiana) && (
               <Card className="p-3">
                 <p className="text-xs text-muted-foreground mb-1">4x1000 ({periodo})</p>
                 <p className="text-lg font-semibold">{formatearMonto(resumen.cuatroPorMil, cuenta.tipo_moneda)}</p>
               </Card>
             )}
-            {resumen.retenciones > 0 && (
+            {(resumen.retenciones > 0 || esCuentaColombiana) && (
               <Card className="p-3">
                 <p className="text-xs text-muted-foreground mb-1">Retención ({periodo})</p>
                 <p className="text-lg font-semibold">{formatearMonto(resumen.retenciones, cuenta.tipo_moneda)}</p>
               </Card>
             )}
-            {resumen.comisiones > 0 && (
+            {(resumen.comisiones > 0 || esCuentaColombiana) && (
               <Card className="p-3">
                 <p className="text-xs text-muted-foreground mb-1">Comisiones ({periodo})</p>
                 <p className="text-lg font-semibold">{formatearMonto(resumen.comisiones, cuenta.tipo_moneda)}</p>
