@@ -47,7 +47,7 @@ export function generarPromptMovimientosCuenta(context) {
     : PROVIDER_RULES.otro.instruction;
   const esNequi = /nequi/i.test(`${banco || ''} ${proveedor || ''}`)
   const instruccionNequi = esNequi
-    ? `\nREGLA ESPECIAL NEQUI:\n- La fila o texto “Saldo anterior” representa el saldo inicial del período. Inclúyelo como el PRIMER movimiento, con fecha del primer día del período, tipo "ingreso", monto positivo y descripción exactamente "Saldo anterior".\n- Conserva el orden en que aparecen las filas del PDF.\n`
+    ? `\nREGLA ESPECIAL NEQUI:\n- La fila o texto “Saldo anterior” representa el saldo inicial del período. Inclúyelo como el PRIMER movimiento, con fecha del primer día del período, tipo "ingreso", monto positivo y descripción exactamente "Saldo anterior". NUNCA lo cuentes como ingreso operativo ni lo sumes a los totales de ingresos.\n- Conserva el orden en que aparecen las filas del PDF.\n`
     : '';
 
   return `Eres un experto en extracción de datos de extractos bancarios.

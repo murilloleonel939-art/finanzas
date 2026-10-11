@@ -69,8 +69,13 @@ export function borrarMes(empresaId, cuentaId, periodo) {
 // ---------------------------------------------------------------------
 
 /** Efecto de un movimiento sobre el saldo: ingreso suma, egreso resta. */
+export function esSaldoInicial(movimiento) {
+  return /saldo\s+anterior/i.test(String(movimiento?.descripcion || ''))
+}
+
 export function efecto(movimiento) {
   const monto = Number(movimiento?.monto ?? 0)
+  if (esSaldoInicial(movimiento) || movimiento?.tipo === 'saldo_inicial') return 0
   return movimiento?.tipo === 'ingreso' ? monto : -monto
 }
 
@@ -98,10 +103,14 @@ export function conSaldoResultante(movimientos = [], saldoActual = 0) {
     return fecha || Number(a.orden ?? 0) - Number(b.orden ?? 0)
   })
 
-  const totalEfectos = ascendente.reduce((acc, m) => acc + efecto(m), 0)
-  let saldo = Number(saldoActual) - totalEfectos
+  const saldoInicial = ascendente.find((m) => esSaldoInicial(m))
+  const movimientosReales = ascendente.filter((m) => !esSaldoInicial(m))
+  const saldoBase = saldoInicial ? Number(saldoInicial.monto || 0) : Number(saldoActual) - movimientosReales.reduce((acc, m) => acc + efecto(m), 0)
+  let saldo = saldoBase
 
   const conSaldo = ascendente.map((m) => {
+    if (esSaldoInicial(m)) return { ...m, saldo_resultante: Number(saldo.toFixed(8)) }
+
     saldo += efecto(m)
     return { ...m, saldo_resultante: Number(saldo.toFixed(8)) }
   })
@@ -125,8 +134,8 @@ export function resumenPeriodo(movimientos = []) {
       movimientos.reduce((acc, m) => (filtro(m) ? acc + Number(m.monto ?? 0) : acc), 0).toFixed(8)
     )
 
-  const esIngreso = (m) => m.tipo === 'ingreso'
-  const esEgreso = (m) => m.tipo === 'egreso'
+  const esIngreso = (m) => m.tipo === 'ingreso' && !esSaldoInicial(m)
+  const esEgreso = (m) => m.tipo === 'egreso' && !esSaldoInicial(m)
   const menciona = (palabras) => (m) => {
     const d = String(m.descripcion ?? '')
       .normalize('NFD')
@@ -138,9 +147,12 @@ export function resumenPeriodo(movimientos = []) {
   const ingresos = suma(esIngreso)
   const egresos = suma(esEgreso)
 
+  const saldoInicial = movimientos.find(esSaldoInicial)
+
   return {
     ingresos,
     egresos,
+    saldoInicial: saldoInicial ? Number(saldoInicial.monto ?? 0) : null,
     neto: Number((ingresos - egresos).toFixed(8)),
     intereses: suma((m) => esIngreso(m) && menciona(['interes', 'interest', 'rendimiento'])(m)),
     retenciones: suma(

@@ -211,13 +211,13 @@ export default function CuentaDetail() {
             </p>
           </Card>
           <Card className="p-4">
-            <p className="text-xs text-muted-foreground mb-1">Neto ({periodo})</p>
+            <p className="text-xs text-muted-foreground mb-1">{resumen.saldoInicial !== null ? `Saldo inicial (${periodo})` : `Neto (${periodo})`}</p>
             <p
               className={`text-2xl font-bold ${
-                resumen.neto >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                (resumen.saldoInicial ?? resumen.neto) >= 0 ? 'text-emerald-600' : 'text-rose-600'
               }`}
             >
-              {formatearMonto(resumen.neto, cuenta.tipo_moneda)}
+              {formatearMonto(resumen.saldoInicial ?? resumen.neto, cuenta.tipo_moneda)}
             </p>
           </Card>
         </div>
