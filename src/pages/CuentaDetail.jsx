@@ -88,7 +88,7 @@ export default function CuentaDetail() {
 
   const resumen = useMemo(() => resumenPeriodo(filtrados), [filtrados])
 
-  const { mutate: guardarClavePdf, isPending: guardandoClavePdf } = useMutation({
+  const { mutateAsync: guardarClavePdf, isPending: guardandoClavePdf } = useMutation({
     mutationFn: (password) => actualizarClavePdf(cuentaId, password ?? clavePdf),
     onSuccess: (resultado) => {
       setClavePdf('')
@@ -442,6 +442,8 @@ export default function CuentaDetail() {
          cuentaId={cuentaId}
          empresaId={empresaId}
           banco={cuenta.banco_nombre || ''}
+          tieneClavePdf={cuenta.tiene_clave_pdf}
+          onGuardarClavePdf={(password) => guardarClavePdf(password)}
          onSuccess={() => {
            queryClient.invalidateQueries({ queryKey: ['movimientos', cuentaId] })
            queryClient.invalidateQueries({ queryKey: ['cuenta', cuentaId] })

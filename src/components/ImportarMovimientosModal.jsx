@@ -15,12 +15,15 @@ export function ImportarMovimientosModal({
   cuentaId, 
   empresaId,
   banco = '',
-  onSuccess 
+  onSuccess,
+  tieneClavePdf = false,
+  onGuardarClavePdf,
 }) {
   const proveedorAutomatico = /nequi/i.test(String(banco)) ? 'Nequi' : '';
   const [archivo, setArchivo] = useState(null);
   const [proveedor, setProveedor] = useState(proveedorAutomatico);
   const [periodo, setPeriodo] = useState('');
+  const [clavePdf, setClavePdf] = useState('');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [jobId, setJobId] = useState('');
@@ -51,6 +54,9 @@ export function ImportarMovimientosModal({
     setEstado('subiendo');
 
     try {
+      if (archivo.name.toLowerCase().endsWith('.pdf') && clavePdf.trim()) {
+        await onGuardarClavePdf?.(clavePdf.trim());
+      }
       const { job } = await crearImportJob({ empresaId, target: 'cuenta', destinoId: cuentaId, proveedor, periodo, archivo, archivoNombre: archivo.name });
       setJobId(job.id);
       setEstado('pendiente');
@@ -113,6 +119,7 @@ export function ImportarMovimientosModal({
 
   const handleCerrar = () => {
     setArchivo(null);
+    setClavePdf('');
     setProveedor(proveedorAutomatico);
     setPeriodo('');
     setError('');
@@ -156,6 +163,14 @@ export function ImportarMovimientosModal({
                 onChange={handleArchivoChange}
                 className="hidden"
               />
+
+               {archivo?.name.toLowerCase().endsWith('.pdf') && (
+                 <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-2">Clave del PDF (opcional)</label>
+                   <input type="password" value={clavePdf} onChange={(e) => setClavePdf(e.target.value)} placeholder={tieneClavePdf ? 'Ya hay una clave guardada; escribe para reemplazarla' : 'Escribe la clave si el PDF está protegido'} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" autoComplete="new-password" />
+                   <p className="text-xs text-gray-500 mt-1">Se guardará cifrada para los próximos extractos de esta cuenta.</p>
+                 </div>
+               )}
 
                <div>
                  <label className="block text-sm font-medium text-gray-700 mb-2">Mes del extracto (opcional)</label>
