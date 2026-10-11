@@ -730,6 +730,40 @@ app.delete('/api/empresas/:empresaId/wallets/:walletId/movimientos/:movimientoId
   } catch (err) { await client.query('rollback'); throw err } finally { client.release() }
 })
 
+app.get('/api/admin/stats', requireAuth, requireAdmin, async (_req, res) => {
+  const [empresas, usuarios, vinculos] = await Promise.all([
+    query('select estado, pais from empresas where deleted_at is null'),
+    query('select id, app_role, estado from usuarios'),
+    query('select usuario_id, rol from usuario_empresa where deleted_at is null'),
+  ])
+  const usuariosConEmpresa = new Set(vinculos.rows.map((row) => row.usuario_id))
+  res.json({
+    empresas: {
+      total: empresas.rowCount,
+      activas: empresas.rows.filter((row) => row.estado === 'activa').length,
+      suspendidas: empresas.rows.filter((row) => row.estado === 'suspendida').length,
+      paises: new Set(empresas.rows.map((row) => row.pais).filter(Boolean)).size,
+    },
+    usuarios: {
+      total: usuarios.rowCount,
+      activos: usuarios.rows.filter((row) => row.estado === 'activo').length,
+      superAdmins: usuarios.rows.filter((row) => row.app_role === 'super_admin').length,
+      sinEmpresa: usuarios.rows.filter((row) => row.app_role !== 'super_admin' && row.estado === 'activo' && !usuariosConEmpresa.has(row.id)).length,
+    },
+    vinculos: {
+      contadores: vinculos.rows.filter((row) => row.rol === 'contador').length,
+      clientes: vinculos.rows.filter((row) => row.rol === 'cliente').length,
+    },
+  })
+})
+
+app.get('/api/admin/empresas-recientes', requireAuth, requireAdmin, async (req, res) => {
+  const limite = Math.min(Math.max(Number(req.query.limite) || 5, 1), 50)
+  const result = await query(`select id, nombre, estado, pais, created_at
+    from empresas where deleted_at is null order by created_at desc limit $1`, [limite])
+  res.json({ empresas: result.rows })
+})
+
 app.get('/api/admin/usuarios', requireAuth, requireAdmin, async (_req, res) => {
   const result = await query(
     `select u.id, u.email, u.full_name, u.app_role, u.estado, u.created_at, u.updated_at, coalesce(
