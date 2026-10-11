@@ -72,6 +72,76 @@ create table if not exists movimientos (
 
 create index if not exists movimientos_cuenta_idx on movimientos (cuenta_id, fecha desc) where deleted_at is null;
 
+create table if not exists brokers (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  nombre_broker text not null,
+  moneda text not null,
+  created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+create index if not exists brokers_empresa_idx on brokers (empresa_id) where deleted_at is null;
+
+create table if not exists movimientos_broker (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  broker_id uuid not null references brokers(id) on delete cascade,
+  fecha date not null,
+  descripcion text not null,
+  tipo text not null check (tipo in ('ingreso', 'egreso')),
+  monto numeric(20,8) not null check (monto >= 0),
+  cantidad numeric(28,10) check (cantidad is null or cantidad >= 0),
+  valor_unitario numeric(20,8) check (valor_unitario is null or valor_unitario >= 0),
+  external_id text,
+  created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz,
+  constraint mov_broker_cantidad_valor_coherentes check (
+    (cantidad is null and valor_unitario is null)
+    or (cantidad is not null and valor_unitario is not null)
+  )
+);
+create unique index if not exists movimientos_broker_dedupe_idx on movimientos_broker (broker_id, external_id) where external_id is not null and deleted_at is null;
+create index if not exists mov_broker_broker_fecha_idx on movimientos_broker (broker_id, fecha desc) where deleted_at is null;
+
+create table if not exists activos_broker (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  broker_id uuid not null references brokers(id) on delete cascade,
+  nombre_activo text not null,
+  tipo_activo text not null default 'accion' check (tipo_activo in ('accion','etf','bono','fondo','criptomoneda','opcion','otro')),
+  cantidad numeric(28,10) not null default 0 check (cantidad >= 0),
+  valor_unitario numeric(20,8) not null default 0 check (valor_unitario >= 0),
+  moneda text not null default 'USD',
+  created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+create unique index if not exists activos_broker_ticker_unico on activos_broker (broker_id, lower(nombre_activo)) where deleted_at is null;
+create index if not exists activos_broker_broker_idx on activos_broker (broker_id) where deleted_at is null;
+
+create table if not exists precios_activo (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  broker_id uuid not null references brokers(id) on delete cascade,
+  activo_id uuid not null references activos_broker(id) on delete cascade,
+  fecha date not null,
+  precio_cierre numeric(20,8) not null check (precio_cierre >= 0),
+  precio_anterior numeric(20,8) check (precio_anterior is null or precio_anterior >= 0),
+  variacion_pct numeric(12,6),
+  moneda text not null default 'USD',
+  created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+create unique index if not exists precios_activo_unico on precios_activo (activo_id, fecha) where deleted_at is null;
+create index if not exists precios_activo_broker_fecha_idx on precios_activo (broker_id, fecha desc) where deleted_at is null;
+
 create table if not exists usuario_empresa (
   id uuid primary key default gen_random_uuid(),
   usuario_id uuid not null references usuarios(id) on delete cascade,
@@ -104,5 +174,13 @@ drop trigger if exists cuentas_updated_at on cuentas;
 create trigger cuentas_updated_at before update on cuentas for each row execute function set_updated_at();
 drop trigger if exists movimientos_updated_at on movimientos;
 create trigger movimientos_updated_at before update on movimientos for each row execute function set_updated_at();
+drop trigger if exists brokers_updated_at on brokers;
+create trigger brokers_updated_at before update on brokers for each row execute function set_updated_at();
+drop trigger if exists movimientos_broker_updated_at on movimientos_broker;
+create trigger movimientos_broker_updated_at before update on movimientos_broker for each row execute function set_updated_at();
+drop trigger if exists activos_broker_updated_at on activos_broker;
+create trigger activos_broker_updated_at before update on activos_broker for each row execute function set_updated_at();
+drop trigger if exists precios_activo_updated_at on precios_activo;
+create trigger precios_activo_updated_at before update on precios_activo for each row execute function set_updated_at();
 drop trigger if exists usuario_empresa_updated_at on usuario_empresa;
 create trigger usuario_empresa_updated_at before update on usuario_empresa for each row execute function set_updated_at();

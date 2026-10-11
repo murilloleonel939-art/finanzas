@@ -9,50 +9,24 @@
  * El borrado es lógico (D7) y se filtra aquí, como en el resto de la capa de
  * datos: las vistas ya filtran por dentro, las tablas no.
  */
-import { supabase } from '@/lib/supabase'
+import { api, apiJson } from '@/lib/api'
 
 // ---------------------------------------------------------------------
 // Brokers
 // ---------------------------------------------------------------------
 
 export async function listarBrokers(empresaId) {
-  const { data, error } = await supabase
-    .from('brokers')
-    .select('id, nombre_broker, moneda, created_at')
-    .eq('empresa_id', empresaId)
-    .is('deleted_at', null)
-    .order('nombre_broker')
-
-  if (error) throw error
-  return data ?? []
+  const { brokers } = await api(`/api/empresas/${empresaId}/brokers`)
+  return brokers
 }
 
 export async function obtenerBroker(brokerId) {
-  const { data, error } = await supabase
-    .from('brokers')
-    .select('id, empresa_id, nombre_broker, moneda')
-    .eq('id', brokerId)
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (error) throw error
-  return data ?? null
+  const { broker } = await api(`/api/brokers/${brokerId}`)
+  return broker
 }
 
-export async function crearBroker({ empresaId, nombreBroker, moneda, userId }) {
-  const { data, error } = await supabase
-    .from('brokers')
-    .insert({
-      empresa_id: empresaId,
-      nombre_broker: nombreBroker,
-      moneda,
-      created_by: userId,
-    })
-    .select('id')
-    .single()
-
-  if (error) throw error
-  return data
+export function crearBroker({ empresaId, nombreBroker, moneda }) {
+  return apiJson(`/api/empresas/${empresaId}/brokers`, 'POST', { nombre_broker: nombreBroker, moneda })
 }
 
 /**
@@ -60,13 +34,8 @@ export async function crearBroker({ empresaId, nombreBroker, moneda, userId }) {
  * el acceso ya se deriva del `deleted_at` del broker en las vistas, y una
  * cascada de borrados lógicos es justo lo que D19 descartó para las empresas.
  */
-export async function borrarBroker(brokerId) {
-  const { error } = await supabase
-    .from('brokers')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', brokerId)
-
-  if (error) throw error
+export function borrarBroker(empresaId, brokerId) {
+  return api(`/api/empresas/${empresaId}/brokers/${brokerId}`, { method: 'DELETE' })
 }
 
 // ---------------------------------------------------------------------
@@ -80,17 +49,8 @@ export async function borrarBroker(brokerId) {
  * módulo de cuentas — porque es el que define la tabla `movimientos_broker`.
  */
 export async function listarMovimientosBroker(brokerId) {
-  const { data, error } = await supabase
-    .from('movimientos_broker_view')
-    .select(
-      'id, fecha, descripcion, tipo, monto, cantidad, valor_unitario, broker_moneda, external_id'
-    )
-    .eq('broker_id', brokerId)
-    .order('fecha', { ascending: false })
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
-  return data ?? []
+  const { movimientos } = await api(`/api/brokers/${brokerId}/movimientos`)
+  return movimientos
 }
 
 /**
@@ -111,57 +71,14 @@ export async function listarMovimientosBroker(brokerId) {
  * `egreso` es retiro **o compra**. El signo del monto nunca se usa para
  * distinguirlos (el monto es siempre positivo).
  */
-export async function crearMovimientoBroker({
-  empresaId,
-  brokerId,
-  fecha,
-  descripcion,
-  tipo,
-  monto,
-  cantidad,
-  valorUnitario,
-  userId,
-}) {
-  const tieneCantidad = cantidad != null
-  const tieneValor = valorUnitario != null
-
-  if (tieneCantidad !== tieneValor) {
-    throw new Error(
-      tieneCantidad
-        ? 'Falta el valor unitario: una operación necesita cantidad y valor unitario.'
-        : 'Falta la cantidad: una operación necesita cantidad y valor unitario.'
-    )
-  }
-
-  const fila = {
-    empresa_id: empresaId,
-    broker_id: brokerId,
-    fecha,
-    descripcion,
-    tipo,
-    monto,
-    cantidad: tieneCantidad ? cantidad : null,
-    valor_unitario: tieneValor ? valorUnitario : null,
-    created_by: userId,
-  }
-
-  const { data, error } = await supabase
-    .from('movimientos_broker')
-    .insert(fila)
-    .select('id')
-    .single()
-
-  if (error) throw error
-  return data
+export function crearMovimientoBroker({ empresaId, brokerId, fecha, descripcion, tipo, monto, cantidad, valorUnitario }) {
+  return apiJson(`/api/empresas/${empresaId}/brokers/${brokerId}/movimientos`, 'POST', {
+    fecha, descripcion, tipo, monto, cantidad, valor_unitario: valorUnitario,
+  })
 }
 
-export async function borrarMovimientoBroker(id) {
-  const { error } = await supabase
-    .from('movimientos_broker')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', id)
-
-  if (error) throw error
+export function borrarMovimientoBroker(empresaId, brokerId, movimientoId) {
+  return api(`/api/empresas/${empresaId}/brokers/${brokerId}/movimientos/${movimientoId}`, { method: 'DELETE' })
 }
 
 // ---------------------------------------------------------------------
@@ -169,78 +86,22 @@ export async function borrarMovimientoBroker(id) {
 // ---------------------------------------------------------------------
 
 export async function listarActivos(brokerId) {
-  const { data, error } = await supabase
-    .from('activos_broker_view')
-    .select(
-      'id, nombre_activo, tipo_activo, cantidad, valor_unitario, moneda, valor_total'
-    )
-    .eq('broker_id', brokerId)
-    .order('nombre_activo')
-
-  if (error) throw error
-  return data ?? []
+  const { activos } = await api(`/api/brokers/${brokerId}/activos`)
+  return activos
 }
 
 /**
  * Crea una posición. `valor_unitario` es el precio de entrada: lo actualizará
  * la función de precios, no este formulario.
  */
-export async function crearActivo({
-  empresaId,
-  brokerId,
-  nombreActivo,
-  tipoActivo,
-  cantidad,
-  valorUnitario,
-  moneda,
-  userId,
-}) {
-  const { data, error } = await supabase
-    .from('activos_broker')
-    .insert({
-      empresa_id: empresaId,
-      broker_id: brokerId,
-      nombre_activo: nombreActivo,
-      tipo_activo: tipoActivo,
-      cantidad,
-      valor_unitario: valorUnitario,
-      moneda,
-      created_by: userId,
-    })
-    .select('id')
-    .single()
-
-  if (error) {
-    // El índice único de la 0003 es (broker_id, lower(nombre_activo)): el mismo
-    // ticker no se repite. Postgres devuelve un 23505 que sin traducir no dice
-    // nada al usuario.
-    if (error.code === '23505') {
-      throw new Error(`Ya existe una posición en ${nombreActivo} para este broker.`)
-    }
-    throw error
-  }
-  return data
+export function crearActivo({ empresaId, brokerId, nombreActivo, tipoActivo, cantidad, valorUnitario, moneda }) {
+  return apiJson(`/api/empresas/${empresaId}/brokers/${brokerId}/activos`, 'POST', {
+    nombre_activo: nombreActivo, tipo_activo: tipoActivo, cantidad, valor_unitario: valorUnitario, moneda,
+  })
 }
 
-export async function actualizarActivo(id, cambios) {
-  const { data, error } = await supabase
-    .from('activos_broker')
-    .update(cambios)
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
-}
-
-export async function borrarActivo(id) {
-  const { error } = await supabase
-    .from('activos_broker')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', id)
-
-  if (error) throw error
+export function borrarActivo(empresaId, brokerId, activoId) {
+  return api(`/api/empresas/${empresaId}/brokers/${brokerId}/activos/${activoId}`, { method: 'DELETE' })
 }
 
 // ---------------------------------------------------------------------
@@ -255,16 +116,8 @@ export async function borrarActivo(id) {
  * publicación de realtime (0007), así que la pestaña no se autoactualiza.
  */
 export async function listarPrecios(brokerId) {
-  const { data, error } = await supabase
-    .from('precios_activo_view')
-    .select(
-      'id, activo_id, nombre_activo, tipo_activo, fecha, precio_cierre, precio_anterior, variacion_pct, moneda'
-    )
-    .eq('broker_id', brokerId)
-    .order('fecha', { ascending: false })
-
-  if (error) throw error
-  return data ?? []
+  const { precios } = await api(`/api/brokers/${brokerId}/precios`)
+  return precios
 }
 
 /**

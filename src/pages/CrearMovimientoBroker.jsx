@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '@/contexts/AuthContext'
 import { hoyLocal } from '@/lib/utils'
 import { formatearMonto } from '@/lib/monedas'
 import { obtenerBroker, crearMovimientoBroker } from '@/lib/brokers-datos'
@@ -33,7 +32,6 @@ import { AlertCircle, Loader2, ChevronLeft } from 'lucide-react'
 export default function CrearMovimientoBroker() {
   const { empresaId, brokerId } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
   const queryClient = useQueryClient()
 
   const hoy = hoyLocal()
@@ -88,7 +86,6 @@ export default function CrearMovimientoBroker() {
           descripcion: descripcion.trim(),
           tipo,
           monto: m,
-          userId: user?.id,
         })
       } else {
         const c = Number(cantidad)
@@ -106,7 +103,6 @@ export default function CrearMovimientoBroker() {
           monto: montoOperacion,
           cantidad: c,
           valorUnitario: v,
-          userId: user?.id,
         })
       }
     },

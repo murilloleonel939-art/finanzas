@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '@/contexts/AuthContext'
 import { formatearMonto } from '@/lib/monedas'
 import { TIPOS_ACTIVO } from '@/lib/brokers'
 import { MONEDAS_FIAT, MONEDA_DEFECTO } from '@/lib/monedas'
@@ -32,7 +31,6 @@ import { AlertCircle, Loader2, ChevronLeft } from 'lucide-react'
 export default function CrearActivo() {
   const { empresaId, brokerId } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
   const queryClient = useQueryClient()
 
   const [nombreActivo, setNombreActivo] = useState('')
@@ -89,7 +87,6 @@ export default function CrearActivo() {
         cantidad: c,
         valorUnitario: v,
         moneda,
-        userId: user?.id,
       })
     },
     onSuccess: () => {

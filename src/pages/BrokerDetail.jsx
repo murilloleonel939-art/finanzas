@@ -104,8 +104,8 @@ export default function BrokerDetail() {
 
   const { mutate: eliminar, isPending: borrando } = useMutation({
     mutationFn: async ({ tipo, fila }) => {
-      if (tipo === 'movimiento') await borrarMovimientoBroker(fila.id)
-      else await borrarActivo(fila.id)
+      if (tipo === 'movimiento') await borrarMovimientoBroker(empresaId, brokerId, fila.id)
+      else await borrarActivo(empresaId, brokerId, fila.id)
     },
     onSuccess: () => {
       setABorrar(null)

@@ -414,6 +414,121 @@ app.delete('/api/empresas/:empresaId/cuentas/:cuentaId/movimientos/:movimientoId
   }
 })
 
+app.get('/api/empresas/:empresaId/brokers', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const result = await query(
+    'select id, empresa_id, nombre_broker, moneda, created_at from brokers where empresa_id = $1 and deleted_at is null order by nombre_broker',
+    [req.params.empresaId]
+  )
+  res.json({ brokers: result.rows })
+})
+
+app.post('/api/empresas/:empresaId/brokers', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const nombre = req.body.nombre_broker?.trim()
+  const moneda = req.body.moneda?.trim()
+  if (!nombre || !moneda) return error(res, 400, 'Nombre y moneda son obligatorios.')
+  const created = await query(
+    'insert into brokers (empresa_id, nombre_broker, moneda, created_by) values ($1, $2, $3, $4) returning id, nombre_broker, moneda',
+    [req.params.empresaId, nombre, moneda, req.auth.sub]
+  )
+  res.status(201).json({ broker: created.rows[0] })
+})
+
+app.get('/api/brokers/:brokerId', requireAuth, async (req, res) => {
+  const result = await query('select id, empresa_id, nombre_broker, moneda from brokers where id = $1 and deleted_at is null', [req.params.brokerId])
+  const broker = result.rows[0]
+  if (!broker) return error(res, 404, 'Broker no encontrado.')
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, broker.empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  res.json({ broker })
+})
+
+app.delete('/api/empresas/:empresaId/brokers/:brokerId', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const deleted = await query('update brokers set deleted_at = now() where id = $1 and empresa_id = $2 and deleted_at is null', [req.params.brokerId, req.params.empresaId])
+  if (!deleted.rowCount) return error(res, 404, 'Broker no encontrado.')
+  res.status(204).end()
+})
+
+app.get('/api/brokers/:brokerId/movimientos', requireAuth, async (req, res) => {
+  const brokerResult = await query('select empresa_id, moneda from brokers where id = $1 and deleted_at is null', [req.params.brokerId])
+  const broker = brokerResult.rows[0]
+  if (!broker) return error(res, 404, 'Broker no encontrado.')
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, broker.empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const result = await query(`select id, fecha, descripcion, tipo, monto, cantidad, valor_unitario, $2::text as broker_moneda
+    from movimientos_broker where broker_id = $1 and deleted_at is null order by fecha desc, created_at desc`, [req.params.brokerId, broker.moneda])
+  res.json({ movimientos: result.rows })
+})
+
+app.post('/api/empresas/:empresaId/brokers/:brokerId/movimientos', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const { fecha, descripcion, tipo } = req.body
+  const monto = Number(req.body.monto)
+  const cantidad = req.body.cantidad == null ? null : Number(req.body.cantidad)
+  const valorUnitario = req.body.valor_unitario == null ? null : Number(req.body.valor_unitario)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || '') || !descripcion?.trim()) return error(res, 400, 'Fecha y descripción son obligatorias.')
+  if (!['ingreso', 'egreso'].includes(tipo) || !Number.isFinite(monto) || monto <= 0) return error(res, 400, 'Movimiento inválido.')
+  if ((cantidad === null) !== (valorUnitario === null) || (cantidad !== null && (!Number.isFinite(cantidad) || cantidad <= 0 || !Number.isFinite(valorUnitario) || valorUnitario < 0))) return error(res, 400, 'La operación necesita cantidad y valor unitario válidos.')
+  const broker = await query('select id from brokers where id = $1 and empresa_id = $2 and deleted_at is null', [req.params.brokerId, req.params.empresaId])
+  if (!broker.rowCount) return error(res, 404, 'Broker no encontrado.')
+  const created = await query(`insert into movimientos_broker (empresa_id, broker_id, fecha, descripcion, tipo, monto, cantidad, valor_unitario, created_by)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`, [req.params.empresaId, req.params.brokerId, fecha, descripcion.trim(), tipo, monto, cantidad, valorUnitario, req.auth.sub])
+  res.status(201).json({ movimientoId: created.rows[0].id })
+})
+
+app.delete('/api/empresas/:empresaId/brokers/:brokerId/movimientos/:movimientoId', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const deleted = await query('update movimientos_broker set deleted_at = now() where id = $1 and broker_id = $2 and empresa_id = $3 and deleted_at is null', [req.params.movimientoId, req.params.brokerId, req.params.empresaId])
+  if (!deleted.rowCount) return error(res, 404, 'Movimiento no encontrado.')
+  res.status(204).end()
+})
+
+app.get('/api/brokers/:brokerId/activos', requireAuth, async (req, res) => {
+  const brokerResult = await query('select empresa_id from brokers where id = $1 and deleted_at is null', [req.params.brokerId])
+  if (!brokerResult.rowCount) return error(res, 404, 'Broker no encontrado.')
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, brokerResult.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const result = await query(`select id, nombre_activo, tipo_activo, cantidad, valor_unitario, moneda, (cantidad * valor_unitario) as valor_total
+    from activos_broker where broker_id = $1 and deleted_at is null order by nombre_activo`, [req.params.brokerId])
+  res.json({ activos: result.rows })
+})
+
+app.post('/api/empresas/:empresaId/brokers/:brokerId/activos', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const nombre = req.body.nombre_activo?.trim()
+  const tipo = req.body.tipo_activo || 'accion'
+  const cantidad = Number(req.body.cantidad)
+  const valor = Number(req.body.valor_unitario)
+  const moneda = req.body.moneda?.trim()
+  if (!nombre || !['accion','etf','bono','fondo','criptomoneda','opcion','otro'].includes(tipo) || !Number.isFinite(cantidad) || cantidad <= 0 || !Number.isFinite(valor) || valor < 0 || !moneda) return error(res, 400, 'Los datos del activo no son válidos.')
+  const broker = await query('select id from brokers where id = $1 and empresa_id = $2 and deleted_at is null', [req.params.brokerId, req.params.empresaId])
+  if (!broker.rowCount) return error(res, 404, 'Broker no encontrado.')
+  try {
+    const created = await query(`insert into activos_broker (empresa_id, broker_id, nombre_activo, tipo_activo, cantidad, valor_unitario, moneda, created_by)
+      values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`, [req.params.empresaId, req.params.brokerId, nombre, tipo, cantidad, valor, moneda, req.auth.sub])
+    res.status(201).json({ activoId: created.rows[0].id })
+  } catch (err) {
+    if (err.code === '23505') return error(res, 409, `Ya existe una posición en ${nombre} para este broker.`)
+    throw err
+  }
+})
+
+app.delete('/api/empresas/:empresaId/brokers/:brokerId/activos/:activoId', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const deleted = await query('update activos_broker set deleted_at = now() where id = $1 and broker_id = $2 and empresa_id = $3 and deleted_at is null', [req.params.activoId, req.params.brokerId, req.params.empresaId])
+  if (!deleted.rowCount) return error(res, 404, 'Activo no encontrado.')
+  res.status(204).end()
+})
+
+app.get('/api/brokers/:brokerId/precios', requireAuth, async (req, res) => {
+  const broker = await query('select empresa_id from brokers where id = $1 and deleted_at is null', [req.params.brokerId])
+  if (!broker.rowCount) return error(res, 404, 'Broker no encontrado.')
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, broker.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const result = await query(`select p.id, p.activo_id, a.nombre_activo, a.tipo_activo, p.fecha, p.precio_cierre, p.precio_anterior, p.variacion_pct, p.moneda
+    from precios_activo p join activos_broker a on a.id = p.activo_id and a.deleted_at is null
+    where p.broker_id = $1 and p.deleted_at is null order by p.fecha desc`, [req.params.brokerId])
+  res.json({ precios: result.rows })
+})
+
 app.get('/api/admin/usuarios', requireAuth, requireAdmin, async (_req, res) => {
   const result = await query(
     `select u.id, u.email, u.full_name, u.app_role, u.estado, u.created_at, u.updated_at, coalesce(

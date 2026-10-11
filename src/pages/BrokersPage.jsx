@@ -32,7 +32,7 @@ export default function BrokersPage() {
   })
 
   const { mutate: eliminar, isPending: borrando } = useMutation({
-    mutationFn: (id) => borrarBroker(id),
+    mutationFn: (id) => borrarBroker(empresaId, id),
     onSuccess: () => {
       setBrokerABorrar(null)
       queryClient.invalidateQueries({ queryKey: ['brokers', empresaId] })

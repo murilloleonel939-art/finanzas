@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '@/contexts/AuthContext'
 import { crearBroker } from '@/lib/brokers-datos'
 import {
   BROKERS,
@@ -33,7 +32,6 @@ import { AlertCircle, Loader2, ChevronLeft } from 'lucide-react'
 export default function CrearBroker() {
   const { empresaId } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
 
@@ -57,7 +55,6 @@ export default function CrearBroker() {
         empresaId,
         nombreBroker: nombreFinal,
         moneda,
-        userId: user?.id,
       })
     },
     onSuccess: () => {
