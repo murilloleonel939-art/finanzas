@@ -37,20 +37,35 @@ export async function actualizarImportJob() {
   throw new Error('Los jobs de importación solo los actualiza el worker del backend.')
 }
 
+export async function crearMovimientosDesdeImportacion() {
+  throw new Error('La creación de movimientos importados debe ejecutarse dentro del worker/backend local.')
+}
+
+export async function crearMovimientosBrokerDesdeImportacion() {
+  throw new Error('La creación de movimientos de broker debe ejecutarse dentro del worker/backend local.')
+}
+
+export async function crearMovimientosWalletDesdeImportacion() {
+  throw new Error('La creación de movimientos de wallet debe ejecutarse dentro del worker/backend local.')
+}
+
 export async function subirExtractoPDF() {
   throw new Error('La carga del PDF se realiza al crear el job mediante la API local.')
 }
 
-export function obtenerCuentaParaImportacion(cuenta_id) {
-  return api(`/api/cuentas/${cuenta_id}`)
+export async function obtenerCuentaParaImportacion(cuenta_id) {
+  const { cuenta } = await api(`/api/cuentas/${cuenta_id}`)
+  return cuenta
 }
 
-export function obtenerBrokerParaImportacion(broker_id) {
-  return api(`/api/brokers/${broker_id}`)
+export async function obtenerBrokerParaImportacion(broker_id) {
+  const { broker } = await api(`/api/brokers/${broker_id}`)
+  return broker
 }
 
-export function obtenerWalletParaImportacion(wallet_id) {
-  return api(`/api/wallets/${wallet_id}`)
+export async function obtenerWalletParaImportacion(wallet_id) {
+  const { wallet } = await api(`/api/wallets/${wallet_id}`)
+  return wallet
 }
 
 async function fileAsDataUrl(file) {

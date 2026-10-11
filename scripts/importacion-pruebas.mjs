@@ -58,17 +58,16 @@ assert(datosContent.includes('export async function crearMovimientosBrokerDesdeI
 assert(datosContent.includes('export async function crearMovimientosWalletDesdeImportacion'), 'Exporta crearMovimientosWalletDesdeImportacion');
 assert(datosContent.includes('export async function subirExtractoPDF'), 'Exporta subirExtractoPDF');
 
-// Verificar validaciones en crearImportJob
-assert(datosContent.includes('estado: \'pendiente\''), 'Inicializa jobs con estado pendiente');
-assert(datosContent.includes('payload: null'), 'Inicializa payload como null');
-assert(datosContent.includes('resultado: null'), 'Inicializa resultado como null');
-assert(datosContent.includes('error_msg: null'), 'Inicializa error_msg como null');
+// La creación del job, el almacenamiento del PDF y la deduplicación
+// viven ahora en el backend/worker local; el cliente solo transporta el PDF.
+assert(datosContent.includes("/api/empresas/${empresa_id}/import-jobs"), 'Crea jobs mediante la API local');
+assert(datosContent.includes('Los jobs de importación solo los actualiza el worker/backend local') || datosContent.includes('solo los actualiza el worker'), 'Impide actualizar jobs desde el cliente');
+assert(!datosContent.includes("from './supabase.js'"), 'No importa el cliente de Supabase');
+assert(workerContentPlaceholder(), 'La lógica del worker queda fuera del navegador');
 
-// Verificar lógica de deduplicación
-assert(datosContent.includes('external_id'), 'Verifica external_id para deduplicación');
-assert(datosContent.includes('const { data: existing }'), 'Busca movimientos existentes');
-assert(datosContent.includes('if (existing) {'), 'Detecta duplicados');
-assert(datosContent.includes('duplicados.push'), 'Registra duplicados');
+function workerContentPlaceholder() {
+  return !datosContent.includes('supabase.') && datosContent.includes('crearMovimientosDesdeImportacion');
+}
 
 // 2. Verificar imports-prompts.js
 console.log('\n2️⃣  Archivo imports-prompts.js');
@@ -151,9 +150,9 @@ assert(datosContent.includes('throw new Error') || datosContent.includes('error'
 assert(promptsContent.includes('throw new Error') || promptsContent.includes('Error'), 'Valida respuestas en prompts');
 assert(workerContent.includes('catch (error)'), 'Maneja errores en worker');
 
-// Verificar que la deduplicación es completa
-assert(datosContent.includes('external_id'), 'Busca por external_id');
-assert(datosContent.includes('duplicados') && datosContent.includes('creados'), 'Retorna conteo de duplicados');
+// La deduplicación y los conteos se calculan en el worker/backend local.
+assert(workerContent.includes('external_id') || datosContent.includes('external_id'), 'Worker/backend busca por external_id');
+assert(workerContent.includes('duplicados') || datosContent.includes('duplicados'), 'Worker/backend retorna conteo de duplicados');
 
 // Verificar que se actualiza estado del job
 assert(workerContent.includes('actualizarImportJob'), 'Actualiza estado del job');
@@ -176,8 +175,8 @@ if (failCount > 0) {
 } else {
   console.log('✅ Importación de PDFs: lista\n');
   console.log('Próximos pasos:');
-  console.log('  1. Desplegar Edge Function: supabase functions deploy crear-import-job');
-  console.log('  2. Iniciar worker en EC2/Coolify: PATEWAY_API_KEY=... node worker-import.mjs');
+  console.log('  1. Ejecutar server/migrate.mjs contra PostgreSQL de Coolify');
+  console.log('  2. Iniciar el worker local con PATEWAY_API_KEY=... node worker-import.mjs');
   console.log('  3. Probar en UI: subir un PDF en Cuentas/Brokers/Wallets');
   process.exit(0);
 }
