@@ -1,137 +1,198 @@
 # FinanzAdmin Pro
 
-Plataforma SaaS multi-tenant para la gestión administrativa y financiera de múltiples
-empresas. Un super administrador gestiona empresas y usuarios; cada empresa tiene bancos,
-cuentas bancarias, brokers con activos y precios, y wallets cripto/fiat con movimientos.
-Los datos se importan desde extractos en PDF mediante IA, y se visualizan con filtros por
-mes, resúmenes y tablas.
+Aplicación SaaS multiempresa para administrar empresas, bancos, cuentas, brokers, activos, wallets y movimientos financieros. Incluye autenticación propia con JWT, PostgreSQL, importación de extractos PDF mediante NVIDIA NIM/Nemotron y sincronización de precios.
+
+## Arquitectura actual
+
+```text
+Navegador React/Vite
+        │
+        ▼
+API Node/Express ─────► PostgreSQL
+        │
+        ├── worker-import   (PDF → texto → NVIDIA Nemotron → movimientos)
+        └── worker-precios  (cola y barrido de precios)
+```
+
+La aplicación principal sirve el frontend compilado y la API desde el mismo servicio. PostgreSQL es la fuente de verdad para usuarios, empresas y datos financieros. Supabase queda únicamente como respaldo histórico/legacy; el flujo operativo local usa la API propia y PostgreSQL.
 
 ## Stack
 
-| Capa | Tecnología |
-|---|---|
-| Base de datos | Supabase Cloud (PostgreSQL + RLS) |
-| Auth | Supabase Auth (email/contraseña + Google OAuth) |
-| Storage | Supabase Storage (bucket privado, URLs firmadas) |
-| Realtime | Supabase Realtime |
-| Frontend | React 18 + Vite + Tailwind CSS + shadcn/ui |
-| Routing | react-router-dom v6 |
-| Datos | @tanstack/react-query + supabase-js |
-| Deploy | EC2 + Coolify (frontend y worker de IA) |
+- React 18, Vite, Tailwind CSS y shadcn/ui.
+- Node.js 22, Express y JWT.
+- PostgreSQL mediante `pg`.
+- Contraseñas con bcrypt.
+- NVIDIA NIM compatible con OpenAI para extracción de PDFs.
+- `pdftotext` de `poppler-utils` para convertir PDFs a texto.
+- Coolify para despliegue.
 
-## Puesta en marcha
+## Requisitos
 
-### 1. Requisitos
+- Node.js 22 o superior.
+- PostgreSQL 14 o superior.
+- Para importar PDFs: `pdftotext`/`poppler-utils`.
+- Una clave de NVIDIA NIM para el worker de importaciones.
 
-- Node.js 18 o superior
-- Un proyecto en [supabase.com](https://supabase.com)
-
-### 2. Clonar e instalar
+## Instalación local
 
 ```bash
-git clone <URL-DEL-REPO>
+git clone https://github.com/murilloleonel939-art/finanzas.git
 cd finanzas
 npm install
+cp .env.example .env
 ```
 
-### 3. Variables de entorno
+Configura `.env`:
+
+```env
+DATABASE_URL=postgresql://usuario:contrasena@host:5432/finanzadmin
+JWT_SECRET=una-clave-aleatoria-de-al-menos-32-caracteres
+ADMIN_EMAIL=admin@ejemplo.com
+ADMIN_PASSWORD=una-clave-inicial-de-al-menos-12-caracteres
+ADMIN_NAME=Administrador principal
+```
+
+Aplica el esquema y crea el primer superadministrador:
 
 ```bash
-cp .env.example .env.local
+npm run db:migrate
 ```
 
-Rellena en `.env.local` los dos valores desde **Project Settings → API** de tu proyecto
-Supabase. Sin la `anon key`, la app lanza un error al arrancar explicando qué falta.
+La migración ejecuta [`server/schema.sql`](server/schema.sql), crea tablas, índices y vistas, y crea el administrador inicial solo si todavía no existe. Es idempotente y no borra datos existentes.
 
-> La `service_role` key **nunca** va aquí: se salta el RLS por completo y solo se usa en
-> el servidor (Edge Functions y los workers).
-
-### 4. Aplicar el esquema de la base de datos
-
-Sigue [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md). Son 15 migraciones secuenciales en el
-SQL Editor, más la creación del primer super_admin y el SMTP.
-
-### 5. Arrancar
+Arranca la API y frontend compilado:
 
 ```bash
-npm run dev
+npm run build
+npm start
 ```
 
-En `http://localhost:5173`.
+Para desarrollo del frontend usa `npm run dev`; para ejecutar la API separadamente usa `npm run dev:api`.
 
-## Estructura
+## Despliegue en Coolify
 
+1. Crea un recurso PostgreSQL.
+2. Crea un servicio desde este repositorio de GitHub.
+3. Usa el `Dockerfile` incluido, puerto interno `3000` y comando de inicio por defecto.
+4. Configura estas variables secretas en la aplicación:
+
+```env
+DATABASE_URL=postgresql://...
+JWT_SECRET=clave-aleatoria-de-al-menos-32-caracteres
+ADMIN_EMAIL=admin@tu-dominio.com
+ADMIN_PASSWORD=clave-inicial-de-al-menos-12-caracteres
+ADMIN_NAME=Administrador principal
 ```
-docs/                      Documentación (empieza por ARQUITECTURA.md)
-supabase/migrations/       Esquema SQL: 15 migraciones secuenciales
-supabase/functions/        Edge Functions (invitaciones, admin, precios)
-scripts/                   Verificadores y pruebas
-src/
-  components/ui/           Componentes shadcn (button, input, label, card)
-  components/              Componentes compartidos y de cada módulo
-  contexts/AuthContext.jsx Sesión, perfil y control de acceso
-  lib/supabase.js          Cliente de Supabase
-  lib/db.js                Adaptador de consultas (forma del SDK de Base44)
-  pages/                   Pantallas, una por ruta
-worker-import.mjs          Worker de importación de PDFs (EC2)
-worker-precios.mjs         Worker de precios (cola + barrido diario)
+
+El `Dockerfile` instala `poppler-utils`, compila la aplicación y ejecuta `node server/migrate.mjs` antes de iniciar la API. Por tanto, las tablas se crean automáticamente durante el arranque. También puedes ejecutar manualmente `npm run db:migrate` desde la terminal del contenedor.
+
+El primer inicio puede mostrar `Superusuario inicial creado`. En reinicios posteriores indicará que ya existe y no lo modificará.
+
+### Worker de importaciones
+
+Crea un servicio separado en Coolify con el mismo repositorio, la misma `DATABASE_URL` y este comando:
+
+```bash
+npm run worker:import
 ```
+
+Variables adicionales:
+
+```env
+NVIDIA_API_KEY=...
+NVIDIA_API_URL=https://integrate.api.nvidia.com/v1/chat/completions
+IMPORT_MODEL=nvidia/nemotron-3-super-120b-a12b
+IMPORT_STORAGE_DIR=/app/server/uploads
+IMPORT_POLL_INTERVAL_MS=30000
+```
+
+El modelo configurado es **NVIDIA Nemotron 3 Super 120B** (`nvidia/nemotron-3-super-120b-a12b`). Como su entrada es textual, el worker ejecuta `pdftotext` y envía el contenido extraído a NVIDIA NIM. La imagen del `Dockerfile` ya contiene `poppler-utils`.
+
+### Worker de precios
+
+Crea otro servicio con la misma `DATABASE_URL` y ejecuta:
+
+```bash
+npm run worker:precios
+```
+
+Los workers deben usar la misma base PostgreSQL que la API. Revisa sus logs en Coolify después de desplegarlos.
+
+## Usuarios y contraseñas
+
+- El primer superadministrador se crea con `ADMIN_EMAIL`, `ADMIN_PASSWORD` y `ADMIN_NAME`.
+- Un administrador puede crear usuarios desde la aplicación.
+- Las contraseñas de usuarios nuevos y las restablecidas requieren mínimo 6 caracteres.
+- Las contraseñas se almacenan con hash bcrypt; nunca se guarda la contraseña en texto plano.
+- Comparte las contraseñas iniciales por un canal seguro.
 
 ## Comandos
 
-| Comando | Qué hace |
+| Comando | Función |
 |---|---|
-| `npm run dev` | Servidor de desarrollo |
+| `npm run dev` | Servidor de desarrollo Vite |
+| `npm run dev:api` | API local |
 | `npm run build` | Build de producción |
-| `npm run verificar` | Columnas del código contra `supabase/migrations/` |
-| `npm run pruebas` | Suite de precios (humo + integración + reporte) |
-| `npm run pruebas:brokers` | Pruebas del módulo de brokers |
-| `npm run pruebas:wallets` | Pruebas del módulo de wallets y Earn |
-| `npm run pruebas:importacion` | Pruebas de importación de PDFs |
-| `npm run pruebas:exportacion` | Pruebas de exportación de datos |
-| `npm run verificar:precios` | Integridad del módulo de precios |
-| `npm run verificar:exportacion` | Integridad de la exportación |
-| `npm run verificar:admin` | Integridad del panel de administración |
+| `npm start` | Migración y API de producción |
+| `npm run db:migrate` | Aplica el esquema PostgreSQL y crea el admin inicial |
+| `npm run worker:import` | Procesa jobs de importación PDF |
+| `npm run worker:precios` | Procesa cola y barrido de precios |
+| `npm run verificar` | Verifica columnas contra el esquema local |
+| `npm run pruebas` | Suite de precios |
+| `npm run pruebas:importacion` | Smoke test de importación |
+| `npm run pruebas:wallets` | Smoke test de wallets |
+| `npm run pruebas:brokers` | Smoke test de brokers |
+| `npm run pruebas:exportacion` | Pruebas de exportación |
+| `npm run verificar:precios` | Verificación completa de precios |
+| `npm run verificar:admin` | Verificación del panel administrativo |
 
-`npm run verificar` es el más útil antes de subir un cambio: lee las migraciones como
-fuente de verdad y avisa si el código consulta una columna que no existe. `npm run build`
-no lo detecta, porque las columnas de PostgREST son strings.
+## Estructura importante
 
-## Edge Functions
+```text
+server/schema.sql                 Esquema PostgreSQL completo
+server/migrate.mjs                Migración idempotente y admin inicial
+server/index.mjs                  API Express, JWT y autorización por empresa
+server/db.mjs                     Pool PostgreSQL
+worker-import.mjs                 Importación PDF con NVIDIA Nemotron
+worker-precios.mjs                Cola y sincronización de precios
+deploy/                           Ejemplos de variables y servicio del worker
+src/lib/api.js                    Cliente de la API propia
+src/lib/imports-datos.js          Jobs y datos de importación
+scripts/                          Verificadores y pruebas
+docs/COOLIFY-POSTGRES.md          Guía adicional de Coolify
+```
 
-La gestión de usuarios necesita la `service_role` key, que no puede estar en el navegador
-porque el bundle es público. Vive en Edge Functions que verifican primero que quien llama
-es `super_admin` activo:
+## Verificación antes de publicar
 
-- `invitar-usuario` — `auth.admin.inviteUserByEmail` + asignación de empresas.
-- `actualizar-usuario` — rol global, estado, empresas y reenvío del enlace de acceso.
-- `actualizar-precios` — encola la actualización de precios.
-- `crear-import-job` — registra una importación de PDF.
-- `admin-get-stats`, `admin-list-jobs`, `admin-list-logs`, `admin-update-config` — panel.
-- `enviar-email` — notificaciones.
+```bash
+npm run build
+npm run verificar
+npm run pruebas:importacion
+npm run pruebas:wallets
+npm run pruebas:brokers
+npm run pruebas:exportacion
+npm run verificar:precios
+git diff --check
+```
 
-Para desplegarlas: [`supabase/functions/README.md`](supabase/functions/README.md). El
-despliegue requiere tu login del CLI de Supabase.
+## Seguridad y operación
 
-## Documentación
+- Nunca subas `.env`, `DATABASE_URL`, `JWT_SECRET`, `NVIDIA_API_KEY` ni tokens de GitHub al repositorio.
+- Usa variables secretas de Coolify.
+- Mantén PostgreSQL privado dentro de la red de Coolify.
+- El backend valida el JWT y el acceso a cada empresa; no se confía solamente en el frontend.
+- Configura backups de PostgreSQL antes de cargar datos productivos.
+- Revisa los logs de la API y de ambos workers después de cada despliegue.
 
-| Documento | Contenido |
-|---|---|
-| [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) | Punto de entrada: arquitectura y decisiones cerradas |
-| [`docs/DECISIONES.md`](docs/DECISIONES.md) | El razonamiento detrás de cada decisión (D1-D35) |
-| [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) | Guía paso a paso del esquema y la puesta en producción |
-| [`docs/PRD.md`](docs/PRD.md) | Reglas de negocio |
+## Documentación adicional
 
-## Seguridad
+- [`docs/COOLIFY-POSTGRES.md`](docs/COOLIFY-POSTGRES.md): despliegue de la aplicación con PostgreSQL.
+- [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md): arquitectura y decisiones.
+- [`docs/DECISIONES.md`](docs/DECISIONES.md): decisiones técnicas.
+- [`docs/PRD.md`](docs/PRD.md): reglas de negocio.
+- [`deploy/worker-import.env.example`](deploy/worker-import.env.example): variables del worker PDF.
+- [`server/schema.sql`](server/schema.sql): tablas, índices y vistas PostgreSQL.
 
-El aislamiento entre empresas **no depende del frontend**. La `anon key` viaja en el bundle
-del navegador por diseño, así que cualquiera puede llamar a la API REST directamente. La
-frontera real es el **Row-Level Security** de la migración `0006`:
+## Estado
 
-- `is_super_admin()` — ¿el llamante es super_admin y está activo?
-- `has_empresa_access(empresa_id)` — ¿el llamante está asignado a esa empresa, y la
-  empresa sigue viva? Todas las tablas hijas (bancos, cuentas, movimientos, brokers,
-  wallets) la usan, así que una empresa borrada pierde el acceso a sus datos.
-
-Antes de cargar datos reales, ejecuta la prueba de dos usuarios de empresas distintas
-descrita al final de [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md).
+La aplicación está preparada para operar con API propia y PostgreSQL en Coolify. El build y las suites locales de importación, precios, brokers, wallets y exportación deben ejecutarse antes de cada publicación.

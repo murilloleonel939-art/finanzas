@@ -1,5 +1,8 @@
 FROM node:22-alpine
 
+# El worker de importaciones convierte PDFs a texto antes de enviarlos a NVIDIA NIM.
+RUN apk add --no-cache poppler-utils
+
 WORKDIR /app
 
 COPY package.json package-lock.json ./

@@ -11,7 +11,7 @@ En el servicio de GitHub de FinanzAdmin, abre **Environment Variables** y crea e
 | `DATABASE_URL` | Selecciona la referencia de la base PostgreSQL creada en Coolify. |
 | `JWT_SECRET` | Una cadena aleatoria de al menos 32 caracteres. |
 | `ADMIN_EMAIL` | El email del primer superadministrador. |
-| `ADMIN_PASSWORD` | Contraseña inicial fuerte, mínimo 12 caracteres. |
+| `ADMIN_PASSWORD` | Contraseña inicial fuerte, mínimo 12 caracteres para el primer administrador. |
 | `ADMIN_NAME` | Nombre mostrado del administrador (opcional). |
 
 No pongas `DATABASE_URL` ni `JWT_SECRET` como variables `VITE_*`: nunca deben llegar al navegador.
@@ -29,10 +29,10 @@ El contenedor ejecuta la migración idempotente en cada arranque. Crea las tabla
 
 Al terminar el despliegue, abre el dominio de la aplicación. Debe aparecer la pantalla de acceso sin pedir claves de Supabase. Inicia sesión con el correo y contraseña de `ADMIN_*`.
 
-En esta primera fase ya funcionan: inicio de sesión, sesión JWT, superusuario, empresas, creación/edición/desactivación de usuarios y asignación de empresas.
+En esta versión funcionan con la API propia y PostgreSQL: inicio de sesión, sesión JWT, superusuario, empresas, usuarios, bancos, cuentas, brokers, wallets, movimientos, importación de PDFs y precios.
 
-Los módulos financieros aún pertenecen al respaldo Supabase y muestran un aviso claro en lugar de operar contra dos bases diferentes. Se migrarán uno por uno en la siguiente fase.
+La autorización se valida en el backend y se aplica por empresa; no depende únicamente del frontend.
 
 ## 4. Contraseñas
 
-Las contraseñas se guardan con hash bcrypt en PostgreSQL. Por ahora el superadministrador define la contraseña inicial de cada cuenta y la comunica por un canal seguro. La recuperación por correo se añadirá al configurar SMTP propio; no se envían correos mediante Supabase.
+Las contraseñas se guardan con hash bcrypt en PostgreSQL. El primer `ADMIN_PASSWORD` requiere mínimo 12 caracteres; las contraseñas creadas o restablecidas por un administrador desde la aplicación requieren mínimo 6 caracteres. Comunica las contraseñas iniciales por un canal seguro. La recuperación por correo se añadirá al configurar SMTP propio; no se envían correos mediante Supabase.
