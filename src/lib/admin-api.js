@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { api } from './api'
 
 /**
  * APIs del panel admin
@@ -11,28 +12,8 @@ const ADMIN_API_BASE = '/functions/v1'
 /**
  * Obtener estadísticas del sistema
  */
-export async function getAdminStats() {
-  try {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) throw new Error('No autenticado')
-
-    const response = await fetch(`${ADMIN_API_BASE}/admin-get-stats`, {
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json'
-      }
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Error obteniendo estadísticas')
-    }
-
-    return await response.json()
-  } catch (error) {
-    console.error('getAdminStats error:', error)
-    throw error
-  }
+export function getAdminStats() {
+  return api('/api/admin/stats')
 }
 
 /**
@@ -271,20 +252,7 @@ export async function listPlantillas() {
  * (decisión D6), no de una tabla de roles aparte.
  */
 export async function esAdmin(user) {
-  try {
-    if (!user) return false
-
-    const { data } = await supabase
-      .from('profiles')
-      .select('app_role, estado')
-      .eq('id', user.id)
-      .maybeSingle()
-
-    return data?.app_role === 'super_admin' && data?.estado === 'activo'
-  } catch (error) {
-    console.error('esAdmin error:', error)
-    return false
-  }
+  return user?.app_role === 'super_admin' && user?.estado === 'activo'
 }
 
 /**
@@ -294,16 +262,13 @@ export async function esAdmin(user) {
  */
 export async function getUserRoles(userId) {
   try {
-    const [{ data: perfil }, { data: vinculos }] = await Promise.all([
-      supabase.from('profiles').select('app_role').eq('id', userId).maybeSingle(),
-      supabase.from('user_empresa').select('rol, empresa_id').eq('user_id', userId),
-    ])
-
-    const roles = []
-    if (perfil?.app_role) roles.push({ rol: perfil.app_role, empresa_id: null })
-    for (const v of vinculos ?? []) roles.push({ rol: v.rol, empresa_id: v.empresa_id })
-
-    return roles
+    const { usuarios } = await api('/api/admin/usuarios')
+    const usuario = (usuarios || []).find((item) => item.id === userId)
+    if (!usuario) return []
+    return [
+      ...(usuario.app_role ? [{ rol: usuario.app_role, empresa_id: null }] : []),
+      ...(usuario.empresas || []).map((empresa) => ({ rol: empresa.rol, empresa_id: empresa.empresa_id })),
+    ]
   } catch (error) {
     console.error('getUserRoles error:', error)
     return []
