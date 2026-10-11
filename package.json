@@ -16,7 +16,8 @@
     "pruebas:precios": "node scripts/precios-pruebas.mjs",
     "verificar:precios": "node scripts/precios-verificacion.mjs",
     "verificar:exportacion": "node scripts/exportacion-verificacion.mjs",
-    "verificar:admin": "node scripts/admin-verificacion.mjs"
+    "verificar:admin": "node scripts/admin-verificacion.mjs",
+    "deploy:functions": "node scripts/deploy-functions.mjs"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.12",
