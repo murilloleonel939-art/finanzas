@@ -47,6 +47,7 @@ Configura `.env`:
 ```env
 DATABASE_URL=postgresql://usuario:contrasena@host:5432/finanzadmin
 JWT_SECRET=una-clave-aleatoria-de-al-menos-32-caracteres
+PDF_PASSWORD_SECRET=otra-clave-aleatoria-larga-y-secreta
 ADMIN_EMAIL=admin@ejemplo.com
 ADMIN_PASSWORD=una-clave-inicial-de-al-menos-12-caracteres
 ADMIN_NAME=Administrador principal
@@ -111,7 +112,7 @@ IMPORT_STORAGE_DIR=/app/server/uploads
 IMPORT_POLL_INTERVAL_MS=5000
 ```
 
-El worker usa **Claude Haiku 4.5** mediante Pateway. Ejecuta `pdftotext` y procesa PDF por páginas, y CSV/Excel por filas. La imagen del `Dockerfile` ya contiene `poppler-utils`.
+El worker usa **Claude Haiku 4.5** mediante Pateway. Ejecuta `pdftotext` y procesa PDF por páginas, y CSV/Excel por filas. Las claves de PDF se configuran por cuenta, se almacenan cifradas con `PDF_PASSWORD_SECRET` y nunca se muestran; conserva esa variable igual en API y worker. La imagen del `Dockerfile` ya contiene `poppler-utils`.
 
 ### Worker de precios
 

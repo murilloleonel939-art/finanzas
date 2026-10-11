@@ -12,6 +12,7 @@ import { pool, query } from './db.mjs'
 const app = express()
 const port = Number(process.env.PORT || 3000)
 const jwtSecret = process.env.JWT_SECRET
+const pdfPasswordSecret = process.env.PDF_PASSWORD_SECRET || jwtSecret
 
 if (!jwtSecret || jwtSecret.length < 32) {
   throw new Error('JWT_SECRET debe tener al menos 32 caracteres.')
@@ -25,6 +26,15 @@ const publicUserFields = `id, email, full_name, app_role, estado, created_at, up
 
 function error(res, status, message) {
   return res.status(status).json({ error: message })
+}
+
+function cifrarClavePdf(clave) {
+  if (!clave) return null
+  const iv = crypto.randomBytes(12)
+  const key = crypto.createHash('sha256').update(pdfPasswordSecret).digest()
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv)
+  const encrypted = Buffer.concat([cipher.update(clave, 'utf8'), cipher.final()])
+  return [iv.toString('base64url'), cipher.getAuthTag().toString('base64url'), encrypted.toString('base64url')].join('.')
 }
 
 function signToken(user) {
@@ -231,7 +241,7 @@ app.get('/api/empresas/:empresaId/cuentas', requireAuth, async (req, res) => {
     return error(res, 403, 'No tienes acceso a esta empresa.')
   }
   const result = await query(
-    `select id, empresa_id, banco_id, numero_cuenta, tipo_cuenta, tipo_moneda, monto, created_at, updated_at
+    `select id, empresa_id, banco_id, numero_cuenta, tipo_cuenta, tipo_moneda, monto, (pdf_password_encrypted is not null) as tiene_clave_pdf, created_at, updated_at
      from cuentas where empresa_id = $1 and deleted_at is null order by numero_cuenta`,
     [req.params.empresaId]
   )
@@ -276,6 +286,7 @@ app.post('/api/empresas/:empresaId/cuentas', requireAuth, async (req, res) => {
     return error(res, 403, 'No tienes acceso a esta empresa.')
   }
   const { banco_id: bancoId, numero_cuenta: numeroCuenta, tipo_cuenta: tipoCuenta, tipo_moneda: tipoMoneda } = req.body
+  const pdfPassword = typeof req.body.pdf_password === 'string' ? req.body.pdf_password.trim() : ''
   const monto = Number(req.body.monto ?? 0)
   if (!bancoId || !numeroCuenta?.trim() || !tipoMoneda?.trim()) return error(res, 400, 'Completa los datos obligatorios de la cuenta.')
   if (!['ahorros', 'corriente'].includes(tipoCuenta)) return error(res, 400, 'Tipo de cuenta inválido.')
@@ -293,9 +304,9 @@ app.post('/api/empresas/:empresaId/cuentas', requireAuth, async (req, res) => {
       return error(res, 400, 'El banco seleccionado no pertenece a esta empresa.')
     }
     const created = await client.query(
-      `insert into cuentas (empresa_id, banco_id, numero_cuenta, tipo_cuenta, tipo_moneda, monto, created_by)
-       values ($1, $2, $3, $4, $5, 0, $6) returning id`,
-      [req.params.empresaId, bancoId, numeroCuenta.trim(), tipoCuenta, tipoMoneda.trim(), req.auth.sub]
+      `insert into cuentas (empresa_id, banco_id, numero_cuenta, tipo_cuenta, tipo_moneda, monto, pdf_password_encrypted, created_by)
+       values ($1, $2, $3, $4, $5, 0, $6, $7) returning id`,
+      [req.params.empresaId, bancoId, numeroCuenta.trim(), tipoCuenta, tipoMoneda.trim(), cifrarClavePdf(pdfPassword), req.auth.sub]
     )
     if (monto > 0) {
       await client.query(
@@ -318,7 +329,7 @@ app.post('/api/empresas/:empresaId/cuentas', requireAuth, async (req, res) => {
 app.get('/api/cuentas/:cuentaId', requireAuth, async (req, res) => {
   const result = await query(
     `select c.id, c.empresa_id, c.banco_id, b.nombre_banco as banco_nombre, b.pais as banco_pais,
-            c.numero_cuenta, c.tipo_cuenta, c.tipo_moneda, c.monto
+            c.numero_cuenta, c.tipo_cuenta, c.tipo_moneda, c.monto, (c.pdf_password_encrypted is not null) as tiene_clave_pdf
      from cuentas c join bancos b on b.id = c.banco_id and b.deleted_at is null
      where c.id = $1 and c.deleted_at is null`,
     [req.params.cuentaId]
@@ -329,6 +340,16 @@ app.get('/api/cuentas/:cuentaId', requireAuth, async (req, res) => {
     return error(res, 403, 'No tienes acceso a esta empresa.')
   }
   res.json({ cuenta })
+})
+
+app.put('/api/cuentas/:cuentaId/pdf-password', requireAuth, async (req, res) => {
+  const account = await query('select empresa_id from cuentas where id = $1 and deleted_at is null', [req.params.cuentaId])
+  if (!account.rowCount) return error(res, 404, 'Cuenta no encontrada.')
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, account.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  if (req.body.pdf_password !== null && typeof req.body.pdf_password !== 'string') return error(res, 400, 'La clave del PDF no es válida.')
+  const password = typeof req.body.pdf_password === 'string' ? req.body.pdf_password.trim() : ''
+  await query('update cuentas set pdf_password_encrypted = $2, updated_at = now() where id = $1', [req.params.cuentaId, cifrarClavePdf(password)])
+  res.json({ tiene_clave_pdf: Boolean(password) })
 })
 
 app.get('/api/cuentas/:cuentaId/movimientos', requireAuth, async (req, res) => {

@@ -30,6 +30,10 @@ export async function obtenerCuenta(cuentaId) {
   return cuenta
 }
 
+export function actualizarClavePdf(cuentaId, pdfPassword) {
+  return apiJson(`/api/cuentas/${cuentaId}/pdf-password`, 'PUT', { pdf_password: pdfPassword })
+}
+
 /**
  * Movimientos de una cuenta, del más reciente al más antiguo.
  *

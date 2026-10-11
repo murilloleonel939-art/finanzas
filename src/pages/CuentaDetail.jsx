@@ -10,6 +10,7 @@ import {
   borrarMes,
   conSaldoResultante,
   resumenPeriodo,
+  actualizarClavePdf,
 } from '@/lib/cuentas'
 import { getMesesDisponibles, filtrarPorMes, formatMes, MES_TODOS } from '@/components/shared/MonthFilter'
 import MonthFilter from '@/components/shared/MonthFilter'
@@ -52,6 +53,8 @@ export default function CuentaDetail() {
   const [movimientoABorrar, setMovimientoABorrar] = useState(null)
   const [mesABorrar, setMesABorrar] = useState(null)
   const [importarAbierto, setImportarAbierto] = useState(false)
+  const [clavePdf, setClavePdf] = useState('')
+  const [mensajeClavePdf, setMensajeClavePdf] = useState('')
 
   const { data: cuenta, isLoading: cargandoCuenta, error: errorCuenta } = useQuery({
     queryKey: ['cuenta', cuentaId],
@@ -84,6 +87,16 @@ export default function CuentaDetail() {
   const visibles = conSaldo.slice(paginaSegura * POR_PAGINA, (paginaSegura + 1) * POR_PAGINA)
 
   const resumen = useMemo(() => resumenPeriodo(filtrados), [filtrados])
+
+  const { mutate: guardarClavePdf, isPending: guardandoClavePdf } = useMutation({
+    mutationFn: (password) => actualizarClavePdf(cuentaId, password ?? clavePdf),
+    onSuccess: (resultado) => {
+      setClavePdf('')
+      setMensajeClavePdf(resultado.tiene_clave_pdf ? 'Clave guardada de forma segura.' : 'Clave PDF eliminada.')
+      queryClient.invalidateQueries({ queryKey: ['cuenta', cuentaId] })
+    },
+    onError: (err) => setMensajeClavePdf(err.message),
+  })
 
   const { mutate: eliminarMes, isPending: borrandoMes } = useMutation({
     mutationFn: (periodo) => borrarMes(empresaId, cuentaId, periodo),
@@ -258,6 +271,20 @@ export default function CuentaDetail() {
             )}
           </div>
         )}
+
+        <Card className="p-4 mb-6">
+          <p className="font-medium">Clave del PDF del banco</p>
+          <p className="text-sm text-muted-foreground mt-1">Se guarda cifrada y se usa automáticamente al importar extractos protegidos.</p>
+          <div className="flex flex-col sm:flex-row gap-2 mt-3">
+            <input type="password" value={clavePdf} onChange={(event) => setClavePdf(event.target.value)} placeholder={cuenta.tiene_clave_pdf ? 'Clave guardada (escribe para reemplazar)' : 'Clave del PDF'} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" autoComplete="new-password" />
+            <Button onClick={() => guardarClavePdf()} disabled={guardandoClavePdf || !clavePdf.trim()}>{guardandoClavePdf ? 'Guardando…' : 'Guardar clave'}</Button>
+          </div>
+          <div className="flex items-center gap-3 mt-2">
+            {cuenta.tiene_clave_pdf && <span className="text-xs text-emerald-600">Hay una clave guardada.</span>}
+            <button type="button" className="text-xs text-destructive underline" onClick={() => { setClavePdf(''); guardarClavePdf('') }}>Eliminar clave</button>
+            {mensajeClavePdf && <span className="text-xs text-muted-foreground">{mensajeClavePdf}</span>}
+          </div>
+        </Card>
 
         {/* Filtro de mes */}
         <div className="mb-6">

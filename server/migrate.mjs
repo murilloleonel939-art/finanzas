@@ -5,6 +5,8 @@ import { pool, query } from './db.mjs'
 
 const schema = await readFile(new URL('./schema.sql', import.meta.url), 'utf8')
 await pool.query(schema)
+// Compatibilidad con instalaciones existentes: schema.sql usa IF NOT EXISTS
+await query('alter table cuentas add column if not exists pdf_password_encrypted text')
 
 const email = process.env.ADMIN_EMAIL?.trim().toLowerCase()
 const password = process.env.ADMIN_PASSWORD

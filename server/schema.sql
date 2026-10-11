@@ -46,6 +46,7 @@ create table if not exists cuentas (
   tipo_cuenta text not null check (tipo_cuenta in ('ahorros', 'corriente')),
   tipo_moneda text not null,
   monto numeric(18, 2) not null default 0,
+  pdf_password_encrypted text,
   created_by uuid references usuarios(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

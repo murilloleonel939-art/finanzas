@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import fs from 'node:fs'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import XLSX from 'xlsx'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -24,6 +25,17 @@ const IMPORT_CONCURRENCY = Math.max(1, Number(process.env.IMPORT_CONCURRENCY || 
 const PATEWAY_BASE_URL = (process.env.PATEWAY_BASE_URL || 'https://api.pateway.ai').replace(/\/$/, '')
 const PATEWAY_MODEL = process.env.IMPORT_MODEL || 'claude-haiku-4-5-20251001'
 const execFileAsync = promisify(execFile)
+const pdfPasswordSecret = process.env.PDF_PASSWORD_SECRET || process.env.JWT_SECRET
+
+function descifrarClavePdf(valor) {
+  if (!valor || !pdfPasswordSecret) return ''
+  const [ivText, tagText, encryptedText] = String(valor).split('.')
+  if (!ivText || !tagText || !encryptedText) throw new Error('La clave PDF guardada tiene un formato inválido.')
+  const key = crypto.createHash('sha256').update(pdfPasswordSecret).digest()
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(ivText, 'base64url'))
+  decipher.setAuthTag(Buffer.from(tagText, 'base64url'))
+  return Buffer.concat([decipher.update(Buffer.from(encryptedText, 'base64url')), decipher.final()]).toString('utf8')
+}
 
 function log(message, level = 'info') { console.log(`[${new Date().toISOString()}] ${level === 'error' ? '❌' : level === 'warn' ? '⚠️' : 'ℹ️'} ${message}`) }
 function fileForJob(job) {
@@ -35,21 +47,22 @@ function fileForJob(job) {
 }
 function asArray(value) { return Array.isArray(value) ? value : [] }
 
-async function lotesDelArchivo(filePath) {
+async function lotesDelArchivo(filePath, pdfPassword = '') {
   const extension = path.extname(filePath).toLowerCase()
   if (extension === '.pdf') {
     try {
-      const total = Number((await execFileAsync(process.env.PDFINFO_BIN || 'pdfinfo', [filePath], { maxBuffer: 1024 * 1024 })).stdout.match(/Pages:\s+(\d+)/i)?.[1] || 1)
+      const total = Number((await execFileAsync(process.env.PDFINFO_BIN || 'pdfinfo', [...(pdfPassword ? ['-upw', pdfPassword] : []), filePath], { maxBuffer: 1024 * 1024 })).stdout.match(/Pages:\s+(\d+)/i)?.[1] || 1)
       const lotes = []
       for (let inicio = 1; inicio <= total; inicio += IMPORT_PDF_PAGES_PER_BATCH) {
         const fin = Math.min(total, inicio + IMPORT_PDF_PAGES_PER_BATCH - 1)
-        const { stdout: texto } = await execFileAsync(process.env.PDFTOTEXT_BIN || 'pdftotext', ['-layout', '-f', String(inicio), '-l', String(fin), filePath, '-'], { maxBuffer: 16 * 1024 * 1024 })
+        const { stdout: texto } = await execFileAsync(process.env.PDFTOTEXT_BIN || 'pdftotext', ['-layout', ...(pdfPassword ? ['-upw', pdfPassword] : []), '-f', String(inicio), '-l', String(fin), filePath, '-'], { maxBuffer: 16 * 1024 * 1024 })
         if (texto.trim()) lotes.push(`PÁGINAS ${inicio}-${fin}\n${texto.trim()}`)
       }
       if (!lotes.length) throw new Error('El PDF no contiene texto extraíble.')
       return lotes
     } catch (error) {
       if (error.code === 'ENOENT') throw new Error('Falta pdftotext/pdfinfo en la imagen del worker.')
+      if (/password|encrypted|incorrect password|not authorized/i.test(`${error.message} ${error.stderr || ''}`)) throw new Error('La clave del PDF no es correcta. Actualízala en la configuración de la cuenta.')
       throw new Error(`No se pudo extraer texto del PDF: ${error.message}`)
     }
   }
@@ -115,7 +128,7 @@ async function extraerDatos(filePath, job, contexto) {
     : job.target === 'broker'
       ? generarPromptMovimientosBroker(contexto)
       : generarPromptMovimientosWallet({ ...contexto, proveedor: job.proveedor })
-  const lotes = await lotesDelArchivo(filePath)
+  const lotes = await lotesDelArchivo(filePath, job.target === 'cuenta' ? descifrarClavePdf(contexto.pdf_password_encrypted) : '')
   const acumulado = job.target === 'broker' ? { movimientos: [], activos: [] } : []
   for (let inicio = 0; inicio < lotes.length; inicio += IMPORT_CONCURRENCY) {
     const indices = Array.from({ length: Math.min(IMPORT_CONCURRENCY, lotes.length - inicio) }, (_, offset) => inicio + offset)

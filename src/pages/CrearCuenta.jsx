@@ -40,6 +40,7 @@ export default function CrearCuenta() {
   const [numeroCuenta, setNumeroCuenta] = useState('')
   const [tipoMoneda, setTipoMoneda] = useState('COP')
   const [saldoInicial, setSaldoInicial] = useState('')
+  const [clavePdf, setClavePdf] = useState('')
   const [error, setError] = useState('')
 
   const { data: bancos = [], isLoading: cargandoBancos } = useQuery({
@@ -67,6 +68,7 @@ export default function CrearCuenta() {
         tipo_cuenta: tipoCuenta,
         tipo_moneda: tipoMoneda,
         monto: saldo,
+         pdf_password: clavePdf,
       })
 
       return cuentaId
@@ -215,7 +217,13 @@ export default function CrearCuenta() {
               />
             </div>
 
-            {error && (
+            <div>
+               <Label htmlFor="clave-pdf">Clave del PDF del banco (opcional)</Label>
+               <p className="text-xs text-muted-foreground mb-2">Se guarda cifrada y se usará automáticamente al importar.</p>
+               <Input id="clave-pdf" type="password" autoComplete="new-password" value={clavePdf} onChange={(e) => setClavePdf(e.target.value)} />
+             </div>
+
+             {error && (
               <div className="flex gap-3 p-3 bg-destructive/10 border border-destructive/30 rounded-md">
                 <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-destructive">{error}</p>

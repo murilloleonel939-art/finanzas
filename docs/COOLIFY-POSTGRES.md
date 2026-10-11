@@ -10,6 +10,7 @@ En el servicio de GitHub de FinanzAdmin, abre **Environment Variables** y crea e
 | --- | --- |
 | `DATABASE_URL` | Selecciona la referencia de la base PostgreSQL creada en Coolify. |
 | `JWT_SECRET` | Una cadena aleatoria de al menos 32 caracteres. |
+| `PDF_PASSWORD_SECRET` | Otra cadena aleatoria larga; debe ser idéntica en API y worker. |
 | `ADMIN_EMAIL` | El email del primer superadministrador. |
 | `ADMIN_PASSWORD` | Contraseña inicial fuerte, mínimo 12 caracteres para el primer administrador. |
 | `ADMIN_NAME` | Nombre mostrado del administrador (opcional). |
@@ -47,6 +48,8 @@ Para importar extractos grandes, el worker usa Pateway Claude Haiku por lotes. C
 El worker procesa los PDF por páginas y CSV/Excel por filas, por lo que un extracto de 60 páginas no se envía en una sola solicitud.
 
 La autorización se valida en el backend y se aplica por empresa; no depende únicamente del frontend.
+
+Cada cuenta puede guardar una clave de PDF opcional desde su detalle. Se almacena cifrada con `PDF_PASSWORD_SECRET`, nunca se devuelve en respuestas y el worker la descifra solo en memoria para ejecutar `pdftotext`. Si cambia, reemplázala desde la misma sección; si el PDF falla por clave incorrecta, actualiza la configuración de la cuenta.
 
 ## 4. Contraseñas
 
