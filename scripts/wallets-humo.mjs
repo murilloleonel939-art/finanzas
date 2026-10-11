@@ -43,7 +43,7 @@ await build({
   // alias faltara el bundle fallaría al construirse: la cadena de imports del
   // módulo de wallets queda cubierta entera.
   alias: {
-    '@/lib/supabase': join(AQUI, 'stub-supabase.mjs'),
+    '@/lib/api': join(AQUI, 'stub-api.mjs'),
     '@/lib/wallets-datos': join(RAIZ, 'src/lib/wallets-datos.js'),
     '@/lib/earnConfig': join(RAIZ, 'src/lib/earnConfig.js'),
     '@/lib/walletProviders': join(RAIZ, 'src/lib/walletProviders.js'),

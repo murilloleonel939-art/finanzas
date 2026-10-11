@@ -21,7 +21,6 @@ import {
   crearWallet,
   borrarWallet,
   listarSaldos,
-  fijarSaldo,
   listarMovimientosWallet,
   crearMovimientoWallet,
   borrarMovimientoWallet,
@@ -373,13 +372,6 @@ await t('listarSaldos no filtra deleted_at porque wallet_saldos no lo tiene', ()
   const c = ultima()
   assert.equal(c.tabla, 'wallet_saldos')
   assert.ok(!c.filtros.some((f) => f.columna === 'deleted_at'))
-})
-
-await t('fijarSaldo usa upsert con PK compuesta (wallet_id,moneda)', async () => {
-  await fijarSaldo('W1', 'BTC', 0.8)
-  const c = ultima()
-  assert.equal(c.operacion, 'upsert')
-  assert.equal(c.onConflict, 'wallet_id,moneda')
 })
 
 await t('listarMovimientosWallet lee la vista, ordenado por fecha DESC', () => {

@@ -41,7 +41,7 @@ await build({
   // `@/…` es el alias de vite.config.js. `alias` de esbuild lo resuelve, y así
   // el código se compila tal como lo ve el navegador.
   alias: {
-    '@/lib/supabase': join(AQUI, 'stub-supabase.mjs'),
+    '@/lib/api': join(AQUI, 'stub-api.mjs'),
     '@/lib/brokers-datos': join(RAIZ, 'src/lib/brokers-datos.js'),
     '@/lib/brokers': join(RAIZ, 'src/lib/brokers.js'),
     '@/lib/monedas': join(RAIZ, 'src/lib/monedas.js'),
