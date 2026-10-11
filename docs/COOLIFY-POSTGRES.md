@@ -38,8 +38,8 @@ Para importar extractos grandes, el worker usa Pateway Claude Haiku por lotes. C
 | `PATEWAY_API_KEY` | Clave de Pateway |
 | `PATEWAY_BASE_URL` | `https://api.pateway.ai` |
 | `IMPORT_MODEL` | `claude-haiku-4-5-20251001` |
-| `IMPORT_MAX_TOKENS` | `8192` |
-| `IMPORT_PDF_PAGES_PER_BATCH` | `5` |
+| `IMPORT_MAX_TOKENS` | `12288` |
+| `IMPORT_PDF_PAGES_PER_BATCH` | `1` |
 | `IMPORT_ROWS_PER_BATCH` | `500` |
 | `IMPORT_CONCURRENCY` | `3` |
 | `IMPORT_REQUEST_TIMEOUT_MS` | `180000` |

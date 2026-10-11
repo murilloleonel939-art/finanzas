@@ -102,13 +102,13 @@ Variables adicionales:
 PATEWAY_API_KEY=...
 PATEWAY_BASE_URL=https://api.pateway.ai
 IMPORT_MODEL=claude-haiku-4-5-20251001
-IMPORT_MAX_TOKENS=8192
-IMPORT_PDF_PAGES_PER_BATCH=5
+IMPORT_MAX_TOKENS=12288
+IMPORT_PDF_PAGES_PER_BATCH=1
 IMPORT_ROWS_PER_BATCH=500
 IMPORT_CONCURRENCY=3
 IMPORT_REQUEST_TIMEOUT_MS=180000
 IMPORT_STORAGE_DIR=/app/server/uploads
-IMPORT_POLL_INTERVAL_MS=30000
+IMPORT_POLL_INTERVAL_MS=5000
 ```
 
 El worker usa **Claude Haiku 4.5** mediante Pateway. Ejecuta `pdftotext` y procesa PDF por páginas, y CSV/Excel por filas. La imagen del `Dockerfile` ya contiene `poppler-utils`.

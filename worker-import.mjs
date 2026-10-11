@@ -13,11 +13,12 @@ import {
   derivarExternalId,
 } from './src/lib/imports-prompts.js'
 
-const POLL_INTERVAL = Number(process.env.IMPORT_POLL_INTERVAL_MS || 30000)
+const POLL_INTERVAL = Number(process.env.IMPORT_POLL_INTERVAL_MS || 5000)
 const STORAGE_DIR = process.env.IMPORT_STORAGE_DIR || path.resolve('server/uploads')
 const UNA_VEZ = process.env.IMPORT_UNA_VEZ === '1'
-const IMPORT_MAX_TOKENS = Number(process.env.IMPORT_MAX_TOKENS || 8192)
-const IMPORT_PDF_PAGES_PER_BATCH = Math.max(1, Number(process.env.IMPORT_PDF_PAGES_PER_BATCH || 5))
+const IMPORT_MAX_TOKENS = Number(process.env.IMPORT_MAX_TOKENS || 12288)
+// Una página por lote evita respuestas JSON enormes/truncadas en extractos densos.
+const IMPORT_PDF_PAGES_PER_BATCH = Math.max(1, Number(process.env.IMPORT_PDF_PAGES_PER_BATCH || 1))
 const IMPORT_ROWS_PER_BATCH = Math.max(25, Number(process.env.IMPORT_ROWS_PER_BATCH || 500))
 const IMPORT_CONCURRENCY = Math.max(1, Number(process.env.IMPORT_CONCURRENCY || 3))
 const PATEWAY_BASE_URL = (process.env.PATEWAY_BASE_URL || 'https://api.pateway.ai').replace(/\/$/, '')
@@ -67,36 +68,45 @@ async function lotesDelArchivo(filePath) {
 async function extraerLote(texto, prompt, esBroker, indice, total) {
   const apiKey = process.env.PATEWAY_API_KEY
   if (!apiKey) throw new Error('Falta PATEWAY_API_KEY para extraer movimientos.')
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), Number(process.env.IMPORT_REQUEST_TIMEOUT_MS || 180000))
-  try {
-    const response = await fetch(process.env.PATEWAY_MESSAGES_URL || `${PATEWAY_BASE_URL}/v1/messages`, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: PATEWAY_MODEL,
-        max_tokens: IMPORT_MAX_TOKENS,
-        system: 'Eres un extractor preciso. Devuelve únicamente JSON válido, sin markdown ni explicaciones.',
-        messages: [{ role: 'user', content: `${prompt}\n\nLOTE ${indice}/${total} DEL EXTRACTO:\n${texto}\n\nExtrae únicamente las filas reales de este lote. Retorna solo JSON válido.` }],
-      }),
-    })
-    if (!response.ok) throw new Error(`Falló extracción Pateway (${response.status}): ${await response.text()}`)
-    const payload = await response.json()
-    const text = payload.content?.filter((part) => part.type === 'text').map((part) => part.text).join('') || ''
-    if (!text) throw new Error(`Pateway devolvió contenido vacío (stop_reason: ${payload.stop_reason || 'desconocido'})`)
-    const datos = validarRespuestaExtraccion(text)
-    return esBroker ? { movimientos: asArray(datos.movimientos), activos: asArray(datos.activos) } : asArray(datos)
-  } catch (error) {
-    if (error.name === 'AbortError') throw new Error(`Pateway superó el tiempo límite del lote ${indice}/${total}.`)
-    throw error
-  } finally {
-    clearTimeout(timeout)
+  const timeoutMs = Number(process.env.IMPORT_REQUEST_TIMEOUT_MS || 180000)
+  for (let intento = 1; intento <= 2; intento += 1) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const response = await fetch(process.env.PATEWAY_MESSAGES_URL || `${PATEWAY_BASE_URL}/v1/messages`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: PATEWAY_MODEL,
+          max_tokens: IMPORT_MAX_TOKENS,
+          system: 'Eres un extractor preciso. Devuelve únicamente JSON válido, sin markdown ni explicaciones. Si no hay movimientos, devuelve []. Nunca cortes el JSON.',
+          messages: [{ role: 'user', content: `${prompt}\n\nLOTE ${indice}/${total} DEL EXTRACTO:\n${texto}\n\nExtrae únicamente las filas reales de este lote. Retorna solo JSON válido y compacto.` }],
+        }),
+      })
+      if (!response.ok) throw new Error(`Falló extracción Pateway (${response.status}): ${await response.text()}`)
+      const payload = await response.json()
+      const text = payload.content?.filter((part) => part.type === 'text').map((part) => part.text).join('') || ''
+      if (!text) throw new Error(`Pateway devolvió contenido vacío (stop_reason: ${payload.stop_reason || 'desconocido'})`)
+      try {
+        const datos = validarRespuestaExtraccion(text)
+        return esBroker ? { movimientos: asArray(datos.movimientos), activos: asArray(datos.activos) } : asArray(datos)
+      } catch (error) {
+        if (intento === 2) throw error
+        log(`JSON truncado en lote ${indice}/${total}; reintentando con una salida más compacta.`, 'warn')
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') throw new Error(`Pateway superó el tiempo límite del lote ${indice}/${total}.`)
+      if (intento === 2) throw error
+    } finally {
+      clearTimeout(timeout)
+    }
   }
+  throw new Error(`No se pudo extraer el lote ${indice}/${total}.`)
 }
 
 async function extraerDatos(filePath, job, contexto) {
