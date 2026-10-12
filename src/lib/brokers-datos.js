@@ -196,6 +196,7 @@ export function calcularTotalesBroker(movimientos = [], activos = []) {
         valorActivos: 0,
         costoPosiciones: 0,
         invertido: 0,
+        comisiones: 0,
       })
     }
     return porMoneda.get(clave)
@@ -205,9 +206,13 @@ export function calcularTotalesBroker(movimientos = [], activos = []) {
     const acc = casilla(m.broker_moneda)
     const monto = Number(m.monto || 0)
     acc.caja += m.tipo === 'ingreso' ? monto : -monto
-    // «Invertido» son las operaciones, no la caja: compras menos ventas.
+    // «Invertido» son las operaciones, no la caja: compras menos ventas. Solo
+    // las filas con cantidad son operaciones; las comisiones no lo son y por
+    // eso no engordan el costo de la inversión.
     if (m.cantidad != null) {
       acc.invertido += m.tipo === 'egreso' ? monto : -monto
+    } else if (esComision(m) && m.tipo === 'egreso') {
+      acc.comisiones += monto
     }
   }
 
@@ -227,19 +232,39 @@ export function calcularTotalesBroker(movimientos = [], activos = []) {
       // Si no hay movimientos de operación (posiciones cargadas a mano) se cae
       // al costo de las posiciones abiertas: es la única base disponible.
       const base = acc.invertido !== 0 ? acc.invertido : acc.costoPosiciones
+      // La ganancia de la inversión es contra lo que costaron las acciones. La
+      // comisión que cobró el broker no es parte del precio: se resta después,
+      // para que el resultado final sea el beneficio real de la operación.
       const ganancia = redondear(acc.valorActivos - base)
-      const pct = base > 0 ? redondear((ganancia / base) * 100) : null
+      const comisiones = redondear(acc.comisiones)
+      const gananciaConComisiones = redondear(ganancia - comisiones)
       return {
         moneda: acc.moneda,
         caja: redondear(acc.caja),
         valorActivos: redondear(acc.valorActivos),
         costoPosiciones: redondear(acc.costoPosiciones),
         invertido: redondear(base),
+        comisiones,
         ganancia,
-        gananciaPct: pct,
+        gananciaPct: base > 0 ? redondear((ganancia / base) * 100) : null,
+        gananciaConComisiones,
+        gananciaConComisionesPct:
+          base > 0 ? redondear((gananciaConComisiones / base) * 100) : null,
       }
     })
     .sort((a, b) => a.moneda.localeCompare(b.moneda))
+}
+
+/**
+ * ¿El movimiento es una comisión del broker?
+ *
+ * Se mira la descripción porque el esquema de `movimientos_broker` no tiene
+ * categoría: la importación crea la comisión como un egreso sin cantidad y con
+ * descripción «Comisión [símbolo]» (el prompt de extracción lo pide así). Se
+ * aceptan las dos grafías, con y sin tilde, más «fee» y «tarifa».
+ */
+function esComision(movimiento) {
+  return /comisi[oó]n|commission|\bfee\b|tarifa/i.test(String(movimiento.descripcion ?? ''))
 }
 
 function redondear(n) {

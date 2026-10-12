@@ -369,6 +369,32 @@ export default function BrokerDetail() {
                         )}
                       </span>
                     </div>
+                    {r.comisiones > 0 && (
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-xs text-muted-foreground">Comisiones</span>
+                        <span className="text-sm font-medium text-rose-600">
+                          −{formatearMonto(r.comisiones, r.moneda)}
+                        </span>
+                      </div>
+                    )}
+                    {r.comisiones > 0 && (
+                      <div className="flex items-baseline justify-between border-t pt-1.5">
+                        <span className="text-xs text-muted-foreground">Resultado neto</span>
+                        <span
+                          className={`text-sm font-bold ${
+                            r.gananciaConComisiones >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                          }`}
+                        >
+                          {formatearMonto(r.gananciaConComisiones, r.moneda)}
+                          {r.gananciaConComisionesPct != null && (
+                            <span className="ml-1 font-medium">
+                              ({r.gananciaConComisionesPct >= 0 ? '+' : ''}
+                              {r.gananciaConComisionesPct.toFixed(2)} %)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </Card>
               </div>
