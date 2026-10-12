@@ -49,10 +49,15 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - Ganancia o pérdida bruta y resultado después de comisiones.
 - Importación de extractos del broker desde PDF, CSV, XLS y XLSX, con procesamiento asíncrono de movimientos y posiciones/activos.
 - Cada fila importada se vincula con el job que la creó, lo que permite borrar la última importación completa desde el detalle del broker (movimientos y activos) sin afectar el historial de precios.
+- Configuración específica para el broker `quotex`: muestra únicamente movimientos, oculta activos, precios y asesor, y permite importar extractos y borrar la última importación.
+- Los archivos tabulares de Quotex se leen usando sus columnas reales (`Información`, `Beneficio`, `ID`, `Tiempo de apertura`, `Cantidad` e `Ingreso`). El resultado se calcula como `Ingreso - Cantidad` y el `ID` evita duplicados.
+- En Quotex, las operaciones importadas muestran par, dirección y beneficio; la inversión aparece en **Cantidad**, la clase es **Operación** y se calcula un saldo acumulado por movimiento.
+- Quotex incluye un cuadro independiente de **Saldo actual** y una columna **Saldo** en la tabla de movimientos. Los depósitos y retiros se reservan para entradas y salidas de dinero del broker.
 - Activos de inversión: acciones, ETF, bonos, fondos, criptomonedas, opciones y otros.
 - Precios históricos por activo.
 - Actualización manual y automática de precios mediante jobs y workers.
-- Pestañas de **Movimientos**, **Activos**, **Precios** y **Asesor** en el detalle de cada broker.
+- Pestañas de **Movimientos**, **Activos**, **Precios** y **Asesor** en el detalle de los brokers compatibles; `quotex` muestra exclusivamente **Movimientos**.
+- El **Asesor** funciona únicamente con los datos locales registrados y no se conecta con Interactive Brokers.
 
 ### Asesor informativo de portafolio
 
