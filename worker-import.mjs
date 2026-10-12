@@ -47,6 +47,37 @@ function fileForJob(job) {
   return candidate
 }
 function asArray(value) { return Array.isArray(value) ? value : [] }
+function parseMontoImportado(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : NaN
+  const texto = String(value ?? '').trim().replace(/[^\d,.-]/g, '')
+  if (!texto) return NaN
+  const ultimoPunto = texto.lastIndexOf('.')
+  const ultimaComa = texto.lastIndexOf(',')
+  if (ultimoPunto >= 0 && ultimaComa >= 0) {
+    return Number(ultimoPunto < ultimaComa ? texto.replace(/\./g, '').replace(',', '.') : texto.replace(/,/g, ''))
+  }
+  if (ultimaComa >= 0) return Number(texto.replace(/\./g, '').replace(',', '.'))
+  if ((texto.match(/\./g) || []).length > 1 || /\.\d{3}$/.test(texto)) return Number(texto.replace(/\./g, ''))
+  return Number(texto)
+}
+function extraerSaldosDaleDeTexto(lotes) {
+  const resultado = { saldo_inicial: null, saldo_final: null }
+  const monto = '[-$\\s]*([0-9][0-9.,]*)'
+  for (const lote of lotes) {
+    for (const linea of String(lote).split(/\\r?\\n/)) {
+      const texto = linea.replace(/\\s+/g, ' ').trim()
+      if (/\\bsaldo\\s+(?:inicial|de\\s+apertura|apertura)\\b/i.test(texto)) {
+        const valor = parseMontoImportado(texto.match(new RegExp(monto))?.[1])
+        if (Number.isFinite(valor)) resultado.saldo_inicial = valor
+      }
+      if (/\\bsaldo\\s+(?:final|de\\s+cierre|cierre|al\\s+corte)\\b/i.test(texto)) {
+        const valor = parseMontoImportado(texto.match(new RegExp(monto))?.[1])
+        if (Number.isFinite(valor)) resultado.saldo_final = valor
+      }
+    }
+  }
+  return resultado
+}
 
 async function lotesDelArchivo(filePath, pdfPassword = '') {
   const extension = path.extname(filePath).toLowerCase()
@@ -136,7 +167,8 @@ async function extraerDatos(filePath, job, contexto) {
       ? generarPromptMovimientosBroker(contexto)
       : generarPromptMovimientosWallet({ ...contexto, proveedor: job.proveedor })
   const lotes = await lotesDelArchivo(filePath, job.target === 'cuenta' ? descifrarClavePdf(contexto.pdf_password_encrypted) : '')
-  const acumulado = job.target === 'broker' ? { movimientos: [], activos: [] } : esDale ? { saldo_inicial: null, saldo_final: null, movimientos: [] } : []
+  const saldosDaleTexto = esDale ? extraerSaldosDaleDeTexto(lotes) : { saldo_inicial: null, saldo_final: null }
+  const acumulado = job.target === 'broker' ? { movimientos: [], activos: [] } : esDale ? { ...saldosDaleTexto, movimientos: [] } : []
   for (let inicio = 0; inicio < lotes.length; inicio += IMPORT_CONCURRENCY) {
     const indices = Array.from({ length: Math.min(IMPORT_CONCURRENCY, lotes.length - inicio) }, (_, offset) => inicio + offset)
     indices.forEach((indice) => log(`Procesando lote ${indice + 1}/${lotes.length} del job ${job.id}`))
@@ -151,8 +183,10 @@ async function extraerDatos(filePath, job, contexto) {
         acumulado.movimientos.push(...datos.movimientos)
         acumulado.activos.push(...datos.activos)
       } else if (esDale) {
-        if (datos.saldo_inicial !== null && datos.saldo_inicial !== undefined && Number.isFinite(Number(datos.saldo_inicial))) acumulado.saldo_inicial = Number(datos.saldo_inicial)
-        if (datos.saldo_final !== null && datos.saldo_final !== undefined && Number.isFinite(Number(datos.saldo_final))) acumulado.saldo_final = Number(datos.saldo_final)
+        const saldoInicialLote = parseMontoImportado(datos.saldo_inicial)
+        const saldoFinalLote = parseMontoImportado(datos.saldo_final)
+        if (saldosDaleTexto.saldo_inicial === null && Number.isFinite(saldoInicialLote)) acumulado.saldo_inicial = saldoInicialLote
+        if (saldosDaleTexto.saldo_final === null && Number.isFinite(saldoFinalLote)) acumulado.saldo_final = saldoFinalLote
         acumulado.movimientos.push(...datos.movimientos)
       } else acumulado.push(...datos)
     })

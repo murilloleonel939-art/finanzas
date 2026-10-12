@@ -48,7 +48,7 @@ export function generarPromptMovimientosCuenta(context) {
   const esNequi = /nequi/i.test(`${banco || ''} ${proveedor || ''}`)
   const esDale = /\bdale\b/i.test(`${banco || ''}`)
   const instruccionDale = esDale
-    ? `\nREGLA ESPECIAL BANCO DALE:\n- El archivo contiene un saldo inicial y un saldo final. Extráelos como saldo_inicial y saldo_final.\n- No conviertas esos saldos en movimientos y no los sumes a ingresos o egresos.\n- Si un saldo no aparece en este lote, usa null.\n`
+    ? `\nREGLA ESPECIAL BANCO DALE:\n- El archivo contiene un saldo inicial y un saldo final. Extráelos como saldo_inicial y saldo_final.\n- No conviertas esos saldos en movimientos y no los sumes a ingresos o egresos.\n- Busca literalmente las etiquetas "Saldo inicial", "Saldo final", "Saldo de apertura", "Saldo de cierre" o equivalentes del extracto. No uses el saldo de una transacción ni un total de movimientos.\n- Conserva el valor numérico completo, incluyendo separadores de miles; no redondees ni lo conviertas a otra moneda.\n- Si un saldo no aparece en este lote, usa null.\n`
     : ''
   const formatoSalida = esDale
     ? `Retorna un objeto JSON con "saldo_inicial", "saldo_final" y "movimientos". Los saldos deben ser números positivos o null si no aparecen en este lote.\n{ "saldo_inicial": 1000000, "saldo_final": 1250000, "movimientos": [ ... ] }`
