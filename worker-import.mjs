@@ -63,23 +63,19 @@ function parseMontoImportado(value) {
 function extraerSaldosDaleDeTexto(lotes) {
   const resultado = { saldo_inicial: null, saldo_final: null }
   const monto = '[-$\\s]*([0-9][0-9.,]*)'
+  const etiquetaInicial = /\\bsaldo\\s+(?:inicial|de\\s+apertura|apertura)\\b/i
+  const etiquetaFinal = /\\bsaldo\\s+(?:final|de\\s+cierre|cierre|al\\s+corte)\\b/i
   const leerDespuesDe = (texto, etiqueta) => {
     const indice = texto.search(etiqueta)
     if (indice < 0) return NaN
     const despues = texto.slice(indice + texto.match(etiqueta)[0].length)
     return parseMontoImportado(despues.match(new RegExp(monto))?.[1])
   }
-  for (const lote of lotes) {
-    for (const linea of String(lote).split(/\\r?\\n/)) {
-      const texto = linea.replace(/\\s+/g, ' ').trim()
-      const etiquetaInicial = /\\bsaldo\\s+(?:inicial|de\\s+apertura|apertura)\\b/i
-      const etiquetaFinal = /\\bsaldo\\s+(?:final|de\\s+cierre|cierre|al\\s+corte)\\b/i
-      const inicial = leerDespuesDe(texto, etiquetaInicial)
-      const final = leerDespuesDe(texto, etiquetaFinal)
-      if (Number.isFinite(inicial)) resultado.saldo_inicial = inicial
-      if (Number.isFinite(final)) resultado.saldo_final = final
-    }
-  }
+  const textoCompleto = lotes.join('\\n').replace(/\\s+/g, ' ').trim()
+  const inicialCompleto = leerDespuesDe(textoCompleto, etiquetaInicial)
+  const finalCompleto = leerDespuesDe(textoCompleto, etiquetaFinal)
+  if (Number.isFinite(inicialCompleto)) resultado.saldo_inicial = inicialCompleto
+  if (Number.isFinite(finalCompleto)) resultado.saldo_final = finalCompleto
   return resultado
 }
 
