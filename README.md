@@ -59,6 +59,16 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - Pestañas de **Movimientos**, **Activos**, **Precios** y **Asesor** en el detalle de los brokers compatibles; `quotex` muestra exclusivamente **Movimientos**.
 - El **Asesor** funciona únicamente con los datos locales registrados y no se conecta con Interactive Brokers.
 
+### Dashboard financiero de empresa
+
+- Resumen visual en `/empresa/:empresaId` con el patrimonio total separado en COP y USD.
+- Consolidación de saldos provenientes de cuentas bancarias, brokers y wallets.
+- Desglose por categoría para identificar dónde está concentrado el dinero.
+- Barras visuales de concentración por categoría y moneda.
+- Rendimientos e intereses acumulados separados en COP y USD.
+- Las ganancias de operaciones de brokers se incluyen en el resumen de rendimientos.
+- No se convierten ni se suman directamente monedas diferentes.
+
 ### Asesor informativo de portafolio
 
 - Vista consolidada por empresa en `/empresa/:empresaId/asesor-portafolio`.
