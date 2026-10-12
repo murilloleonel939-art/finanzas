@@ -85,6 +85,63 @@ function extraerSaldosDaleDeTexto(lotes) {
   return resultado
 }
 
+function normalizarEncabezadoQuotex(valor) {
+  return String(valor ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+}
+
+function numeroQuotex(valor) {
+  if (typeof valor === 'number') return Number.isFinite(valor) ? valor : NaN
+  const texto = String(valor ?? '').replace('%', '').trim()
+  return parseMontoImportado(texto)
+}
+
+function fechaQuotex(valor) {
+  if (valor instanceof Date && !Number.isNaN(valor.getTime())) return valor.toISOString().slice(0, 10)
+  const texto = String(valor ?? '').trim()
+  const iso = texto.match(/(\d{4}-\d{2}-\d{2})/)
+  return iso?.[1] || ''
+}
+
+function extraerOperacionesQuotex(filePath, moneda) {
+  const extension = path.extname(filePath).toLowerCase()
+  if (!['.csv', '.xls', '.xlsx'].includes(extension)) return null
+  const workbook = XLSX.readFile(filePath, { cellDates: true })
+  const filas = workbook.SheetNames.flatMap((nombre) => XLSX.utils.sheet_to_json(workbook.Sheets[nombre], { defval: null }))
+  if (!filas.length) return { movimientos: [], activos: [] }
+  const primera = new Set(Object.keys(filas[0]).map(normalizarEncabezadoQuotex))
+  const encabezadosQuotex = ['informacion', 'beneficio', 'id', 'tiempo de apertura', 'cantidad', 'ingreso']
+  if (!encabezadosQuotex.every((encabezado) => primera.has(encabezado))) return null
+
+  const movimientos = []
+  for (const fila of filas) {
+    const campos = new Map(Object.entries(fila).map(([clave, valor]) => [normalizarEncabezadoQuotex(clave), valor]))
+    const fecha = fechaQuotex(campos.get('tiempo de apertura'))
+    const cantidad = numeroQuotex(campos.get('cantidad'))
+    const ingreso = numeroQuotex(campos.get('ingreso'))
+    const descripcionBase = String(campos.get('informacion') ?? '').trim()
+    const externalId = String(campos.get('id') ?? '').trim() || null
+    if (!fecha || !descripcionBase || !Number.isFinite(cantidad) || cantidad < 0 || !Number.isFinite(ingreso)) continue
+
+    // En Quotex «Ingreso» incluye la devolución de la inversión cuando se gana.
+    // Por eso el resultado de la operación es Ingreso - Cantidad.
+    const resultado = ingreso - cantidad
+    if (resultado === 0) continue
+    const categoria = resultado > 0 ? 'ganancia' : 'perdida'
+    const beneficio = String(campos.get('beneficio') ?? '').trim()
+    const tipo = String(campos.get('tipo') ?? '').trim()
+    const descripcion = `[${categoria}] ${descripcionBase}${tipo ? ` • ${tipo}` : ''}${beneficio ? ` • beneficio ${beneficio}` : ''} • inversión ${cantidad} • ingreso ${ingreso}`
+    movimientos.push({
+      fecha,
+      tipo: categoria,
+      monto: Math.abs(resultado),
+      descripcion,
+      external_id: externalId,
+      moneda,
+    })
+  }
+  return { movimientos, activos: [] }
+}
+
 async function lotesDelArchivo(filePath, pdfPassword = '') {
   const extension = path.extname(filePath).toLowerCase()
   if (extension === '.pdf') {
@@ -166,6 +223,11 @@ async function extraerLote(texto, prompt, esBroker, esDale, indice, total) {
 
 async function extraerDatos(filePath, job, contexto) {
   const nombreBanco = contexto.banco || contexto.nombre_banco || ''
+  const nombreBroker = String(contexto.nombre_broker || '').trim().toLowerCase()
+  if (job.target === 'broker' && nombreBroker === 'quotex') {
+    const datosQuotex = extraerOperacionesQuotex(filePath, contexto.moneda || 'USD')
+    if (datosQuotex) return datosQuotex
+  }
   const esDale = job.target === 'cuenta' && /\bdale\b/i.test(nombreBanco)
   const prompt = job.target === 'cuenta'
     ? generarPromptMovimientosCuenta({ ...contexto, banco: nombreBanco, proveedor: job.proveedor })

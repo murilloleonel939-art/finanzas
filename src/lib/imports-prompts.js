@@ -144,7 +144,7 @@ CONTEXTO:
 - Broker: ${nombre}
 - Moneda: ${moneda}
 
-Clasifica cada fila en tipo: 'ganancia', 'perdida', 'deposito' o 'retiro'. Conserva en descripcion el concepto original y usa monto positivo. No inventes filas ni incluyas saldos, encabezados o totales.
+Para cada operación de trading, usa las columnas Información, Beneficio, ID, Tiempo de apertura, Cantidad e Ingreso. El resultado neto es Ingreso menos Cantidad: si es positivo usa tipo 'ganancia'; si es negativo usa tipo 'perdida' y monto absoluto. Usa ID como external_id y Tiempo de apertura como fecha. También identifica depósitos y retiros si aparecen en el archivo. Conserva el concepto original en descripcion y usa monto positivo. No inventes filas ni incluyas saldos, encabezados o totales.
 Retorna SOLO este JSON:
 {"movimientos":[{"fecha":"YYYY-MM-DD","tipo":"ganancia","monto":0,"descripcion":"texto original","external_id":null}],"activos":[]}`
   }
