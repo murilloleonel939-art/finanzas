@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import ImportarBrokerModal from '@/components/ImportarBrokerModal'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -39,6 +39,19 @@ const PESTANAS = [
   { id: 'precios', etiqueta: 'Precios' },
   { id: 'asesor', etiqueta: 'Asesor' },
 ]
+
+function esQuotex(broker) {
+  return broker?.nombre_broker?.trim().toLowerCase() === 'quotex'
+}
+
+function clasificarMovimientoQuotex(movimiento) {
+  const texto = String(movimiento.descripcion ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  if (/\b(ganancia|ganancias|ganancia neta|profit|winning|win|resultado positivo)\b/.test(texto)) return 'ganancias'
+  if (/\b(perdida|perdidas|loss|losing|resultado negativo)\b/.test(texto)) return 'perdidas'
+  if (/\b(retiro|retiros|retirada|withdrawal|withdraw|cash out|payout)\b/.test(texto)) return 'retiros'
+  if (/\b(deposito|depositos|deposit|recarga|recarg|funding|deposited)\b/.test(texto)) return 'depositos'
+  return null
+}
 
 const POR_PAGINA = 20
 
@@ -111,9 +124,17 @@ export default function BrokerDetail() {
     queryFn: () => listarMovimientosBroker(brokerId),
   })
 
+  const quotex = esQuotex(broker)
+
+  // Si se cambia de broker en la misma vista, Quotex siempre empieza en Movimientos.
+  useEffect(() => {
+    if (quotex && pestana !== 'movimientos') setPestana('movimientos')
+  }, [quotex, pestana])
+
   const { data: activos = [], isLoading: cargandoActivos } = useQuery({
     queryKey: ['activos-broker', brokerId],
     queryFn: () => listarActivos(brokerId),
+    enabled: !quotex,
   })
 
   const { data: precios = [], isLoading: cargandoPrecios } = useQuery({
@@ -121,7 +142,7 @@ export default function BrokerDetail() {
     queryFn: () => listarPrecios(brokerId),
     // Solo se carga al abrir la pestaña: es un historial que crece sin límite
     // y no hace falta para pintar las otras dos.
-    enabled: pestana === 'precios',
+    enabled: !quotex && pestana === 'precios',
   })
 
   // Última importación con filas vivas: habilita «Borrar última importación».
@@ -163,6 +184,21 @@ export default function BrokerDetail() {
     () => new Map(rendimiento.map((r) => [r.moneda, r])),
     [rendimiento]
   )
+
+  const quotexResumen = useMemo(() => {
+    if (!quotex) return []
+    const porMoneda = new Map([[String(broker?.moneda || 'N/A').toUpperCase(), {
+      moneda: String(broker?.moneda || 'N/A').toUpperCase(), ganancias: 0, perdidas: 0, retiros: 0, depositos: 0,
+    }]])
+    for (const movimiento of movimientos) {
+      const categoria = clasificarMovimientoQuotex(movimiento)
+      if (!categoria) continue
+      const moneda = String(movimiento.broker_moneda || broker?.moneda || 'N/A').toUpperCase()
+      if (!porMoneda.has(moneda)) porMoneda.set(moneda, { moneda, ganancias: 0, perdidas: 0, retiros: 0, depositos: 0 })
+      porMoneda.get(moneda)[categoria] += Number(movimiento.monto || 0)
+    }
+    return [...porMoneda.values()].sort((a, b) => a.moneda.localeCompare(b.moneda))
+  }, [broker, movimientos, quotex])
 
   const refrescarImportacion = () => {
     queryClient.invalidateQueries({ queryKey: ['movimientos-broker', brokerId] })
@@ -258,12 +294,12 @@ export default function BrokerDetail() {
                 </span>
               </div>
               <p className="text-sm text-muted-foreground">
-                {activos.length} posición(es) • {movimientos.length} movimiento(s)
+                {quotex ? 'Solo movimientos • ' : `${activos.length} posición(es) • `}{movimientos.length} movimiento(s)
               </p>
             </div>
           </div>
           <div className="flex gap-2">
-            {broker.nombre_broker.trim().toLowerCase() === 'interactive brokers' && (
+            {(broker.nombre_broker.trim().toLowerCase() === 'interactive brokers' || quotex) && (
               <Button
                 variant="outline"
                 onClick={() => setImportarAbierto(true)}
@@ -282,14 +318,16 @@ export default function BrokerDetail() {
                 Borrar última importación
               </Button>
             )}
-            <Button
-              variant="outline"
-              onClick={() => navigate(`/empresa/${empresaId}/brokers/${brokerId}/activo`)}
-              className="gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Activo
-            </Button>
+            {!quotex && (
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/empresa/${empresaId}/brokers/${brokerId}/activo`)}
+                className="gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Activo
+              </Button>
+            )}
             <Button
               onClick={() => navigate(`/empresa/${empresaId}/brokers/${brokerId}/movimiento`)}
               className="gap-2"
@@ -300,12 +338,35 @@ export default function BrokerDetail() {
           </div>
         </div>
 
+        {quotex && quotexResumen.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {[
+              ['ganancias', 'Ganancias', 'text-emerald-600'],
+              ['perdidas', 'Pérdidas', 'text-rose-600'],
+              ['retiros', 'Retiros', 'text-amber-600'],
+              ['depositos', 'Depósitos', 'text-sky-600'],
+            ].map(([clave, etiqueta, color]) => (
+              <Card key={clave} className="p-4">
+                <p className="text-xs text-muted-foreground">{etiqueta}</p>
+                {quotexResumen.map((resumen) => (
+                  <div key={resumen.moneda} className="mt-2 flex items-baseline justify-between">
+                    <span className="text-xs text-muted-foreground">{resumen.moneda}</span>
+                    <span className={`font-semibold ${color}`}>
+                      {formatearMonto(resumen[clave], resumen.moneda)}
+                    </span>
+                  </div>
+                ))}
+              </Card>
+            ))}
+          </div>
+        )}
+
         {/* Totales por moneda (D4: sin consolidar).
             La caja/cartera van en una tarjeta y el rendimiento en otra: son
             preguntas distintas («cuánto tengo» frente a «cuánto he ganado») y
             mezclarlas hacía que el número de ganancia pareciera salir de la
             resta equivocada. */}
-        {totales.length > 0 && (
+        {!quotex && totales.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             {totales.map((t) => {
               const r = rendimientoPorMoneda.get(t.moneda) ?? t
@@ -406,7 +467,7 @@ export default function BrokerDetail() {
 
         {/* Pestañas */}
         <div className="flex gap-1 border-b mb-6">
-          {PESTANAS.map((p) => (
+          {PESTANAS.filter((p) => !quotex || p.id === 'movimientos').map((p) => (
             <button
               key={p.id}
               onClick={() => {
@@ -430,6 +491,11 @@ export default function BrokerDetail() {
         {/* ---- Movimientos ---- */}
         {pestana === 'movimientos' && (
           <>
+            {quotex && quotexResumen.length > 0 && (
+              <div className="mb-4 text-sm text-muted-foreground">
+                Movimientos clasificados por descripción del extracto de Quotex.
+              </div>
+            )}
             <div className="mb-4">
               <MonthFilter
                 meses={meses}
@@ -869,6 +935,7 @@ export default function BrokerDetail() {
         onClose={() => setImportarAbierto(false)}
         brokerId={brokerId}
         empresaId={empresaId}
+        nombreBroker={broker.nombre_broker}
         onSuccess={refrescarImportacion}
       />
 

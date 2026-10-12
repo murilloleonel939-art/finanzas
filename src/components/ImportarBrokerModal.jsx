@@ -14,6 +14,7 @@ export function ImportarBrokerModal({
   onClose, 
   brokerId, 
   empresaId,
+  nombreBroker = 'Interactive Brokers',
   onSuccess 
 }) {
   const [archivo, setArchivo] = useState(null);
@@ -118,8 +119,12 @@ export function ImportarBrokerModal({
     <Dialog open={isOpen} onOpenChange={handleCerrar}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Importar extracto de Interactive Brokers</DialogTitle>
-          <DialogDescription>Sube un extracto de Interactive Brokers para importar movimientos y activos</DialogDescription>
+          <DialogTitle>Importar extracto de {nombreBroker}</DialogTitle>
+          <DialogDescription>
+            {nombreBroker.trim().toLowerCase() === 'quotex'
+              ? 'Sube un extracto de Quotex para importar ganancias, pérdidas, retiros y depósitos.'
+              : 'Sube un extracto de Interactive Brokers para importar movimientos y activos'}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
@@ -149,9 +154,18 @@ export function ImportarBrokerModal({
                 <div className="text-sm text-blue-700">
                   <p className="font-medium">Se extraerá:</p>
                   <ul className="list-disc list-inside mt-1 space-y-1 text-xs">
-                    <li>Depósitos y retiradas (D&R)</li>
-                    <li>Compras y ventas (operaciones)</li>
-                    <li>Posiciones abiertas (activos)</li>
+                    {nombreBroker.trim().toLowerCase() === 'quotex' ? (
+                      <>
+                        <li>Ganancias y pérdidas</li>
+                        <li>Retiros y depósitos</li>
+                      </>
+                    ) : (
+                      <>
+                        <li>Depósitos y retiradas (D&amp;R)</li>
+                        <li>Compras y ventas (operaciones)</li>
+                        <li>Posiciones abiertas (activos)</li>
+                      </>
+                    )}
                   </ul>
                 </div>
               </div>

@@ -134,6 +134,20 @@ Retorna ${esDale ? 'SOLO el objeto JSON' : 'SOLO el JSON array'}, sin explicacio
  */
 export function generarPromptMovimientosBroker(context) {
   const { nombre, moneda } = context;
+  const esQuotex = String(nombre || '').trim().toLowerCase() === 'quotex'
+
+  if (esQuotex) {
+    return `Eres un experto en extracción de extractos de Quotex.
+Extrae únicamente movimientos reales del extracto. Quotex no usa posiciones de activos en esta aplicación.
+
+CONTEXTO:
+- Broker: ${nombre}
+- Moneda: ${moneda}
+
+Clasifica cada fila en tipo: 'ganancia', 'perdida', 'deposito' o 'retiro'. Conserva en descripcion el concepto original y usa monto positivo. No inventes filas ni incluyas saldos, encabezados o totales.
+Retorna SOLO este JSON:
+{"movimientos":[{"fecha":"YYYY-MM-DD","tipo":"ganancia","monto":0,"descripcion":"texto original","external_id":null}],"activos":[]}`
+  }
 
   return `Eres un experto en extracción de datos de extractos de Interactive Brokers.
 Tu tarea es extraer movimientos y activos de un estado de cuenta de Interactive Brokers.

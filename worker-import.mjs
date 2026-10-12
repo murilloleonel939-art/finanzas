@@ -260,17 +260,24 @@ async function procesarWallet(client, job, datos) {
 
 async function procesarBroker(client, job, datos) {
   const broker = (await client.query('select nombre_broker from brokers where id = $1 and empresa_id = $2 and deleted_at is null', [job.broker_id, job.empresa_id])).rows[0]
-  if (!broker || broker.nombre_broker.trim().toLowerCase() !== 'interactive brokers') {
-    throw new Error('La importación de extractos está disponible únicamente para Interactive Brokers.')
+  const nombreBroker = broker?.nombre_broker?.trim().toLowerCase()
+  if (!broker || !['interactive brokers', 'quotex'].includes(nombreBroker)) {
+    throw new Error('La importación de extractos está disponible únicamente para Interactive Brokers y Quotex.')
   }
   let movimientos = 0; let activos = 0; let duplicados = 0
   if (!broker) throw new Error('Broker destino no encontrado.')
   for (const item of asArray(datos?.movimientos)) {
     const monto = Number(item.monto)
-    const tipo = ['deposito', 'venta', 'ingreso'].includes(item.tipo) ? 'ingreso' : 'egreso'
+    const esQuotex = nombreBroker === 'quotex'
+    const tiposQuotex = ['ganancia', 'perdida', 'deposito', 'retiro']
+    const tipo = esQuotex
+      ? (['ganancia', 'deposito'].includes(item.tipo) ? 'ingreso' : 'egreso')
+      : (['deposito', 'venta', 'ingreso'].includes(item.tipo) ? 'ingreso' : 'egreso')
     if (!item.fecha || !Number.isFinite(monto) || monto < 0 || !item.descripcion) continue
+    if (esQuotex && !tiposQuotex.includes(item.tipo)) continue
+    const descripcion = esQuotex ? `[${item.tipo}] ${String(item.descripcion).trim()}` : String(item.descripcion).trim()
     // Para compras y ventas, guardar cantidad y valor_unitario si los trae el LLM
-    const esOperacion = ['compra', 'venta'].includes(item.tipo)
+    const esOperacion = !esQuotex && ['compra', 'venta'].includes(item.tipo)
     const cantidad = esOperacion && item.cantidad != null ? Number(item.cantidad) : null
     const valorUnitario = esOperacion && item.valor_unitario != null ? Number(item.valor_unitario) : null
     const cantidadOk = cantidad === null || (Number.isFinite(cantidad) && cantidad >= 0)
@@ -281,9 +288,10 @@ async function procesarBroker(client, job, datos) {
     const usarDetalle = cantidadFinal !== null && valorFinal !== null
     const r = await client.query(`insert into movimientos_broker (empresa_id, broker_id, fecha, descripcion, tipo, monto, cantidad, valor_unitario, external_id, import_job_id, created_by)
       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) on conflict (broker_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
-      [job.empresa_id, job.broker_id, item.fecha, String(item.descripcion).trim(), tipo, monto, usarDetalle ? cantidadFinal : null, usarDetalle ? valorFinal : null, item.external_id || null, job.id, job.created_by])
+      [job.empresa_id, job.broker_id, item.fecha, descripcion, tipo, monto, usarDetalle ? cantidadFinal : null, usarDetalle ? valorFinal : null, item.external_id || null, job.id, job.created_by])
     if (r.rowCount) movimientos++; else duplicados++
   }
+  if (nombreBroker === 'quotex') return { creados: movimientos, activos: 0, duplicados }
   for (const item of asArray(datos?.activos)) {
     const cantidad = Number(item.cantidad); const valor = Number(item.valor_unitario)
     const valorCompra = item.valor_compra_unitario == null ? valor : Number(item.valor_compra_unitario)
