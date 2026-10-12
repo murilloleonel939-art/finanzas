@@ -869,6 +869,67 @@ app.get('/api/import-jobs/:jobId', requireAuth, async (req, res) => {
   res.json({ job: result.rows[0] })
 })
 
+/**
+ * Última importación con datos vivos de un broker.
+ *
+ * Solo cuenta jobs que realmente dejaron filas: un job en `error` o cuyos
+ * movimientos ya se borraron a mano no debe ofrecerse como "última
+ * importación" para deshacer, porque revertirlo no haría nada.
+ */
+app.get('/api/empresas/:empresaId/brokers/:brokerId/ultima-importacion', requireAuth, async (req, res) => {
+  const { empresaId, brokerId } = req.params
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const broker = await query('select id from brokers where id = $1 and empresa_id = $2 and deleted_at is null', [brokerId, empresaId])
+  if (!broker.rowCount) return error(res, 404, 'Broker no encontrado.')
+  const result = await query(`
+    select j.id, j.storage_path, j.estado, j.movimientos_creados, j.activos_creados, j.duplicados_omitidos, j.created_at, j.finished_at,
+      (select count(*)::integer from movimientos_broker m where m.import_job_id = j.id and m.deleted_at is null) as movimientos_vivos,
+      (select count(*)::integer from activos_broker a where a.import_job_id = j.id and a.deleted_at is null) as activos_vivos
+    from import_jobs j
+    where j.broker_id = $1 and j.empresa_id = $2 and j.target = 'broker' and j.estado = 'hecho'
+      and exists (select 1 from movimientos_broker m where m.import_job_id = j.id and m.deleted_at is null)
+    order by j.finished_at desc nulls last, j.created_at desc
+    limit 1`, [brokerId, empresaId])
+  res.json({ importacion: result.rows[0] || null })
+})
+
+/**
+ * Deshace la última importación de un broker.
+ *
+ * Borra lógicamente los movimientos y activos que creó ese job. Los activos se
+ * borran aunque tengan precios asociados: `precios_activo` no se toca (mismo
+ * criterio que el borrado individual de activos). Las posiciones que el job
+ * actualizó por conflicto también quedan vinculadas al job, así que revertir
+ * devuelve el broker al estado previo a la importación.
+ */
+app.delete('/api/empresas/:empresaId/brokers/:brokerId/ultima-importacion', requireAuth, async (req, res) => {
+  const { empresaId, brokerId } = req.params
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const broker = await client.query('select id from brokers where id = $1 and empresa_id = $2 and deleted_at is null for update', [brokerId, empresaId])
+    if (!broker.rowCount) { await client.query('rollback'); return error(res, 404, 'Broker no encontrado.') }
+    const job = await client.query(`
+      select j.id from import_jobs j
+      where j.broker_id = $1 and j.empresa_id = $2 and j.target = 'broker' and j.estado = 'hecho'
+        and exists (select 1 from movimientos_broker m where m.import_job_id = j.id and m.deleted_at is null)
+      order by j.finished_at desc nulls last, j.created_at desc
+      limit 1 for update`, [brokerId, empresaId])
+    if (!job.rowCount) { await client.query('rollback'); return error(res, 404, 'No hay una importación reciente para borrar.') }
+    const jobId = job.rows[0].id
+    const movimientos = await client.query('update movimientos_broker set deleted_at = now() where import_job_id = $1 and deleted_at is null', [jobId])
+    const activos = await client.query('update activos_broker set deleted_at = now() where import_job_id = $1 and deleted_at is null', [jobId])
+    await client.query('commit')
+    res.json({ movimientos_eliminados: movimientos.rowCount, activos_eliminados: activos.rowCount })
+  } catch (err) {
+    await client.query('rollback')
+    throw err
+  } finally {
+    client.release()
+  }
+})
+
 app.delete('/api/empresas/:empresaId/cuentas/:cuentaId/movimientos/mes/:periodo', requireAuth, async (req, res) => {
   const { empresaId, cuentaId, periodo } = req.params
   if (!/^\d{4}-\d{2}$/.test(periodo)) return error(res, 400, 'El período no es válido.')

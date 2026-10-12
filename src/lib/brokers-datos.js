@@ -105,6 +105,37 @@ export function borrarActivo(empresaId, brokerId, activoId) {
 }
 
 // ---------------------------------------------------------------------
+// Importación de extractos
+// ---------------------------------------------------------------------
+
+/**
+ * Última importación con filas vivas de este broker, o `null` si no hay.
+ *
+ * Se consulta al abrir la página para poder ofrecer «borrar la última
+ * importación» sin que el usuario tenga que recordar qué archivo subió. Un job
+ * cuyos movimientos ya se borraron a mano devuelve `null`: no habría nada que
+ * deshacer.
+ */
+export async function obtenerUltimaImportacion(empresaId, brokerId) {
+  const { importacion } = await api(
+    `/api/empresas/${empresaId}/brokers/${brokerId}/ultima-importacion`
+  )
+  return importacion ?? null
+}
+
+/**
+ * Deshace la última importación del broker.
+ *
+ * Borrado lógico de los movimientos y activos que creó ese job. No toca
+ * `precios_activo`, igual que el borrado individual de una posición.
+ */
+export function borrarUltimaImportacion(empresaId, brokerId) {
+  return api(`/api/empresas/${empresaId}/brokers/${brokerId}/ultima-importacion`, {
+    method: 'DELETE',
+  })
+}
+
+// ---------------------------------------------------------------------
 // Precios
 // ---------------------------------------------------------------------
 

@@ -23,6 +23,14 @@ await query('alter table comisionistas_fiducias drop constraint if exists comisi
 await query('create unique index if not exists comisionistas_fiducias_unique_active_idx on comisionistas_fiducias (empresa_id, pais, nombre) where deleted_at is null')
 await query('create index if not exists comisionistas_fiducias_empresa_idx on comisionistas_fiducias (empresa_id) where deleted_at is null')
 
+// Trazabilidad de importaciones de broker: permite borrar lo que creó el último
+// job. Las filas anteriores al cambio quedan con import_job_id null y no se
+// tocan al revertir una importación.
+await query('alter table movimientos_broker add column if not exists import_job_id uuid')
+await query('alter table activos_broker add column if not exists import_job_id uuid')
+await query('create index if not exists mov_broker_import_job_idx on movimientos_broker (import_job_id) where import_job_id is not null and deleted_at is null')
+await query('create index if not exists activos_broker_import_job_idx on activos_broker (import_job_id) where import_job_id is not null and deleted_at is null')
+
 const email = process.env.ADMIN_EMAIL?.trim().toLowerCase()
 const password = process.env.ADMIN_PASSWORD
 const fullName = process.env.ADMIN_NAME?.trim() || 'Administrador principal'

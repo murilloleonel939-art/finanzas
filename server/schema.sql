@@ -111,6 +111,7 @@ create table if not exists movimientos_broker (
   cantidad numeric(28,10) check (cantidad is null or cantidad >= 0),
   valor_unitario numeric(20,8) check (valor_unitario is null or valor_unitario >= 0),
   external_id text,
+  import_job_id uuid,
   created_by uuid references usuarios(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -122,6 +123,7 @@ create table if not exists movimientos_broker (
 );
 create unique index if not exists movimientos_broker_dedupe_idx on movimientos_broker (broker_id, external_id) where external_id is not null and deleted_at is null;
 create index if not exists mov_broker_broker_fecha_idx on movimientos_broker (broker_id, fecha desc) where deleted_at is null;
+create index if not exists mov_broker_import_job_idx on movimientos_broker (import_job_id) where import_job_id is not null and deleted_at is null;
 
 create table if not exists activos_broker (
   id uuid primary key default gen_random_uuid(),
@@ -132,6 +134,7 @@ create table if not exists activos_broker (
   cantidad numeric(28,10) not null default 0 check (cantidad >= 0),
   valor_unitario numeric(20,8) not null default 0 check (valor_unitario >= 0),
   moneda text not null default 'USD',
+  import_job_id uuid,
   created_by uuid references usuarios(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -139,6 +142,7 @@ create table if not exists activos_broker (
 );
 create unique index if not exists activos_broker_ticker_unico on activos_broker (broker_id, lower(nombre_activo)) where deleted_at is null;
 create index if not exists activos_broker_broker_idx on activos_broker (broker_id) where deleted_at is null;
+create index if not exists activos_broker_import_job_idx on activos_broker (import_job_id) where import_job_id is not null and deleted_at is null;
 
 create table if not exists precios_activo (
   id uuid primary key default gen_random_uuid(),

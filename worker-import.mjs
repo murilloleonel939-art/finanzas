@@ -276,18 +276,20 @@ async function procesarBroker(client, job, datos) {
     const valorFinal = valorOk ? valorUnitario : null
     // Ambos deben estar presentes o ambos null (restricción de la tabla)
     const usarDetalle = cantidadFinal !== null && valorFinal !== null
-    const r = await client.query(`insert into movimientos_broker (empresa_id, broker_id, fecha, descripcion, tipo, monto, cantidad, valor_unitario, external_id, created_by)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) on conflict (broker_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
-      [job.empresa_id, job.broker_id, item.fecha, String(item.descripcion).trim(), tipo, monto, usarDetalle ? cantidadFinal : null, usarDetalle ? valorFinal : null, item.external_id || null, job.created_by])
+    const r = await client.query(`insert into movimientos_broker (empresa_id, broker_id, fecha, descripcion, tipo, monto, cantidad, valor_unitario, external_id, import_job_id, created_by)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) on conflict (broker_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
+      [job.empresa_id, job.broker_id, item.fecha, String(item.descripcion).trim(), tipo, monto, usarDetalle ? cantidadFinal : null, usarDetalle ? valorFinal : null, item.external_id || null, job.id, job.created_by])
     if (r.rowCount) movimientos++; else duplicados++
   }
   for (const item of asArray(datos?.activos)) {
     const cantidad = Number(item.cantidad); const valor = Number(item.valor_unitario)
     if (!item.nombre && !item.ticker || !Number.isFinite(cantidad) || cantidad < 0 || !Number.isFinite(valor) || valor < 0) continue
     const nombre = String(item.ticker || item.nombre).trim(); const tipo = item.tipo === 'etf' ? 'etf' : item.tipo === 'bono' ? 'bono' : item.tipo === 'fondo' ? 'fondo' : item.tipo === 'criptomoneda' ? 'criptomoneda' : 'accion'
-    const r = await client.query(`insert into activos_broker (empresa_id, broker_id, nombre_activo, tipo_activo, cantidad, valor_unitario, moneda, created_by)
-      values ($1,$2,$3,$4,$5,$6,$7,$8) on conflict (broker_id, lower(nombre_activo)) where deleted_at is null do update set cantidad = excluded.cantidad, valor_unitario = excluded.valor_unitario, moneda = excluded.moneda, updated_at = now() returning id`,
-      [job.empresa_id, job.broker_id, nombre, tipo, cantidad, valor, item.moneda || 'USD', job.created_by])
+    // En conflicto no se reasigna `import_job_id`: una posición que ya existía
+    // antes del job no debe desaparecer al revertir esa importación.
+    const r = await client.query(`insert into activos_broker (empresa_id, broker_id, nombre_activo, tipo_activo, cantidad, valor_unitario, moneda, import_job_id, created_by)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9) on conflict (broker_id, lower(nombre_activo)) where deleted_at is null do update set cantidad = excluded.cantidad, valor_unitario = excluded.valor_unitario, moneda = excluded.moneda, updated_at = now() returning id`,
+      [job.empresa_id, job.broker_id, nombre, tipo, cantidad, valor, item.moneda || 'USD', job.id, job.created_by])
     if (r.rowCount) activos++
   }
   return { creados: movimientos, activos, duplicados }

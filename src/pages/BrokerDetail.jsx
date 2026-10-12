@@ -12,6 +12,8 @@ import {
   borrarMovimientoBroker,
   borrarActivo,
   calcularTotalesBroker,
+  obtenerUltimaImportacion,
+  borrarUltimaImportacion,
 } from '@/lib/brokers-datos'
 import { getMesesDisponibles, filtrarPorMes, formatMes, MES_TODOS } from '@/components/shared/MonthFilter'
 import MonthFilter from '@/components/shared/MonthFilter'
@@ -62,6 +64,7 @@ export default function BrokerDetail() {
   const [pagina, setPagina] = useState(0)
   const [aBorrar, setABorrar] = useState(null) // { tipo, fila }
   const [importarAbierto, setImportarAbierto] = useState(false)
+  const [confirmarBorradoImport, setConfirmarBorradoImport] = useState(false)
 
   const { data: broker, isLoading: cargandoBroker, error: errorBroker } = useQuery({
     queryKey: ['broker', brokerId],
@@ -86,6 +89,12 @@ export default function BrokerDetail() {
     enabled: pestana === 'precios',
   })
 
+  // Última importación con filas vivas: habilita «Borrar última importación».
+  const { data: ultimaImportacion } = useQuery({
+    queryKey: ['ultima-importacion-broker', brokerId],
+    queryFn: () => obtenerUltimaImportacion(empresaId, brokerId),
+  })
+
   const meses = useMemo(() => getMesesDisponibles(movimientos), [movimientos])
   const movimientosFiltrados = useMemo(
     () => filtrarPorMes(movimientos, mes),
@@ -107,6 +116,7 @@ export default function BrokerDetail() {
   const refrescarImportacion = () => {
     queryClient.invalidateQueries({ queryKey: ['movimientos-broker', brokerId] })
     queryClient.invalidateQueries({ queryKey: ['activos-broker', brokerId] })
+    queryClient.invalidateQueries({ queryKey: ['ultima-importacion-broker', brokerId] })
   }
 
   const { mutate: eliminar, isPending: borrando } = useMutation({
@@ -116,8 +126,15 @@ export default function BrokerDetail() {
     },
     onSuccess: () => {
       setABorrar(null)
-      queryClient.invalidateQueries({ queryKey: ['movimientos-broker', brokerId] })
-      queryClient.invalidateQueries({ queryKey: ['activos-broker', brokerId] })
+      refrescarImportacion()
+    },
+  })
+
+  const { mutate: eliminarImportacion, isPending: borrandoImportacion } = useMutation({
+    mutationFn: () => borrarUltimaImportacion(empresaId, brokerId),
+    onSuccess: () => {
+      setConfirmarBorradoImport(false)
+      refrescarImportacion()
     },
   })
 
@@ -176,6 +193,16 @@ export default function BrokerDetail() {
             >
               Importar archivo
             </Button>
+            {ultimaImportacion && (
+              <Button
+                variant="outline"
+                onClick={() => setConfirmarBorradoImport(true)}
+                className="gap-2 text-destructive hover:text-destructive"
+              >
+                <Trash2 className="w-4 h-4" />
+                Borrar última importación
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => navigate(`/empresa/${empresaId}/brokers/${brokerId}/activo`)}
@@ -639,6 +666,16 @@ export default function BrokerDetail() {
         }
         onConfirm={() => eliminar(aBorrar)}
         isLoading={borrando}
+      />
+
+      <ConfirmDialog
+        open={confirmarBorradoImport}
+        onOpenChange={(abierto) => !abierto && setConfirmarBorradoImport(false)}
+        title="¿Borrar la última importación?"
+        description={`Se eliminarán los ${ultimaImportacion?.movimientos_vivos ?? 0} movimiento(s) y ${ultimaImportacion?.activos_vivos ?? 0} posición(es) creados por la última importación. El historial de precios no se toca.`}
+        onConfirm={() => eliminarImportacion()}
+        isLoading={borrandoImportacion}
+        actionText="Borrar importación"
       />
     </div>
   )

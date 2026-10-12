@@ -95,6 +95,8 @@ assert(apiContent.includes("app.post('/api/empresas/:empresaId/import-jobs"), 'E
 assert(apiContent.includes('Buffer.from') && apiContent.includes("subarray(0, 4).toString() !== '%PDF'"), 'Valida archivos PDF codificados');
 assert(apiContent.includes('import_jobs'), 'Crea job en PostgreSQL');
 assert(apiContent.includes("'pendiente'") || apiContent.includes('pendiente'), 'Inicializa con estado pendiente');
+assert(apiContent.includes("brokers/:brokerId/ultima-importacion"), 'Expone borrado de la última importación del broker');
+assert(apiContent.includes('import_job_id'), 'Vincula las filas importadas con su job');
 
 // 4. Verificar Worker
 console.log('\n4️⃣  Worker: worker-import.mjs');
@@ -130,6 +132,16 @@ const modalBrokerPath = path.join(rootDir, 'src/components/ImportarBrokerModal.j
 const modalBrokerContent = fs.readFileSync(modalBrokerPath, 'utf8');
 assert(modalBrokerContent.includes('export function ImportarBrokerModal'), 'Exporta ImportarBrokerModal');
 assert(modalBrokerContent.includes('destino') && modalBrokerContent.includes('broker'), 'Especifica destino broker');
+
+const brokersDatosPath = path.join(rootDir, 'src/lib/brokers-datos.js');
+const brokersDatosContent = fs.readFileSync(brokersDatosPath, 'utf8');
+assert(brokersDatosContent.includes('export async function obtenerUltimaImportacion'), 'Exporta obtenerUltimaImportacion');
+assert(brokersDatosContent.includes('export function borrarUltimaImportacion'), 'Exporta borrarUltimaImportacion');
+
+const brokerDetailPath = path.join(rootDir, 'src/pages/BrokerDetail.jsx');
+const brokerDetailContent = fs.readFileSync(brokerDetailPath, 'utf8');
+assert(brokerDetailContent.includes('borrarUltimaImportacion'), 'BrokerDetail permite borrar la última importación');
+assert(brokerDetailContent.includes('ultima-importacion-broker'), 'Invalida la caché de la última importación');
 
 const modalWalletPath = path.join(rootDir, 'src/components/ImportarWalletModal.jsx');
 const modalWalletContent = fs.readFileSync(modalWalletPath, 'utf8');
