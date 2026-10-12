@@ -838,8 +838,8 @@ app.post('/api/empresas/:empresaId/import-jobs', requireAuth, async (req, res) =
   const table = target === 'cuenta' ? 'cuentas' : target === 'wallet' ? 'wallets' : 'brokers'
   const destination = await query(`select id, empresa_id${target === 'broker' ? ', nombre_broker' : ''} from ${table} where id = $1 and empresa_id = $2 and deleted_at is null`, [destinoId, empresaId])
   if (!destination.rowCount) return error(res, 404, 'Destino no encontrado.')
-  if (target === 'broker' && destination.rows[0].nombre_broker.trim().toLowerCase() !== 'interactive brokers') {
-    return error(res, 400, 'La importación de extractos está disponible únicamente para Interactive Brokers.')
+  if (target === 'broker' && !['interactive brokers', 'quotex'].includes(destination.rows[0].nombre_broker.trim().toLowerCase())) {
+    return error(res, 400, 'La importación de extractos está disponible únicamente para Interactive Brokers y Quotex.')
   }
   const raw = archivo.replace(/^data:[^;]+;base64,/, '')
   const content = Buffer.from(raw, 'base64')
