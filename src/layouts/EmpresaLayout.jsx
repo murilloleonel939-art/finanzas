@@ -8,7 +8,7 @@ import { listarProveedores, listarWallets } from '@/lib/wallets-datos'
 import { listarComisionistasFiducias } from '@/lib/comisionistas-fiducias'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
-import { ChevronDown, ChevronRight, Building2, Landmark, CreditCard, Plus, TrendingUp, Wallet, BriefcaseBusiness, Bot } from 'lucide-react'
+import { ChevronDown, ChevronRight, Building2, Landmark, CreditCard, Plus, TrendingUp, Wallet, BriefcaseBusiness, Bot, PiggyBank } from 'lucide-react'
 
 /**
  * EmpresaLayout: Layout principal para la navegación dentro de una empresa.
@@ -128,6 +128,9 @@ export default function EmpresaLayout() {
         <div className="p-4">
           <button type="button" onClick={() => navigate(`/empresa/${empresaId}/asesor-portafolio`)} className="mb-4 flex w-full items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-left text-sm font-medium text-blue-800 hover:bg-blue-100">
             <Bot className="h-4 w-4" /> Asesor del portafolio
+          </button>
+          <button type="button" onClick={() => navigate(`/empresa/${empresaId}/desafio-ahorro`)} className="mb-4 flex w-full items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-sm font-medium text-emerald-800 hover:bg-emerald-100">
+            <PiggyBank className="h-4 w-4" /> Desafío de ahorro
           </button>
           <h2 className="text-sm font-semibold text-gray-700 uppercase mb-4">
             Módulos
