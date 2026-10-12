@@ -259,8 +259,11 @@ async function procesarWallet(client, job, datos) {
 }
 
 async function procesarBroker(client, job, datos) {
+  const broker = (await client.query('select nombre_broker from brokers where id = $1 and empresa_id = $2 and deleted_at is null', [job.broker_id, job.empresa_id])).rows[0]
+  if (!broker || broker.nombre_broker.trim().toLowerCase() !== 'interactive brokers') {
+    throw new Error('La importación de extractos está disponible únicamente para Interactive Brokers.')
+  }
   let movimientos = 0; let activos = 0; let duplicados = 0
-  const broker = (await client.query('select empresa_id from brokers where id = $1 and deleted_at is null', [job.broker_id])).rows[0]
   if (!broker) throw new Error('Broker destino no encontrado.')
   for (const item of asArray(datos?.movimientos)) {
     const monto = Number(item.monto)

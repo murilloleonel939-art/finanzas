@@ -135,8 +135,9 @@ Retorna ${esDale ? 'SOLO el objeto JSON' : 'SOLO el JSON array'}, sin explicacio
 export function generarPromptMovimientosBroker(context) {
   const { nombre, moneda } = context;
 
-  return `Eres un experto en extracción de datos de extractos de brokers.
-Tu tarea es extraer movimientos y activos de un estado de cuenta de ${nombre}.
+  return `Eres un experto en extracción de datos de extractos de Interactive Brokers.
+Tu tarea es extraer movimientos y activos de un estado de cuenta de Interactive Brokers.
+El formato esperado es el Activity Statement de Interactive Brokers; no inventes datos que no aparezcan en el extracto.
 
 CONTEXTO:
 - Broker: ${nombre}

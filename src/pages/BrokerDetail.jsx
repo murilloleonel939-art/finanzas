@@ -191,13 +191,15 @@ export default function BrokerDetail() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setImportarAbierto(true)}
-              className="gap-2"
-            >
-              Importar archivo
-            </Button>
+            {broker.nombre_broker.trim().toLowerCase() === 'interactive brokers' && (
+              <Button
+                variant="outline"
+                onClick={() => setImportarAbierto(true)}
+                className="gap-2"
+              >
+                Importar archivo
+              </Button>
+            )}
             {ultimaImportacion && (
               <Button
                 variant="outline"

@@ -118,8 +118,8 @@ export function ImportarBrokerModal({
     <Dialog open={isOpen} onOpenChange={handleCerrar}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Importar broker</DialogTitle>
-          <DialogDescription>Sube un estado de cuenta para importar movimientos y activos</DialogDescription>
+          <DialogTitle>Importar extracto de Interactive Brokers</DialogTitle>
+          <DialogDescription>Sube un extracto de Interactive Brokers para importar movimientos y activos</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">

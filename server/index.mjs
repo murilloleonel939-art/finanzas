@@ -836,8 +836,11 @@ app.post('/api/empresas/:empresaId/import-jobs', requireAuth, async (req, res) =
   if (!['cuenta', 'wallet', 'broker'].includes(target) || !destinoId || typeof archivo !== 'string') return error(res, 400, 'Datos de importación inválidos.')
   if (!['pdf', 'csv', 'xls', 'xlsx'].includes(extension)) return error(res, 400, 'El archivo debe ser PDF, CSV o Excel.')
   const table = target === 'cuenta' ? 'cuentas' : target === 'wallet' ? 'wallets' : 'brokers'
-  const destination = await query(`select id, empresa_id from ${table} where id = $1 and empresa_id = $2 and deleted_at is null`, [destinoId, empresaId])
+  const destination = await query(`select id, empresa_id${target === 'broker' ? ', nombre_broker' : ''} from ${table} where id = $1 and empresa_id = $2 and deleted_at is null`, [destinoId, empresaId])
   if (!destination.rowCount) return error(res, 404, 'Destino no encontrado.')
+  if (target === 'broker' && destination.rows[0].nombre_broker.trim().toLowerCase() !== 'interactive brokers') {
+    return error(res, 400, 'La importación de extractos está disponible únicamente para Interactive Brokers.')
+  }
   const raw = archivo.replace(/^data:[^;]+;base64,/, '')
   const content = Buffer.from(raw, 'base64')
   if (content.length < 1) return error(res, 400, 'El archivo está vacío o es inválido.')
