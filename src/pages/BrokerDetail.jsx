@@ -142,9 +142,25 @@ export default function BrokerDetail() {
     (paginaSegura + 1) * POR_PAGINA
   )
 
+  // Caja y cartera del período elegido: es lo que responde «cuánto tengo»
+  // mirando el mes seleccionado.
   const totales = useMemo(
     () => calcularTotalesBroker(movimientosFiltrados, activos),
     [movimientosFiltrados, activos]
+  )
+
+  // El rendimiento se calcula con TODOS los movimientos, no con los del mes.
+  // Las posiciones son acumuladas: comparar el valor actual de la cartera
+  // contra las compras de un solo mes daría una ganancia falsa (y enorme) en
+  // cuanto el usuario filtra por mes.
+  const rendimiento = useMemo(
+    () => calcularTotalesBroker(movimientos, activos),
+    [movimientos, activos]
+  )
+
+  const rendimientoPorMoneda = useMemo(
+    () => new Map(rendimiento.map((r) => [r.moneda, r])),
+    [rendimiento]
   )
 
   const refrescarImportacion = () => {
@@ -283,62 +299,81 @@ export default function BrokerDetail() {
           </div>
         </div>
 
-        {/* Totales por moneda (D4: sin consolidar) */}
+        {/* Totales por moneda (D4: sin consolidar).
+            La caja/cartera van en una tarjeta y el rendimiento en otra: son
+            preguntas distintas («cuánto tengo» frente a «cuánto he ganado») y
+            mezclarlas hacía que el número de ganancia pareciera salir de la
+            resta equivocada. */}
         {totales.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-            {totales.map((t) => (
-              <Card key={t.moneda} className="p-4">
-                <p className="text-xs text-muted-foreground mb-2">
-                  {t.moneda} <span className="text-muted-foreground/70">({periodo})</span>
-                </p>
-                <div className="space-y-1.5">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-xs text-muted-foreground">Caja</span>
-                    <span
-                      className={`text-lg font-bold ${
-                        t.caja >= 0 ? 'text-emerald-600' : 'text-rose-600'
-                      }`}
-                    >
-                      {formatearMonto(t.caja, t.moneda)}
-                    </span>
+            {totales.map((t) => {
+              const r = rendimientoPorMoneda.get(t.moneda) ?? t
+              return (
+              <div key={t.moneda} className="space-y-4">
+                <Card className="p-4">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {t.moneda} <span className="text-muted-foreground/70">({periodo})</span>
+                  </p>
+                  <div className="space-y-1.5">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xs text-muted-foreground">Caja</span>
+                      <span
+                        className={`text-lg font-bold ${
+                          t.caja >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                        }`}
+                      >
+                        {formatearMonto(t.caja, t.moneda)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xs text-muted-foreground">Valor en activos</span>
+                      <span className="text-sm font-medium">
+                        {formatearMonto(t.valorActivos, t.moneda)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-xs text-muted-foreground">Valor en activos</span>
-                    <span className="text-sm font-medium">
-                      {formatearMonto(t.valorActivos, t.moneda)}
-                    </span>
+                </Card>
+
+                <Card className="p-4">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Ganancia / Pérdida <span className="text-muted-foreground/70">(acumulado)</span>
+                  </p>
+                  <div className="space-y-1.5">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xs text-muted-foreground">Invertido</span>
+                      <span className="text-sm font-medium">
+                        {formatearMonto(r.invertido, r.moneda)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xs text-muted-foreground">Valor actual</span>
+                      <span className="text-sm font-medium">
+                        {formatearMonto(r.valorActivos, r.moneda)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between border-t pt-1.5">
+                      <span className="text-xs text-muted-foreground">
+                        {r.ganancia >= 0 ? 'Ganancia' : 'Pérdida'}
+                      </span>
+                      <span
+                        className={`text-lg font-bold ${
+                          r.ganancia >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                        }`}
+                      >
+                        {r.ganancia >= 0 ? '▲' : '▼'} {formatearMonto(Math.abs(r.ganancia), r.moneda)}
+                        {r.gananciaPct != null && (
+                          <span className="ml-1 text-sm font-medium">
+                            ({r.gananciaPct >= 0 ? '+' : ''}
+                            {r.gananciaPct.toFixed(2)} %)
+                          </span>
+                        )}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-baseline justify-between border-t pt-1.5">
-                    <span className="text-xs text-muted-foreground">Invertido</span>
-                    <span className="text-sm font-medium">
-                      {formatearMonto(t.invertido, t.moneda)}
-                    </span>
-                  </div>
-                  <div className="flex items-baseline justify-between border-t pt-1.5">
-                    <span className="text-xs text-muted-foreground">Ganancia / Pérdida</span>
-                    <span
-                      className={`text-sm font-bold ${
-                        t.ganancia >= 0 ? 'text-emerald-600' : 'text-rose-600'
-                      }`}
-                    >
-                      {t.ganancia >= 0 ? '▲' : '▼'} {formatearMonto(t.ganancia, t.moneda)}
-                      {t.gananciaPct != null && (
-                        <span className="ml-1 font-medium">
-                          ({t.gananciaPct >= 0 ? '+' : ''}
-                          {t.gananciaPct.toFixed(2)} %)
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-xs text-muted-foreground">Costo de posiciones</span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatearMonto(t.valorCompra, t.moneda)}
-                    </span>
-                  </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              </div>
+              )
+            })}
           </div>
         )}
 

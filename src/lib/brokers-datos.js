@@ -172,6 +172,17 @@ export async function obtenerEstadoActualizacionPrecios(empresaId, jobId) {
  * sale de los activos y **no se suma a la caja**: son dos cosas distintas —
  * efectivo disponible frente a valor de mercado de las posiciones—, y mezclarlas
  * daría un número que no es ni lo uno ni lo otro.
+ *
+ * **Una sola base para el rendimiento.** El dinero invertido sale de los
+ * movimientos de operación (compras menos ventas), que es el efectivo que
+ * realmente salió del bolsillo. No se usa `cantidad × valor_compra_unitario`
+ * para esta tarjeta: ese producto lleva el precio de compra redondeado a 8
+ * decimales y, con cantidades fraccionarias pequeñas (0,0018 participaciones),
+ * da un céntimo distinto al del movimiento. Mostrar las dos cifras juntas
+ * —«Invertido 1,27» y «Costo de posiciones 1,28»— hacía que la ganancia no
+ * cuadrara con lo que el usuario veía, así que aquí manda el movimiento.
+ * La base por posición se sigue usando en la tabla de Activos, donde lo que
+ * importa es el costo de cada posición abierta.
  */
 export function calcularTotalesBroker(movimientos = [], activos = []) {
   const porMoneda = new Map()
@@ -183,7 +194,7 @@ export function calcularTotalesBroker(movimientos = [], activos = []) {
         moneda: clave,
         caja: 0,
         valorActivos: 0,
-        valorCompra: 0,
+        costoPosiciones: 0,
         invertido: 0,
       })
     }
@@ -203,27 +214,27 @@ export function calcularTotalesBroker(movimientos = [], activos = []) {
   for (const a of activos) {
     const acc = casilla(a.moneda)
     acc.valorActivos += Number(a.valor_total || 0)
-    // «Invertido en compra» es lo que costaron las posiciones vivas. Se toma de
-    // `valor_compra_total` y no del histórico de compras: si una posición ya se
-    // vendió, no cuenta.
     const compra = a.valor_compra_total == null
       ? Number(a.valor_unitario || 0) * Number(a.cantidad || 0)
       : Number(a.valor_compra_total)
-    acc.valorCompra += compra
+    acc.costoPosiciones += compra
   }
 
   // Redondeo a 8 decimales: la precisión de numeric(20,8) (D3). Es solo para
   // no arrastrar las colas binarias de sumar en coma flotante en el cliente.
   return [...porMoneda.values()]
     .map((acc) => {
-      const ganancia = redondear(acc.valorActivos - acc.valorCompra)
-      const pct = acc.valorCompra > 0 ? redondear((ganancia / acc.valorCompra) * 100) : null
+      // Si no hay movimientos de operación (posiciones cargadas a mano) se cae
+      // al costo de las posiciones abiertas: es la única base disponible.
+      const base = acc.invertido !== 0 ? acc.invertido : acc.costoPosiciones
+      const ganancia = redondear(acc.valorActivos - base)
+      const pct = base > 0 ? redondear((ganancia / base) * 100) : null
       return {
         moneda: acc.moneda,
         caja: redondear(acc.caja),
-        invertido: redondear(acc.invertido),
         valorActivos: redondear(acc.valorActivos),
-        valorCompra: redondear(acc.valorCompra),
+        costoPosiciones: redondear(acc.costoPosiciones),
+        invertido: redondear(base),
         ganancia,
         gananciaPct: pct,
       }
