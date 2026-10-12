@@ -176,7 +176,15 @@ async function procesarJob(job) {
 /** Escribe el desenlace del job. Nunca tumba el ciclo si falla. */
 async function cerrarJob(id, campos) {
   const keys = Object.keys(campos)
-  const values = [id, ...keys.map((key) => campos[key])]
+  // pg no serializa automáticamente arrays/objetos para una columna jsonb.
+  // Si se envía `detalles` como Array, PostgreSQL intenta interpretarlo como
+  // texto JSON y el job queda en «procesando» aunque el precio ya se haya
+  // guardado en activos_broker.
+  const values = [id, ...keys.map((key) => (
+    key === 'detalles' && campos[key] != null
+      ? JSON.stringify(campos[key])
+      : campos[key]
+  ))]
   const sets = keys.map((key, index) => `${key} = $${index + 2}`).join(', ')
   try {
     await query(`update precios_jobs set ${sets}, finished_at = now() where id = $1`, values)
