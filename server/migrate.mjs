@@ -7,8 +7,6 @@ const schema = await readFile(new URL('./schema.sql', import.meta.url), 'utf8')
 await pool.query(schema)
 // Compatibilidad con instalaciones existentes: schema.sql usa IF NOT EXISTS
 await query('alter table cuentas add column if not exists pdf_password_encrypted text')
-await query('alter table cuentas add column if not exists saldo_inicial numeric(18, 2)')
-await query('alter table cuentas add column if not exists saldo_final numeric(18, 2)')
 await query(`create table if not exists comisionistas_fiducias (
   id uuid primary key default gen_random_uuid(),
   empresa_id uuid not null references empresas(id) on delete cascade,
