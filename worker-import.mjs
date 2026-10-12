@@ -266,9 +266,19 @@ async function procesarBroker(client, job, datos) {
     const monto = Number(item.monto)
     const tipo = ['deposito', 'venta', 'ingreso'].includes(item.tipo) ? 'ingreso' : 'egreso'
     if (!item.fecha || !Number.isFinite(monto) || monto < 0 || !item.descripcion) continue
-    const r = await client.query(`insert into movimientos_broker (empresa_id, broker_id, fecha, descripcion, tipo, monto, external_id, created_by)
-      values ($1,$2,$3,$4,$5,$6,$7,$8) on conflict (broker_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
-      [job.empresa_id, job.broker_id, item.fecha, String(item.descripcion).trim(), tipo, monto, item.external_id || null, job.created_by])
+    // Para compras y ventas, guardar cantidad y valor_unitario si los trae el LLM
+    const esOperacion = ['compra', 'venta'].includes(item.tipo)
+    const cantidad = esOperacion && item.cantidad != null ? Number(item.cantidad) : null
+    const valorUnitario = esOperacion && item.valor_unitario != null ? Number(item.valor_unitario) : null
+    const cantidadOk = cantidad === null || (Number.isFinite(cantidad) && cantidad >= 0)
+    const valorOk = valorUnitario === null || (Number.isFinite(valorUnitario) && valorUnitario >= 0)
+    const cantidadFinal = cantidadOk ? cantidad : null
+    const valorFinal = valorOk ? valorUnitario : null
+    // Ambos deben estar presentes o ambos null (restricción de la tabla)
+    const usarDetalle = cantidadFinal !== null && valorFinal !== null
+    const r = await client.query(`insert into movimientos_broker (empresa_id, broker_id, fecha, descripcion, tipo, monto, cantidad, valor_unitario, external_id, created_by)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) on conflict (broker_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
+      [job.empresa_id, job.broker_id, item.fecha, String(item.descripcion).trim(), tipo, monto, usarDetalle ? cantidadFinal : null, usarDetalle ? valorFinal : null, item.external_id || null, job.created_by])
     if (r.rowCount) movimientos++; else duplicados++
   }
   for (const item of asArray(datos?.activos)) {

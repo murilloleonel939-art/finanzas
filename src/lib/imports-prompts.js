@@ -143,31 +143,35 @@ CONTEXTO:
 - Moneda base: ${moneda}
 
 SECCIONES A EXTRAER:
-1. **Depósitos y retiradas** → movimientos
-   - Depósito = ingreso
-   - Retirada = egreso
+1. **Depósitos y retiradas** (o "Deposits & Withdrawals") → movimientos
+   - Depósito / Deposit = ingreso
+   - Retirada / Withdrawal = egreso
 
-2. **Operaciones** → movimientos
-   - Compra = egreso
-   - Venta = ingreso
+2. **Operaciones** (o "Trades") → movimientos
+   - Compra / Buy = egreso  (monto = Cantidad × Precio trans.)
+   - Venta / Sell = ingreso (monto = Cantidad × Precio trans.)
+   - Si existe columna Tarifa/com. o Commission con valor distinto de cero, crear un movimiento adicional de tipo 'comision' (egreso) por ese importe, con descripcion "Comisión [símbolo]" y la misma fecha.
 
-3. **Posiciones abiertas** → activos
-   - Ticker, cantidad, valor unitario, moneda
+3. **Posiciones abiertas** (o "Open Positions") → activos
+   - Usar el campo Cantidad (o Quantity) como cantidad.
+   - Usar el campo Precio trans. o Precio de entrada (o Avg Price / Cost Basis per share) como valor_unitario; NO usar Precio de cierre ni MTM.
 
 REGLAS OBLIGATORIAS:
 1. Para MOVIMIENTOS extrae:
-   - fecha: YYYY-MM-DD
-   - tipo: 'deposito', 'retirada', 'compra', 'venta'
-   - monto: número positivo
-   - descripcion: del movimiento
-   - external_id: si existe, null en caso contrario
+   - fecha: YYYY-MM-DD (si viene con hora, usar solo la fecha)
+   - tipo: 'deposito', 'retirada', 'compra', 'venta', 'comision'
+   - monto: número positivo (valor absoluto)
+   - descripcion: descripción del movimiento; para operaciones incluir símbolo y cantidad (ej. "Compra VOO 0.0018")
+   - cantidad: número de unidades para compras/ventas; null para depósitos, retiradas y comisiones
+   - valor_unitario: precio por unidad para compras/ventas; null para los demás
+   - external_id: código de transacción si existe, null en caso contrario
 
 2. Para ACTIVOS extrae:
    - ticker: símbolo bursátil (VOO, AAPL, etc.)
    - nombre: nombre completo del activo
    - tipo: 'accion', 'etf', 'cdat', 'otro'
-   - cantidad: número de unidades
-   - valor_unitario: precio por unidad
+   - cantidad: número de unidades (campo Cantidad / Quantity)
+   - valor_unitario: precio de entrada o precio de transacción (campo Precio trans. / Avg Price), NO el precio de cierre
    - moneda: moneda del activo
 
 3. Clasifica automáticamente:
@@ -179,17 +183,18 @@ REGLAS OBLIGATORIAS:
 5. Ignora encabezados, subtotales, totales, saldos, filas de continuación y filas sin fecha, tipo, monto o descripción. Nunca las incluyas en movimientos.
 6. Las posiciones abiertas solo van en activos; no las repitas como movimientos.
 7. Si una fila no tiene todos los campos obligatorios, omítela y continúa con las demás filas válidas.
+8. Los montos siempre son positivos; usa el campo tipo para indicar si es ingreso o egreso.
 
 FORMATO DE SALIDA:
 Retorna un objeto JSON con dos arrays:
 {
   "movimientos": [
-    { "fecha": "2024-01-10", "tipo": "deposito", "monto": "5000", "descripcion": "Depósito inicial", "external_id": "DEP-001" },
-    { "fecha": "2024-01-12", "tipo": "compra", "monto": "2500", "descripcion": "Compra VOO 50 acciones", "external_id": "BUY-001" }
+    { "fecha": "2026-08-26", "tipo": "compra", "monto": "1.27", "descripcion": "Compra VOO 0.0018", "cantidad": "0.0018", "valor_unitario": "703.7000", "external_id": null },
+    { "fecha": "2026-08-26", "tipo": "comision", "monto": "0.01", "descripcion": "Comision VOO", "cantidad": null, "valor_unitario": null, "external_id": null },
+    { "fecha": "2026-08-01", "tipo": "deposito", "monto": "5000", "descripcion": "Deposito inicial", "cantidad": null, "valor_unitario": null, "external_id": "DEP-001" }
   ],
   "activos": [
-    { "ticker": "VOO", "nombre": "Vanguard S&P 500 ETF", "tipo": "etf", "cantidad": "50", "valor_unitario": "500.00", "moneda": "USD" },
-    { "ticker": "AAPL", "nombre": "Apple Inc.", "tipo": "accion", "cantidad": "10", "valor_unitario": "190.50", "moneda": "USD" }
+    { "ticker": "VOO", "nombre": "Vanguard S&P 500 ETF", "tipo": "etf", "cantidad": "0.0018", "valor_unitario": "703.7000", "moneda": "USD" }
   ]
 }
 
