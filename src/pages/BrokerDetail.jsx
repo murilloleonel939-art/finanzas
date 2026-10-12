@@ -594,7 +594,7 @@ export default function BrokerDetail() {
                       </thead>
                       <tbody>
                         {movsVisibles.map((m) => {
-                          const esOperacion = m.cantidad != null
+                          const esOperacion = quotex || m.cantidad != null
                           return (
                             <tr key={m.id} className="border-b last:border-0 hover:bg-muted/30">
                               <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
@@ -612,10 +612,10 @@ export default function BrokerDetail() {
                                   {m.tipo === 'ingreso'
                                     ? esOperacion
                                       ? (quotex ? 'Operación' : 'Venta')
-                                      : 'Depósito'
+                                      : (quotex ? 'Operación' : 'Depósito')
                                     : esOperacion
                                       ? (quotex ? 'Operación' : 'Compra')
-                                      : 'Retiro'}
+                                      : (quotex ? 'Operación' : 'Retiro')}
                                 </span>
                               </td>
                               <td
@@ -627,7 +627,7 @@ export default function BrokerDetail() {
                                 {formatearMonto(m.monto, m.broker_moneda)}
                               </td>
                               <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">
-                                {esOperacion ? Number(m.cantidad).toLocaleString('es-CO') : '—'}
+                                {quotex || esOperacion ? Number(m.cantidad || 0).toLocaleString('es-CO') : '—'}
                               </td>
                               <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">
                                 {esOperacion

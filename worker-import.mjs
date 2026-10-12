@@ -344,7 +344,11 @@ async function procesarBroker(client, job, datos) {
     // Para compras y ventas, guardar cantidad y valor_unitario si los trae el LLM
     const esOperacion = esQuotex || ['compra', 'venta'].includes(item.tipo)
     const cantidad = esOperacion && item.cantidad != null ? Number(item.cantidad) : null
-    const valorUnitario = !esQuotex && esOperacion && item.valor_unitario != null ? Number(item.valor_unitario) : null
+    // La tabla exige cantidad y valor_unitario juntos. Quotex no usa valor
+    // unitario, pero guardamos 0 internamente para conservar la inversión.
+    const valorUnitario = esQuotex
+      ? (cantidad != null ? 0 : null)
+      : (esOperacion && item.valor_unitario != null ? Number(item.valor_unitario) : null)
     const cantidadOk = cantidad === null || (Number.isFinite(cantidad) && cantidad >= 0)
     const valorOk = valorUnitario === null || (Number.isFinite(valorUnitario) && valorUnitario >= 0)
     const cantidadFinal = cantidadOk ? cantidad : null
