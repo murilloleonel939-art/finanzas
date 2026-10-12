@@ -207,24 +207,64 @@ app.get('/api/empresas/:empresaId/resumen', requireAuth, async (req, res) => {
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) {
     return error(res, 403, 'No tienes acceso a esta empresa.')
   }
-  const [cuentas, activos, wallets] = await Promise.all([
+  const [cuentas, brokers, wallets, rendimientos] = await Promise.all([
     query(`select tipo_moneda as moneda, coalesce(sum(monto), 0) as monto
       from cuentas where empresa_id = $1 and deleted_at is null group by tipo_moneda`, [req.params.empresaId]),
-    query(`select moneda, coalesce(sum(cantidad * valor_unitario), 0) as monto
-      from activos_broker where empresa_id = $1 and deleted_at is null group by moneda`, [req.params.empresaId]),
+    query(`with caja as (
+        select b.moneda, coalesce(sum(case when m.tipo = 'ingreso' then m.monto else -m.monto end), 0) as monto
+        from brokers b left join movimientos_broker m
+          on m.broker_id = b.id and m.deleted_at is null
+        where b.empresa_id = $1 and b.deleted_at is null group by b.id, b.moneda
+      ), cartera as (
+        select b.moneda, coalesce(sum(a.cantidad * a.valor_unitario), 0) as monto
+        from brokers b join activos_broker a
+          on a.broker_id = b.id and a.deleted_at is null
+        where b.empresa_id = $1 and b.deleted_at is null group by b.id, b.moneda
+      )
+      select moneda, coalesce(sum(monto), 0) as monto from (
+        select moneda, monto from caja union all select moneda, monto from cartera
+      ) valores group by moneda`, [req.params.empresaId]),
     query(`select s.moneda, coalesce(sum(s.monto), 0) as monto
       from wallet_saldos s join wallets w on w.id = s.wallet_id and w.deleted_at is null
       where w.empresa_id = $1 group by s.moneda`, [req.params.empresaId]),
+    query(`select moneda, coalesce(sum(monto), 0) as monto from (
+        select c.tipo_moneda as moneda, m.monto
+        from movimientos m join cuentas c on c.id = m.cuenta_id
+        where m.empresa_id = $1 and m.deleted_at is null and m.tipo = 'ingreso'
+          and lower(m.descripcion) ~ '(inter[eé]s|interest|rendimiento)'
+        union all
+        select b.moneda, m.monto
+        from movimientos_broker m join brokers b on b.id = m.broker_id
+        where m.empresa_id = $1 and m.deleted_at is null and b.deleted_at is null
+          and m.tipo = 'ingreso' and lower(m.descripcion) like '%beneficio%'
+      ) ganancias group by moneda`, [req.params.empresaId]),
   ])
-  const totals = new Map()
-  for (const row of [...cuentas.rows, ...activos.rows, ...wallets.rows]) {
+  const sumar = (filas) => filas.reduce((resultado, row) => {
     const moneda = String(row.moneda || 'N/A').trim().toUpperCase()
-    totals.set(moneda, (totals.get(moneda) || 0) + Number(row.monto || 0))
+    resultado[moneda] = (resultado[moneda] || 0) + Number(row.monto || 0)
+    return resultado
+  }, {})
+  const porCategoria = {
+    cuentas: sumar(cuentas.rows),
+    brokers: sumar(brokers.rows),
+    wallets: sumar(wallets.rows),
   }
-  res.json({ totales: [...totals.entries()]
-    .map(([moneda, monto]) => ({ moneda, monto: Number(monto.toFixed(8)) }))
-    .filter((row) => row.monto !== 0)
-    .sort((a, b) => a.moneda.localeCompare(b.moneda)) })
+  const monedas = new Set(Object.keys(porCategoria.cuentas).concat(Object.keys(porCategoria.brokers), Object.keys(porCategoria.wallets)))
+  const totales = [...monedas].map((moneda) => ({
+    moneda,
+    monto: Number([
+      porCategoria.cuentas[moneda] || 0,
+      porCategoria.brokers[moneda] || 0,
+      porCategoria.wallets[moneda] || 0,
+    ].reduce((a, b) => a + b, 0).toFixed(8)),
+  })).filter((row) => row.monto !== 0).sort((a, b) => a.moneda.localeCompare(b.moneda))
+  res.json({
+    totales,
+    por_categoria: Object.entries(porCategoria).flatMap(([categoria, valores]) =>
+      Object.entries(valores).map(([moneda, monto]) => ({ categoria, moneda, monto: Number(monto.toFixed(8)) }))
+    ),
+    rendimientos: rendimientos.rows.map((row) => ({ moneda: String(row.moneda).toUpperCase(), monto: Number(Number(row.monto || 0).toFixed(8)) })),
+  })
 })
 
 app.get('/api/empresas/:empresaId/bancos', requireAuth, async (req, res) => {

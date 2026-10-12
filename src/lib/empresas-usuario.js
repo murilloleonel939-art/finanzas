@@ -30,6 +30,5 @@ export function suscribirseAModulos(_empresaId, _callback) {
 }
 
 export async function obtenerResumenEmpresa(empresaId) {
-  const { totales } = await api(`/api/empresas/${empresaId}/resumen`)
-  return totales || []
+  return api(`/api/empresas/${empresaId}/resumen`)
 }
