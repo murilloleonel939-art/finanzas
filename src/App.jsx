@@ -28,6 +28,7 @@ import AdminNotificaciones from './pages/AdminNotificaciones.jsx'
 // Workspace y empresa
 import Workspace from './pages/Workspace.jsx'
 import EmpresaOverview from './pages/EmpresaOverview.jsx'
+import AsesorPortafolio from './pages/AsesorPortafolio.jsx'
 
 // Cuentas bancarias
 import CrearBanco from './pages/CrearBanco.jsx'
@@ -103,6 +104,7 @@ export default function App() {
         </ProtectedRoute>
       }>
         <Route index element={<EmpresaOverview />} />
+        <Route path="asesor-portafolio" element={<AsesorPortafolio />} />
 
         {/* Cuentas bancarias */}
         <Route path="bancos" element={<BancosPage />} />
