@@ -1,12 +1,12 @@
 /**
  * Modal de importación de extractos para BROKERS.
- * Permite importar movimientos y activos
+ * Permite importar movimientos y activos desde PDF, CSV y Excel.
  */
 
 import React, { useState, useRef } from 'react';
 import { crearImportJob, obtenerImportJob } from '../lib/import-jobs';
-import { Button } from '@radix-ui/react-button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@radix-ui/react-dialog';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { AlertCircle, Upload, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 
 export function ImportarBrokerModal({ 
@@ -26,8 +26,9 @@ export function ImportarBrokerModal({
   const handleArchivoChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.type !== 'application/pdf') {
-        setError('Solo se aceptan archivos PDF');
+      const extension = file.name.toLowerCase().split('.').pop();
+      if (!['pdf', 'csv', 'xls', 'xlsx'].includes(extension)) {
+        setError('Solo se aceptan archivos PDF, CSV o Excel');
         return;
       }
       setArchivo(file);
@@ -37,7 +38,7 @@ export function ImportarBrokerModal({
 
   const handleSubir = async () => {
     if (!archivo) {
-      setError('Selecciona un archivo PDF');
+      setError('Selecciona un archivo PDF, CSV o Excel');
       return;
     }
 
@@ -130,15 +131,15 @@ export function ImportarBrokerModal({
               >
                 <Upload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
                 <p className="text-sm font-medium text-gray-700">
-                  {archivo ? archivo.name : 'Haz clic o arrastra un PDF aquí'}
+                  {archivo ? archivo.name : 'Haz clic o arrastra un archivo aquí'}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">Solo archivos PDF</p>
+                <p className="text-xs text-gray-500 mt-1">PDF, CSV, XLS o XLSX (máximo 10 MB)</p>
               </div>
 
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf"
+                accept=".pdf,.csv,.xls,.xlsx"
                 onChange={handleArchivoChange}
                 className="hidden"
               />

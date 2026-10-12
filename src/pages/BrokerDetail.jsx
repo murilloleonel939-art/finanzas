@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import ImportarBrokerModal from '@/components/ImportarBrokerModal'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { formatearMonto } from '@/lib/monedas'
@@ -60,6 +61,7 @@ export default function BrokerDetail() {
   const [mes, setMes] = useState(MES_TODOS)
   const [pagina, setPagina] = useState(0)
   const [aBorrar, setABorrar] = useState(null) // { tipo, fila }
+  const [importarAbierto, setImportarAbierto] = useState(false)
 
   const { data: broker, isLoading: cargandoBroker, error: errorBroker } = useQuery({
     queryKey: ['broker', brokerId],
@@ -101,6 +103,11 @@ export default function BrokerDetail() {
     () => calcularTotalesBroker(movimientosFiltrados, activos),
     [movimientosFiltrados, activos]
   )
+
+  const refrescarImportacion = () => {
+    queryClient.invalidateQueries({ queryKey: ['movimientos-broker', brokerId] })
+    queryClient.invalidateQueries({ queryKey: ['activos-broker', brokerId] })
+  }
 
   const { mutate: eliminar, isPending: borrando } = useMutation({
     mutationFn: async ({ tipo, fila }) => {
@@ -162,6 +169,13 @@ export default function BrokerDetail() {
             </div>
           </div>
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setImportarAbierto(true)}
+              className="gap-2"
+            >
+              Importar archivo
+            </Button>
             <Button
               variant="outline"
               onClick={() => navigate(`/empresa/${empresaId}/brokers/${brokerId}/activo`)}
@@ -601,6 +615,14 @@ export default function BrokerDetail() {
           </Card>
         )}
       </div>
+
+      <ImportarBrokerModal
+        isOpen={importarAbierto}
+        onClose={() => setImportarAbierto(false)}
+        brokerId={brokerId}
+        empresaId={empresaId}
+        onSuccess={refrescarImportacion}
+      />
 
       <ConfirmDialog
         open={!!aBorrar}

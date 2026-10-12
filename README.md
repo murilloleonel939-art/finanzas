@@ -43,6 +43,7 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 
 - Brokers por empresa y moneda.
 - Movimientos de brokers con cantidades, valores unitarios y deduplicación.
+- Importación de extractos del broker desde PDF, CSV, XLS y XLSX, con procesamiento asíncrono de movimientos y posiciones/activos.
 - Activos de inversión: acciones, ETF, bonos, fondos, criptomonedas, opciones y otros.
 - Precios históricos por activo.
 - Jobs de actualización de precios y barridos automáticos.
