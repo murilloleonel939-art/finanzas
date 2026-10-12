@@ -30,6 +30,8 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - Los saldos de Dale se detectan mediante etiquetas como `Saldo inicial`, `Saldo final`, `Saldo de apertura` y `Saldo de cierre`, incluso cuando el monto aparece en la línea siguiente.
 - Las reglas especiales de Nequi se conservan sin cambios: `Saldo anterior` permanece como movimiento inicial y no se suma como ingreso operativo.
 - La lógica específica de saldos y clasificación solo se aplica cuando el banco es Dale; los demás bancos mantienen su flujo normal.
+- Las cuentas bancarias y wallets conservan validación estricta: si un movimiento no tiene fecha, tipo, monto o descripción, la importación se rechaza.
+- Los brokers usan una validación tolerante para extractos tabulares: se ignoran encabezados, subtotales, totales, saldos y filas de continuación incompletas, conservando los movimientos válidos.
 - Procesamiento asíncrono mediante jobs y worker.
 - Extracción de texto PDF con Poppler (`pdfinfo` y `pdftotext`).
 - Detección de duplicados y seguimiento del estado del job.
