@@ -32,10 +32,11 @@ export default function AsesorPortafolio() {
       activos: resultados[indice * 2]?.data || [],
       movimientos: resultados[indice * 2 + 1]?.data || [],
     }))
+    const brokersConActivos = porBroker.filter((fila) => fila.activos.length > 0)
     return analizarPortafolio({
-      brokers,
-      activos: porBroker.flatMap((fila) => fila.activos.map((activo) => ({ ...activo, broker_id: fila.broker.id }))),
-      movimientos: porBroker.flatMap((fila) => fila.movimientos.map((movimiento) => ({
+      brokers: brokersConActivos.map((fila) => fila.broker),
+      activos: brokersConActivos.flatMap((fila) => fila.activos.map((activo) => ({ ...activo, broker_id: fila.broker.id }))),
+      movimientos: brokersConActivos.flatMap((fila) => fila.movimientos.map((movimiento) => ({
         ...movimiento,
         broker_id: fila.broker.id,
         broker_moneda: movimiento.broker_moneda || fila.broker.moneda,
