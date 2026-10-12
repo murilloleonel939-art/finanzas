@@ -46,6 +46,16 @@ export function generarPromptMovimientosCuenta(context) {
     ? (PROVIDER_RULES[proveedor.toLowerCase()]?.instruction || PROVIDER_RULES.otro.instruction)
     : PROVIDER_RULES.otro.instruction;
   const esNequi = /nequi/i.test(`${banco || ''} ${proveedor || ''}`)
+  const esDale = /\bdale\b/i.test(`${banco || ''}`)
+  const instruccionDale = esDale
+    ? `\nREGLA ESPECIAL BANCO DALE:\n- El archivo contiene un saldo inicial y un saldo final. Extráelos como saldo_inicial y saldo_final.\n- No conviertas esos saldos en movimientos y no los sumes a ingresos o egresos.\n- Si un saldo no aparece en este lote, usa null.\n`
+    : ''
+  const formatoSalida = esDale
+    ? `Retorna un objeto JSON con "saldo_inicial", "saldo_final" y "movimientos". Los saldos deben ser números positivos o null si no aparecen en este lote.\n{ "saldo_inicial": 1000000, "saldo_final": 1250000, "movimientos": [ ... ] }`
+    : 'Retorna un array JSON válido de movimientos.'
+  const ejemploSalida = esDale
+    ? '{ "saldo_inicial": 1000000, "saldo_final": 1250000, "movimientos": [] }'
+    : '[ { "fecha": "2024-01-15", "tipo": "ingreso", "monto": "1500.00", "descripcion": "Depósito cliente", "moneda": "USD", "external_id": null, "status": "completed" } ]'
   const instruccionNequi = esNequi
     ? `\nREGLA ESPECIAL NEQUI:\n- La fila o texto “Saldo anterior” representa el saldo inicial del período. Inclúyelo como el PRIMER movimiento, con fecha del primer día del período, tipo "ingreso", monto positivo y descripción exactamente "Saldo anterior". NUNCA lo cuentes como ingreso operativo ni lo sumes a los totales de ingresos.\n- Conserva el orden en que aparecen las filas del PDF.\n`
     : '';
@@ -61,12 +71,13 @@ CONTEXTO:
 
 INSTRUCCIONES CRÍTICAS:
 ${providerInstruction}
+${instruccionDale}
 ${instruccionNequi}
 REGLAS OBLIGATORIAS:
 1. Extrae SOLO filas que son movimientos reales. NO incluyas:
    - Encabezados o títulos
    - Totales o resúmenes
-   - Saldos finales (excepto "Saldo anterior" en extractos Nequi)
+   - Saldos finales (excepto el saldo_final estructurado de Dale y "Saldo anterior" en extractos Nequi)
    - Líneas vacías o de separación
 
 2. Para cada movimiento extrae:
@@ -86,7 +97,10 @@ REGLAS OBLIGATORIAS:
 7. No inventes datos. Si falta información, déjalo null.
 
 FORMATO DE SALIDA:
-Retorna un array JSON válido de movimientos. Ejemplo:
+${formatoSalida}
+Ejemplo:
+${ejemploSalida}
+/* Para otros bancos, las filas completas siguen el esquema: */
 [
   {
     "fecha": "2024-01-15",
@@ -108,7 +122,7 @@ Retorna un array JSON válido de movimientos. Ejemplo:
   }
 ]
 
-Retorna SOLO el JSON array, sin explicaciones adicionales.`;
+Retorna ${esDale ? 'SOLO el objeto JSON' : 'SOLO el JSON array'}, sin explicaciones adicionales.`;
 }
 
 /**
@@ -291,7 +305,12 @@ export function validarRespuestaExtraccion(response) {
       }
       return parsed;
     } else if (parsed.movimientos && Array.isArray(parsed.movimientos)) {
-      // Estructura de broker { movimientos: [...], activos: [...] }
+      // Estructura de Dale o broker { movimientos: [...], ... }
+      for (const item of parsed.movimientos) {
+        if (!item.fecha || !item.tipo || !item.monto || !item.descripcion) {
+          throw new Error('Movimiento incompleto: falta fecha, tipo, monto o descripcion')
+        }
+      }
       return parsed;
     } else {
       throw new Error('Respuesta no es array ni estructura de broker');

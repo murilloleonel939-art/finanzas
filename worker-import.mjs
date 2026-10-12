@@ -79,7 +79,7 @@ async function lotesDelArchivo(filePath, pdfPassword = '') {
   return lotes
 }
 
-async function extraerLote(texto, prompt, esBroker, indice, total) {
+async function extraerLote(texto, prompt, esBroker, esDale, indice, total) {
   const apiKey = process.env.PATEWAY_API_KEY
   if (!apiKey) throw new Error('Falta PATEWAY_API_KEY para extraer movimientos.')
   const timeoutMs = Number(process.env.IMPORT_REQUEST_TIMEOUT_MS || 180000)
@@ -108,7 +108,11 @@ async function extraerLote(texto, prompt, esBroker, indice, total) {
       if (!text) throw new Error(`Pateway devolvió contenido vacío (stop_reason: ${payload.stop_reason || 'desconocido'})`)
       try {
         const datos = validarRespuestaExtraccion(text)
-        return esBroker ? { movimientos: asArray(datos.movimientos), activos: asArray(datos.activos) } : asArray(datos)
+        return esBroker
+          ? { movimientos: asArray(datos.movimientos), activos: asArray(datos.activos) }
+          : esDale
+            ? { saldo_inicial: datos?.saldo_inicial ?? null, saldo_final: datos?.saldo_final ?? null, movimientos: asArray(datos?.movimientos) }
+            : asArray(datos)
       } catch (error) {
         if (intento === 2) throw error
         log(`JSON truncado en lote ${indice}/${total}; reintentando con una salida más compacta.`, 'warn')
@@ -124,30 +128,40 @@ async function extraerLote(texto, prompt, esBroker, indice, total) {
 }
 
 async function extraerDatos(filePath, job, contexto) {
+  const nombreBanco = contexto.banco || contexto.nombre_banco || ''
+  const esDale = job.target === 'cuenta' && /\bdale\b/i.test(nombreBanco)
   const prompt = job.target === 'cuenta'
-    ? generarPromptMovimientosCuenta({ ...contexto, banco: contexto.banco || contexto.nombre_banco, proveedor: job.proveedor })
+    ? generarPromptMovimientosCuenta({ ...contexto, banco: nombreBanco, proveedor: job.proveedor })
     : job.target === 'broker'
       ? generarPromptMovimientosBroker(contexto)
       : generarPromptMovimientosWallet({ ...contexto, proveedor: job.proveedor })
   const lotes = await lotesDelArchivo(filePath, job.target === 'cuenta' ? descifrarClavePdf(contexto.pdf_password_encrypted) : '')
-  const acumulado = job.target === 'broker' ? { movimientos: [], activos: [] } : []
+  const acumulado = job.target === 'broker' ? { movimientos: [], activos: [] } : esDale ? { saldo_inicial: null, saldo_final: null, movimientos: [] } : []
   for (let inicio = 0; inicio < lotes.length; inicio += IMPORT_CONCURRENCY) {
     const indices = Array.from({ length: Math.min(IMPORT_CONCURRENCY, lotes.length - inicio) }, (_, offset) => inicio + offset)
     indices.forEach((indice) => log(`Procesando lote ${indice + 1}/${lotes.length} del job ${job.id}`))
-    const resultados = await Promise.all(indices.map((indice) => extraerLote(lotes[indice], prompt, job.target === 'broker', indice + 1, lotes.length)))
+    const resultados = await Promise.all(indices.map((indice) => extraerLote(lotes[indice], prompt, job.target === 'broker', esDale, indice + 1, lotes.length)))
     resultados.forEach((datos, resultadoIndex) => {
       if (job.target !== 'broker') {
         const offsetOrden = indices[resultadoIndex] * 1000000
-        datos.forEach((item, itemIndex) => { item.orden = Number.isInteger(Number(item.orden)) ? offsetOrden + Number(item.orden) : offsetOrden + itemIndex })
+        const filas = esDale ? datos.movimientos : datos
+        filas.forEach((item, itemIndex) => { item.orden = Number.isInteger(Number(item.orden)) ? offsetOrden + Number(item.orden) : offsetOrden + itemIndex })
       }
       if (job.target === 'broker') {
         acumulado.movimientos.push(...datos.movimientos)
         acumulado.activos.push(...datos.activos)
+      } else if (esDale) {
+        if (datos.saldo_inicial !== null && datos.saldo_inicial !== undefined && Number.isFinite(Number(datos.saldo_inicial))) acumulado.saldo_inicial = Number(datos.saldo_inicial)
+        if (datos.saldo_final !== null && datos.saldo_final !== undefined && Number.isFinite(Number(datos.saldo_final))) acumulado.saldo_final = Number(datos.saldo_final)
+        acumulado.movimientos.push(...datos.movimientos)
       } else acumulado.push(...datos)
     })
   }
-  if (job.target !== 'broker') acumulado.sort((a, b) => Number(a.orden ?? 0) - Number(b.orden ?? 0))
-  const items = job.target === 'broker' ? [...acumulado.movimientos, ...acumulado.activos] : acumulado
+  if (job.target !== 'broker') {
+    const filas = esDale ? acumulado.movimientos : acumulado
+    filas.sort((a, b) => Number(a.orden ?? 0) - Number(b.orden ?? 0))
+  }
+  const items = job.target === 'broker' ? [...acumulado.movimientos, ...acumulado.activos] : esDale ? acumulado.movimientos : acumulado
   for (const item of items) if (!item.external_id && item.fecha) item.external_id = await derivarExternalId(item)
   return acumulado
 }
@@ -164,7 +178,10 @@ async function contextoDestino(client, job) {
 
 async function procesarCuenta(client, job, datos) {
   let creados = 0; let duplicados = 0
-  for (const item of asArray(datos)) {
+  const movimientos = Array.isArray(datos) ? datos : datos?.movimientos
+  const saldoInicial = Number(datos?.saldo_inicial)
+  const saldoFinal = Number(datos?.saldo_final)
+  for (const item of asArray(movimientos)) {
     const fecha = String(item.fecha || '').slice(0, 10); const monto = Number(item.monto)
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !Number.isFinite(monto) || monto < 0 || !item.descripcion || !['ingreso', 'egreso'].includes(item.tipo)) continue
     const orden = Number.isInteger(Number(item.orden)) ? Number(item.orden) : creados
@@ -172,10 +189,13 @@ async function procesarCuenta(client, job, datos) {
       values ($1,$2,$3,$4,$5,$6,$7,$8) returning id`, [job.empresa_id, job.cuenta_id, fecha, String(item.descripcion).trim(), item.tipo, monto, orden, job.created_by])
     if (r.rowCount) creados++
   }
-  await client.query(`update cuentas set monto = coalesce((
+  await client.query(`update cuentas set
+    saldo_inicial = case when $2::numeric is not null and $2::numeric >= 0 then $2::numeric else saldo_inicial end,
+    saldo_final = case when $3::numeric is not null and $3::numeric >= 0 then $3::numeric else saldo_final end,
+    monto = case when $3::numeric is not null and $3::numeric >= 0 then $3::numeric else coalesce((
     select coalesce((select monto from movimientos where cuenta_id = $1 and deleted_at is null and descripcion ~* 'saldo[[:space:]]+anterior' order by fecha desc, orden desc, created_at desc limit 1), 0)
       + coalesce((select sum(case when tipo = 'ingreso' then monto else -monto end) from movimientos m where m.cuenta_id = $1 and m.deleted_at is null and m.descripcion !~* 'saldo[[:space:]]+anterior' and m.fecha >= coalesce((select fecha from movimientos where cuenta_id = $1 and deleted_at is null and descripcion ~* 'saldo[[:space:]]+anterior' order by fecha desc, orden desc, created_at desc limit 1), '0001-01-01'::date)), 0)
-  ), 0) where id = $1`, [job.cuenta_id])
+  ), 0) end where id = $1`, [job.cuenta_id, Number.isFinite(saldoInicial) && saldoInicial >= 0 ? saldoInicial : null, Number.isFinite(saldoFinal) && saldoFinal >= 0 ? saldoFinal : null])
   return { creados, duplicados }
 }
 

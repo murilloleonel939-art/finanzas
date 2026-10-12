@@ -25,6 +25,7 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 ### Claves de PDF e importaciones
 
 - Importación de extractos en PDF, CSV, XLS y XLSX.
+- Regla específica para el banco Dale: extrae y guarda el saldo inicial y el saldo final del archivo sin convertirlos en movimientos. Las reglas especiales de Nequi se conservan sin cambios.
 - Procesamiento asíncrono mediante jobs y worker.
 - Extracción de texto PDF con Poppler (`pdfinfo` y `pdftotext`).
 - Detección de duplicados y seguimiento del estado del job.

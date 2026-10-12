@@ -61,6 +61,8 @@ export default function CuentaDetail() {
     queryFn: () => obtenerCuenta(cuentaId),
   })
 
+  const esBancoDale = /\bdale\b/i.test(cuenta?.banco_nombre || '')
+
   const { data: movimientos = [], isLoading: cargandoMovs, error: errorMovs } = useQuery({
     queryKey: ['movimientos', cuentaId],
     queryFn: () => listarMovimientos(cuentaId),
@@ -210,7 +212,7 @@ export default function CuentaDetail() {
           <Card className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Saldo inicial</p>
             <p className="text-2xl font-bold">
-              {formatearMonto(resumen.saldoInicial ?? 0, cuenta.tipo_moneda)}
+              {formatearMonto(esBancoDale ? (cuenta.saldo_inicial ?? 0) : (resumen.saldoInicial ?? 0), cuenta.tipo_moneda)}
             </p>
           </Card>
           <Card className="p-4 border-l-4 border-l-emerald-500">
@@ -225,6 +227,14 @@ export default function CuentaDetail() {
               {formatearMonto(resumen.egresos, cuenta.tipo_moneda)}
             </p>
           </Card>
+          {esBancoDale && (
+            <Card className="p-4">
+              <p className="text-xs text-muted-foreground mb-1">Saldo final del extracto</p>
+              <p className="text-2xl font-bold">
+                {formatearMonto(cuenta.saldo_final ?? cuenta.monto, cuenta.tipo_moneda)}
+              </p>
+            </Card>
+          )}
           <Card className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Saldo actual</p>
             <p

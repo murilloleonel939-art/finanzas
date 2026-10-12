@@ -244,7 +244,7 @@ app.get('/api/empresas/:empresaId/cuentas', requireAuth, async (req, res) => {
     return error(res, 403, 'No tienes acceso a esta empresa.')
   }
   const result = await query(
-    `select id, empresa_id, banco_id, numero_cuenta, tipo_cuenta, tipo_moneda, monto, (pdf_password_encrypted is not null) as tiene_clave_pdf, created_at, updated_at
+    `select id, empresa_id, banco_id, numero_cuenta, tipo_cuenta, tipo_moneda, monto, saldo_inicial, saldo_final, (pdf_password_encrypted is not null) as tiene_clave_pdf, created_at, updated_at
      from cuentas where empresa_id = $1 and deleted_at is null order by numero_cuenta`,
     [req.params.empresaId]
   )
@@ -333,7 +333,7 @@ app.post('/api/empresas/:empresaId/cuentas', requireAuth, async (req, res) => {
 app.get('/api/cuentas/:cuentaId', requireAuth, async (req, res) => {
   const result = await query(
     `select c.id, c.empresa_id, c.banco_id, b.nombre_banco as banco_nombre, b.pais as banco_pais,
-            c.numero_cuenta, c.tipo_cuenta, c.tipo_moneda, c.monto, (c.pdf_password_encrypted is not null) as tiene_clave_pdf
+            c.numero_cuenta, c.tipo_cuenta, c.tipo_moneda, c.monto, c.saldo_inicial, c.saldo_final, (c.pdf_password_encrypted is not null) as tiene_clave_pdf
      from cuentas c join bancos b on b.id = c.banco_id and b.deleted_at is null
      where c.id = $1 and c.deleted_at is null`,
     [req.params.cuentaId]
@@ -836,6 +836,7 @@ app.post('/api/empresas/:empresaId/import-jobs', requireAuth, async (req, res) =
   const raw = archivo.replace(/^data:[^;]+;base64,/, '')
   const content = Buffer.from(raw, 'base64')
   if (content.length < 1) return error(res, 400, 'El archivo está vacío o es inválido.')
+  if (extension === 'pdf' && content.subarray(0, 4).toString() !== '%PDF') return error(res, 400, 'El archivo PDF no es válido.')
   if (content.length > 10 * 1024 * 1024) return error(res, 413, 'El archivo supera el límite de 10 MB.')
   const storageRoot = path.resolve(process.env.IMPORT_STORAGE_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), 'uploads'))
   const directory = path.join(storageRoot, empresaId)
