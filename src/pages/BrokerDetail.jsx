@@ -164,6 +164,23 @@ export default function BrokerDetail() {
     (paginaSegura + 1) * POR_PAGINA
   )
 
+  // Quotex usa los movimientos como una cuenta de saldo: ingresos suman y egresos restan.
+  const saldoQuotex = useMemo(() => {
+    if (!quotex) return { porMovimiento: new Map(), actual: 0 }
+    const ordenados = [...movimientos].sort((a, b) => {
+      const fechaA = new Date(a.fecha).getTime()
+      const fechaB = new Date(b.fecha).getTime()
+      return fechaA - fechaB || Number(a.id || 0) - Number(b.id || 0)
+    })
+    let saldo = 0
+    const porMovimiento = new Map()
+    for (const movimiento of ordenados) {
+      saldo += movimiento.tipo === 'ingreso' ? Number(movimiento.monto || 0) : -Number(movimiento.monto || 0)
+      porMovimiento.set(movimiento.id, saldo)
+    }
+    return { porMovimiento, actual: saldo }
+  }, [movimientos, quotex])
+
   // Caja y cartera del período elegido: es lo que responde «cuánto tengo»
   // mirando el mes seleccionado.
   const totales = useMemo(
@@ -508,8 +525,18 @@ export default function BrokerDetail() {
               />
             </div>
 
-            <Card>
-              {cargandoMovs ? (
+            {quotex && (
+               <Card className="mb-4">
+                 <div className="p-4 flex items-center justify-between">
+                   <span className="text-sm text-muted-foreground">Saldo actual</span>
+                   <span className={`text-xl font-bold ${saldoQuotex.actual >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                     {formatearMonto(saldoQuotex.actual, broker?.moneda)}
+                   </span>
+                 </div>
+               </Card>
+             )}
+             <Card>
+                {cargandoMovs ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
@@ -559,7 +586,9 @@ export default function BrokerDetail() {
                           <th className="text-left px-4 py-3 font-medium">Clase</th>
                           <th className="text-right px-4 py-3 font-medium">Monto</th>
                           <th className="text-right px-4 py-3 font-medium">Cantidad</th>
-                          {!quotex && <th className="text-right px-4 py-3 font-medium">Valor unit.</th>}
+                          {quotex
+                             ? <th className="text-right px-4 py-3 font-medium">Saldo</th>
+                             : <th className="text-right px-4 py-3 font-medium">Valor unit.</th>}
                           <th className="w-10" />
                         </tr>
                       </thead>
@@ -602,7 +631,7 @@ export default function BrokerDetail() {
                               </td>
                               <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">
                                 {esOperacion
-                                  ? (quotex ? '—' : formatearMonto(m.valor_unitario, m.broker_moneda))
+                                  ? (quotex ? formatearMonto(saldoQuotex.porMovimiento.get(m.id) || 0, m.broker_moneda) : formatearMonto(m.valor_unitario, m.broker_moneda))
                                   : '—'}
                               </td>
                               <td className="px-2 py-3">

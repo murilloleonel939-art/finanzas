@@ -338,7 +338,9 @@ async function procesarBroker(client, job, datos) {
       : (['deposito', 'venta', 'ingreso'].includes(item.tipo) ? 'ingreso' : 'egreso')
     if (!item.fecha || !Number.isFinite(monto) || monto < 0 || !item.descripcion) continue
     if (esQuotex && !tiposQuotex.includes(item.tipo)) continue
-    const descripcion = String(item.descripcion).trim()
+    const descripcion = esQuotex
+      ? `[${item.tipo}] ${String(item.descripcion).trim()}`
+      : String(item.descripcion).trim()
     // Para compras y ventas, guardar cantidad y valor_unitario si los trae el LLM
     const esOperacion = esQuotex || ['compra', 'venta'].includes(item.tipo)
     const cantidad = esOperacion && item.cantidad != null ? Number(item.cantidad) : null
