@@ -60,6 +60,12 @@ function parseMontoImportado(value) {
   if ((texto.match(/\./g) || []).length > 1 || /\.\d{3}$/.test(texto)) return Number(texto.replace(/\./g, ''))
   return Number(texto)
 }
+function normalizarTipoDale(item) {
+  const etiqueta = String(item?.descripcion || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  if (/\b(abono|credito|ingreso)\b/.test(etiqueta)) return 'ingreso'
+  if (/\b(debito|retiro|pago|salida)\b/.test(etiqueta)) return 'egreso'
+  return item?.tipo
+}
 function extraerSaldosDaleDeTexto(lotes) {
   const resultado = { saldo_inicial: null, saldo_final: null }
   const monto = '[-$\\s]*([0-9][0-9.,]*)'
@@ -212,15 +218,19 @@ async function contextoDestino(client, job) {
 
 async function procesarCuenta(client, job, datos) {
   let creados = 0; let duplicados = 0
+  // Solo Dale devuelve el objeto estructurado con saldos. Sus extractos usan
+  // formatos COP como 1.234.567,89, que Number() interpreta incorrectamente.
+  const esDale = !Array.isArray(datos) && Array.isArray(datos?.movimientos)
   const movimientos = Array.isArray(datos) ? datos : datos?.movimientos
-  const saldoInicial = Number(datos?.saldo_inicial)
-  const saldoFinal = Number(datos?.saldo_final)
+  const saldoInicial = esDale ? parseMontoImportado(datos?.saldo_inicial) : Number(datos?.saldo_inicial)
+  const saldoFinal = esDale ? parseMontoImportado(datos?.saldo_final) : Number(datos?.saldo_final)
   for (const item of asArray(movimientos)) {
-    const fecha = String(item.fecha || '').slice(0, 10); const monto = Number(item.monto)
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !Number.isFinite(monto) || monto < 0 || !item.descripcion || !['ingreso', 'egreso'].includes(item.tipo)) continue
+    const fecha = String(item.fecha || '').slice(0, 10); const monto = esDale ? parseMontoImportado(item.monto) : Number(item.monto)
+    const tipo = esDale ? normalizarTipoDale(item) : item.tipo
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !Number.isFinite(monto) || monto < 0 || !item.descripcion || !['ingreso', 'egreso'].includes(tipo)) continue
     const orden = Number.isInteger(Number(item.orden)) ? Number(item.orden) : creados
     const r = await client.query(`insert into movimientos (empresa_id, cuenta_id, fecha, descripcion, tipo, monto, orden, created_by)
-      values ($1,$2,$3,$4,$5,$6,$7,$8) returning id`, [job.empresa_id, job.cuenta_id, fecha, String(item.descripcion).trim(), item.tipo, monto, orden, job.created_by])
+      values ($1,$2,$3,$4,$5,$6,$7,$8) returning id`, [job.empresa_id, job.cuenta_id, fecha, String(item.descripcion).trim(), tipo, monto, orden, job.created_by])
     if (r.rowCount) creados++
   }
   await client.query(`update cuentas set
