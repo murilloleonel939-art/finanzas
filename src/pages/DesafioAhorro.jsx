@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { CalendarDays, Check, Download, PiggyBank, Printer, RotateCcw, Shuffle } from 'lucide-react'
+import { Check, Download, PiggyBank, Printer, RotateCcw, Save, FolderOpen, Trash2 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 
 const RETOS = [
@@ -10,11 +10,20 @@ const RETOS = [
   { cantidad: 100, frecuencia: 'Diaria', titulo: '100 depósitos' },
 ]
 const CLAVE = (empresaId) => `desafio-ahorro-v1-${empresaId}`
+const CLAVE_METAS = (empresaId) => `desafio-ahorro-metas-v1-${empresaId}`
 const fechaLocal = () => {
   const hoy = new Date()
   return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
 }
-const estadoInicial = () => ({ cantidad: 30, incremento: 3500, inicio: fechaLocal(), frecuencia: 'Diaria', completados: {}, sorpresa: false })
+const estadoInicial = () => ({ nombre: 'Mi desafío', cantidad: 30, incremento: 3500, inicio: fechaLocal(), frecuencia: 'Diaria', completados: {} })
+
+function cargarMetas(empresaId) {
+  try {
+    return JSON.parse(localStorage.getItem(CLAVE_METAS(empresaId)) || '[]')
+  } catch {
+    return []
+  }
+}
 const moneda = (valor) => `$ ${Number(valor || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`
 
 function cargarEstado(empresaId) {
@@ -29,16 +38,29 @@ function cargarEstado(empresaId) {
 export default function DesafioAhorro() {
   const { empresaId } = useParams()
   const [reto, setReto] = useState(() => cargarEstado(empresaId))
+  const [metas, setMetas] = useState(() => cargarMetas(empresaId))
+  const [metaSeleccionada, setMetaSeleccionada] = useState('')
   const [aviso, setAviso] = useState('')
   const [mostrarAvisoReinicio, setMostrarAvisoReinicio] = useState(false)
 
   useEffect(() => {
     setReto(cargarEstado(empresaId))
+    setMetas(cargarMetas(empresaId))
+    setMetaSeleccionada('')
   }, [empresaId])
 
   useEffect(() => {
     localStorage.setItem(CLAVE(empresaId), JSON.stringify(reto))
   }, [empresaId, reto])
+
+  useEffect(() => {
+    localStorage.setItem(CLAVE_METAS(empresaId), JSON.stringify(metas))
+  }, [empresaId, metas])
+
+  useEffect(() => {
+    if (!metaSeleccionada) return
+    setMetas((actuales) => actuales.map((meta) => meta.id === metaSeleccionada ? { ...reto, id: meta.id } : meta))
+  }, [reto, metaSeleccionada])
 
   const montos = useMemo(() => Array.from({ length: Math.max(1, Math.min(500, Number(reto.cantidad) || 1)) }, (_, i) => (i + 1) * Math.max(0, Number(reto.incremento) || 0)), [reto.cantidad, reto.incremento])
   const depositosHechos = Object.keys(reto.completados || {}).filter((id) => reto.completados[id]).length
@@ -47,18 +69,7 @@ export default function DesafioAhorro() {
   const progreso = meta ? Math.min(100, (ahorrado / meta) * 100) : 0
   const pendiente = Math.max(0, meta - ahorrado)
   const siguiente = montos.find((_, i) => !reto.completados[i + 1]) || 0
-  const orden = useMemo(() => {
-    const indices = montos.map((_, i) => i + 1)
-    if (reto.sorpresa) {
-      let semilla = `${empresaId}-${reto.cantidad}-${reto.incremento}`.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
-      for (let i = indices.length - 1; i > 0; i--) {
-        semilla = (semilla * 9301 + 49297) % 233280
-        const j = Math.floor((semilla / 233280) * (i + 1))
-        ;[indices[i], indices[j]] = [indices[j], indices[i]]
-      }
-    }
-    return indices
-  }, [montos, reto.sorpresa, reto.cantidad, reto.incremento, empresaId])
+  const orden = useMemo(() => montos.map((_, i) => i + 1), [montos])
   const completadosSemana = Object.values(reto.completados || {}).filter((fecha) => {
     if (!fecha) return false
     const antiguedad = Date.now() - new Date(`${fecha}T00:00:00`).getTime()
@@ -84,8 +95,33 @@ export default function DesafioAhorro() {
     else setAviso('¡Completaste todos los depósitos de este desafío!')
   }
 
-  function elegirReto(opcion) {
-    actualizar({ cantidad: opcion.cantidad, frecuencia: opcion.frecuencia })
+  function guardarMeta() {
+    const nombre = String(reto.nombre || '').trim()
+    if (!nombre) {
+      setAviso('Escribe un nombre para guardar esta meta.')
+      return
+    }
+    const metaGuardada = { ...reto, id: globalThis.crypto?.randomUUID?.() || `${Date.now()}`, nombre }
+    setMetas((actuales) => [...actuales, metaGuardada])
+    setMetaSeleccionada(metaGuardada.id)
+    setAviso(`Meta «${nombre}» guardada. Tu progreso queda asociado a ella.`)
+  }
+
+  function cargarMeta(id) {
+    const guardada = metas.find((meta) => meta.id === id)
+    if (!guardada) return
+    const { id: _id, ...datosMeta } = guardada
+    setReto(datosMeta)
+    setMetaSeleccionada(id)
+    setAviso(`Meta «${guardada.nombre}» cargada. Puedes seguir alimentando su progreso.`)
+  }
+
+  function eliminarMeta() {
+    const guardada = metas.find((meta) => meta.id === metaSeleccionada)
+    if (!guardada) return
+    setMetas((actuales) => actuales.filter((meta) => meta.id !== metaSeleccionada))
+    setMetaSeleccionada('')
+    setAviso(`Meta «${guardada.nombre}» eliminada de las metas guardadas.`)
   }
 
   function exportarCSV() {
@@ -126,9 +162,10 @@ export default function DesafioAhorro() {
         <div className="grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
           <aside className="space-y-4">
             <Card className="border-[#26372a] bg-[#111c14] p-5 text-[#e0e9df]">
-              <SectionTitle>Elige tu reto</SectionTitle>
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                {RETOS.map((opcion) => <button key={opcion.cantidad} type="button" onClick={() => elegirReto(opcion)} className={`rounded-lg border p-3 text-left text-sm transition ${Number(reto.cantidad) === opcion.cantidad && reto.frecuencia === opcion.frecuencia ? 'border-[#dcb650] bg-[#253323]' : 'border-[#29372d] bg-[#0b140e] hover:border-[#69806b]'}`}><strong className="block">{opcion.titulo}</strong><span className="text-xs text-[#9eafa0]">{opcion.frecuencia}</span></button>)}
+              <SectionTitle>Configura tu meta</SectionTitle>
+              <label className="mt-4 block text-xs font-medium text-[#aab8aa]">Nombre de la meta<input type="text" maxLength="60" value={reto.nombre || ''} onChange={(e) => actualizar({ nombre: e.target.value })} placeholder="Ej. Viaje, emergencia, matrícula" className="mt-1 w-full rounded-lg border border-[#29372d] bg-[#0a120c] px-3 py-2 text-sm text-white" /></label>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {RETOS.map((opcion) => <button key={opcion.cantidad} type="button" onClick={() => actualizar({ cantidad: opcion.cantidad, frecuencia: opcion.frecuencia })} className={`rounded-lg border p-3 text-left text-sm transition ${Number(reto.cantidad) === opcion.cantidad && reto.frecuencia === opcion.frecuencia ? 'border-[#dcb650] bg-[#253323]' : 'border-[#29372d] bg-[#0b140e] hover:border-[#69806b]'}`}><strong className="block">{opcion.titulo}</strong><span className="text-xs text-[#9eafa0]">{opcion.frecuencia}</span></button>)}
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <label className="text-xs font-medium text-[#aab8aa]">Número de depósitos<input type="number" min="1" max="500" value={reto.cantidad} onChange={(e) => actualizar({ cantidad: Math.max(1, Math.min(500, Number(e.target.value) || 1)) })} className="mt-1 w-full rounded-lg border border-[#29372d] bg-[#0a120c] px-3 py-2 text-sm text-white" /></label>
@@ -139,11 +176,13 @@ export default function DesafioAhorro() {
                 <label className="text-xs font-medium text-[#aab8aa]">Frecuencia<select value={reto.frecuencia} onChange={(e) => actualizar({ frecuencia: e.target.value })} className="mt-1 w-full rounded-lg border border-[#29372d] bg-[#0a120c] px-3 py-2 text-sm text-white"><option>Diaria</option><option>Semanal</option><option>Quincenal</option><option>Mensual</option></select></label>
               </div>
               <div className="mt-4 rounded-xl border border-[#193421] bg-[#12281a] p-4"><p className="text-lg font-bold text-[#c8e1c8]">{moneda(meta)}</p><p className="text-sm text-[#aab9ab]">meta total · termina alrededor de {fechaFinTexto}</p></div>
+              <button type="button" onClick={guardarMeta} className="mt-3 w-full rounded-full bg-[#e6b84f] px-3 py-2 text-xs font-bold text-[#1b2015] hover:bg-[#f0c961]"><Save className="mr-1 inline h-3.5 w-3.5" />Guardar esta meta</button>
             </Card>
 
             <Card className="border-[#26372a] bg-[#111c14] p-5 text-[#e0e9df]">
-              <SectionTitle>Opciones de la grilla</SectionTitle>
-              <button type="button" onClick={() => actualizar({ sorpresa: !reto.sorpresa })} className={`mt-4 flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${reto.sorpresa ? 'border-[#dcb650] text-[#f2ce71]' : 'border-[#29372d] text-[#d0d9d0]'}`}><Shuffle className="h-3.5 w-3.5" /> Orden sorpresa {reto.sorpresa ? 'activado' : 'desactivado'}</button>
+              <SectionTitle>Mis metas guardadas</SectionTitle>
+              {metas.length === 0 ? <p className="mt-3 text-xs text-[#aab9ab]">Guarda una meta para poder cargarla y continuar más adelante.</p> : <div className="mt-3 space-y-2">{metas.map((metaGuardada) => <button key={metaGuardada.id} type="button" onClick={() => cargarMeta(metaGuardada.id)} className={`w-full rounded-lg border p-3 text-left ${metaSeleccionada === metaGuardada.id ? 'border-[#dcb650] bg-[#253323]' : 'border-[#29372d] bg-[#0b140e] hover:border-[#69806b]'}`}><span className="flex items-center justify-between gap-2"><strong className="truncate text-sm">{metaGuardada.nombre}</strong><FolderOpen className="h-4 w-4 shrink-0 text-[#c8d7c9]" /></span><span className="mt-1 block text-xs text-[#aab9ab]">{metaGuardada.cantidad} depósitos · {moneda(metaGuardada.incremento)} de incremento · {(Object.keys(metaGuardada.completados || {}).length)} completados</span></button>)}</div>}
+              {metaSeleccionada && <button type="button" onClick={eliminarMeta} className="mt-3 rounded-full border border-[#472721] px-3 py-2 text-xs font-semibold text-[#f28e7d] hover:bg-[#291815]"><Trash2 className="mr-1 inline h-3.5 w-3.5" />Eliminar meta guardada</button>}
               <div className="my-4 border-t border-[#29372d]" />
               <div className="flex flex-wrap gap-2"><button type="button" onClick={() => window.print()} className="rounded-full border border-[#29372d] px-3 py-2 text-xs font-semibold hover:bg-[#1a281d]"><Printer className="mr-1 inline h-3.5 w-3.5" />Imprimir</button><button type="button" onClick={exportarCSV} className="rounded-full border border-[#29372d] px-3 py-2 text-xs font-semibold hover:bg-[#1a281d]"><Download className="mr-1 inline h-3.5 w-3.5" />Exportar CSV</button></div>
               {mostrarAvisoReinicio ? <div className="mt-4 rounded-lg border border-[#755238] bg-[#251d12] p-3"><p className="text-xs text-[#f0d3a5]">¿Borrar todos los depósitos marcados y reiniciar este desafío?</p><div className="mt-2 flex gap-2"><button type="button" onClick={confirmarReinicio} className="rounded-full bg-[#e6b84f] px-3 py-1.5 text-xs font-bold text-[#1b2015]">Sí, reiniciar</button><button type="button" onClick={() => setMostrarAvisoReinicio(false)} className="rounded-full border border-[#53604e] px-3 py-1.5 text-xs">Cancelar</button></div></div> : <button type="button" onClick={reiniciar} className="mt-4 w-full rounded-full border border-[#472721] px-3 py-2 text-xs font-semibold text-[#f28e7d] hover:bg-[#291815]"><RotateCcw className="mr-1 inline h-3.5 w-3.5" />Reiniciar progreso</button>}
