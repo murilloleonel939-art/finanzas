@@ -37,6 +37,7 @@ const PESTANAS = [
   { id: 'movimientos', etiqueta: 'Movimientos' },
   { id: 'activos', etiqueta: 'Activos' },
   { id: 'precios', etiqueta: 'Precios' },
+  { id: 'asesor', etiqueta: 'Asesor' },
 ]
 
 const POR_PAGINA = 20
@@ -811,6 +812,55 @@ export default function BrokerDetail() {
               </>
             )}
           </Card>
+        )}
+
+        {/* ---- Asesor ---- */}
+        {pestana === 'asesor' && (
+          <div className="space-y-4">
+            <Card className="border-blue-200 bg-blue-50 p-5">
+              <h2 className="font-semibold text-blue-900">Asesor informativo</h2>
+              <p className="mt-1 text-sm text-blue-900">
+                Análisis basado únicamente en los movimientos, activos y precios registrados en este broker. No envía órdenes ni se conecta a Interactive Brokers.
+              </p>
+            </Card>
+
+            {rendimiento.length === 0 ? (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">Aún no hay datos suficientes para generar un análisis.</p>
+              </Card>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {rendimiento.map((r) => (
+                  <Card key={r.moneda} className="p-5">
+                    <div className="mb-4 flex items-center justify-between">
+                      <h3 className="font-semibold">Resumen {r.moneda}</h3>
+                      <span className={`text-sm font-medium ${r.ganancia >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                        {r.ganancia >= 0 ? 'Resultado positivo' : 'Resultado negativo'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div><p className="text-muted-foreground">Invertido</p><p className="mt-1 font-medium">{formatearMonto(r.invertido, r.moneda)}</p></div>
+                      <div><p className="text-muted-foreground">Valor actual</p><p className="mt-1 font-medium">{formatearMonto(r.valorActivos, r.moneda)}</p></div>
+                      <div><p className="text-muted-foreground">Ganancia / pérdida</p><p className={`mt-1 font-medium ${r.ganancia >= 0 ? 'text-green-700' : 'text-red-700'}`}>{formatearMonto(r.ganancia, r.moneda)}</p></div>
+                      <div><p className="text-muted-foreground">Rentabilidad</p><p className={`mt-1 font-medium ${r.gananciaPct >= 0 ? 'text-green-700' : 'text-red-700'}`}>{r.gananciaPct == null ? '—' : `${r.gananciaPct.toFixed(2)} %`}</p></div>
+                    </div>
+                    {r.comisiones > 0 && <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">Comisiones registradas: {formatearMonto(r.comisiones, r.moneda)}. Se mantienen separadas del costo de inversión.</p>}
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            <Card className="p-5">
+              <h2 className="mb-3 font-semibold">Lectura del portafolio</h2>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                {activos.length === 0 && <li>No hay posiciones abiertas registradas.</li>}
+                {activos.length > 0 && <li>Hay {activos.length} posición{activos.length === 1 ? '' : 'es'} abierta{activos.length === 1 ? '' : 's'} en este broker.</li>}
+                {rendimiento.some((r) => r.ganancia < 0) && <li>Al menos una moneda presenta un resultado negativo frente al costo de las operaciones registradas.</li>}
+                {rendimiento.every((r) => r.ganancia >= 0) && <li>Las monedas analizadas presentan un resultado no negativo frente al costo de las operaciones registradas.</li>}
+                <li>Revisa periódicamente la distribución y actualiza los precios antes de tomar decisiones.</li>
+              </ul>
+            </Card>
+          </div>
         )}
       </div>
 
