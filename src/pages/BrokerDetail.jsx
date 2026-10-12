@@ -41,9 +41,33 @@ const PESTANAS = [
 
 const POR_PAGINA = 20
 
+/**
+ * Fecha en 'YYYY-MM-DD' para mostrar.
+ *
+ * PostgreSQL devuelve las columnas `date` y `timestamptz` como objetos `Date`
+ * (o como ISO con hora), así que no basta un `slice`: hay que leer los
+ * componentes y quedarse solo con el día. Se usan los getters UTC porque el
+ * driver serializa en UTC y usar los locales desplazaría un día en zonas al
+ * oeste de Greenwich (Colombia, UTC−5).
+ */
 function formatearFecha(fecha) {
   if (!fecha) return '—'
-  return String(fecha).slice(0, 10)
+
+  if (fecha instanceof Date) {
+    if (Number.isNaN(fecha.getTime())) return '—'
+    const dosDigitos = (n) => String(n).padStart(2, '0')
+    return `${fecha.getUTCFullYear()}-${dosDigitos(fecha.getUTCMonth() + 1)}-${dosDigitos(fecha.getUTCDate())}`
+  }
+
+  const texto = String(fecha)
+  // 'YYYY-MM-DD...' → se queda con los diez primeros caracteres.
+  if (/^\d{4}-\d{2}-\d{2}/.test(texto)) return texto.slice(0, 10)
+
+  const parseada = new Date(texto)
+  if (Number.isNaN(parseada.getTime())) return texto
+
+  const dosDigitos = (n) => String(n).padStart(2, '0')
+  return `${parseada.getFullYear()}-${dosDigitos(parseada.getMonth() + 1)}-${dosDigitos(parseada.getDate())}`
 }
 
 /**
@@ -288,6 +312,28 @@ export default function BrokerDetail() {
                     <span className="text-xs text-muted-foreground">Invertido</span>
                     <span className="text-sm font-medium">
                       {formatearMonto(t.invertido, t.moneda)}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between border-t pt-1.5">
+                    <span className="text-xs text-muted-foreground">Ganancia / Pérdida</span>
+                    <span
+                      className={`text-sm font-bold ${
+                        t.ganancia >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                      }`}
+                    >
+                      {t.ganancia >= 0 ? '▲' : '▼'} {formatearMonto(t.ganancia, t.moneda)}
+                      {t.gananciaPct != null && (
+                        <span className="ml-1 font-medium">
+                          ({t.gananciaPct >= 0 ? '+' : ''}
+                          {t.gananciaPct.toFixed(2)} %)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xs text-muted-foreground">Costo de posiciones</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatearMonto(t.valorCompra, t.moneda)}
                     </span>
                   </div>
                 </div>
@@ -654,7 +700,7 @@ export default function BrokerDetail() {
                       return (
                         <tr key={p.id} className="border-b last:border-0">
                           <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                            {p.fecha}
+                            {formatearFecha(p.fecha)}
                           </td>
                           <td className="px-4 py-3 font-medium">{p.nombre_activo}</td>
                           <td className="px-4 py-3 text-xs text-muted-foreground">
@@ -726,7 +772,7 @@ export default function BrokerDetail() {
         description={
           aBorrar?.tipo === 'activo'
             ? 'Dejará de contar en el valor de la cartera. El historial de precios no se toca.'
-            : `«${aBorrar?.fila?.descripcion}» del ${aBorrar?.fila?.fecha}.`
+            : `«${aBorrar?.fila?.descripcion}» del ${formatearFecha(aBorrar?.fila?.fecha)}.`
         }
         onConfirm={() => eliminar(aBorrar)}
         isLoading={borrando}

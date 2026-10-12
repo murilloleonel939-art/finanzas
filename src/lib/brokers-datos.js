@@ -179,7 +179,13 @@ export function calcularTotalesBroker(movimientos = [], activos = []) {
   const casilla = (moneda) => {
     const clave = (moneda || 'N/A').toUpperCase()
     if (!porMoneda.has(clave)) {
-      porMoneda.set(clave, { moneda: clave, caja: 0, valorActivos: 0, invertido: 0 })
+      porMoneda.set(clave, {
+        moneda: clave,
+        caja: 0,
+        valorActivos: 0,
+        valorCompra: 0,
+        invertido: 0,
+      })
     }
     return porMoneda.get(clave)
   }
@@ -197,17 +203,31 @@ export function calcularTotalesBroker(movimientos = [], activos = []) {
   for (const a of activos) {
     const acc = casilla(a.moneda)
     acc.valorActivos += Number(a.valor_total || 0)
+    // «Invertido en compra» es lo que costaron las posiciones vivas. Se toma de
+    // `valor_compra_total` y no del histórico de compras: si una posición ya se
+    // vendió, no cuenta.
+    const compra = a.valor_compra_total == null
+      ? Number(a.valor_unitario || 0) * Number(a.cantidad || 0)
+      : Number(a.valor_compra_total)
+    acc.valorCompra += compra
   }
 
   // Redondeo a 8 decimales: la precisión de numeric(20,8) (D3). Es solo para
   // no arrastrar las colas binarias de sumar en coma flotante en el cliente.
   return [...porMoneda.values()]
-    .map((acc) => ({
-      moneda: acc.moneda,
-      caja: redondear(acc.caja),
-      invertido: redondear(acc.invertido),
-      valorActivos: redondear(acc.valorActivos),
-    }))
+    .map((acc) => {
+      const ganancia = redondear(acc.valorActivos - acc.valorCompra)
+      const pct = acc.valorCompra > 0 ? redondear((ganancia / acc.valorCompra) * 100) : null
+      return {
+        moneda: acc.moneda,
+        caja: redondear(acc.caja),
+        invertido: redondear(acc.invertido),
+        valorActivos: redondear(acc.valorActivos),
+        valorCompra: redondear(acc.valorCompra),
+        ganancia,
+        gananciaPct: pct,
+      }
+    })
     .sort((a, b) => a.moneda.localeCompare(b.moneda))
 }
 
