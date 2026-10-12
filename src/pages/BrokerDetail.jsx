@@ -559,7 +559,7 @@ export default function BrokerDetail() {
                           <th className="text-left px-4 py-3 font-medium">Clase</th>
                           <th className="text-right px-4 py-3 font-medium">Monto</th>
                           <th className="text-right px-4 py-3 font-medium">Cantidad</th>
-                          <th className="text-right px-4 py-3 font-medium">Valor unit.</th>
+                          {!quotex && <th className="text-right px-4 py-3 font-medium">Valor unit.</th>}
                           <th className="w-10" />
                         </tr>
                       </thead>
@@ -582,10 +582,10 @@ export default function BrokerDetail() {
                                 >
                                   {m.tipo === 'ingreso'
                                     ? esOperacion
-                                      ? 'Venta'
+                                      ? (quotex ? 'Operación' : 'Venta')
                                       : 'Depósito'
                                     : esOperacion
-                                      ? 'Compra'
+                                      ? (quotex ? 'Operación' : 'Compra')
                                       : 'Retiro'}
                                 </span>
                               </td>
@@ -602,7 +602,7 @@ export default function BrokerDetail() {
                               </td>
                               <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">
                                 {esOperacion
-                                  ? formatearMonto(m.valor_unitario, m.broker_moneda)
+                                  ? (quotex ? '—' : formatearMonto(m.valor_unitario, m.broker_moneda))
                                   : '—'}
                               </td>
                               <td className="px-2 py-3">

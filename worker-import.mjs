@@ -129,11 +129,12 @@ function extraerOperacionesQuotex(filePath, moneda) {
     const categoria = resultado > 0 ? 'ganancia' : 'perdida'
     const beneficio = String(campos.get('beneficio') ?? '').trim()
     const tipo = String(campos.get('tipo') ?? '').trim()
-    const descripcion = `[${categoria}] ${descripcionBase}${tipo ? ` • ${tipo}` : ''}${beneficio ? ` • beneficio ${beneficio}` : ''} • inversión ${cantidad} • ingreso ${ingreso}`
+    const descripcion = `${descripcionBase}${tipo ? ` • ${tipo}` : ''}${beneficio ? ` • beneficio ${beneficio}` : ''}`
     movimientos.push({
       fecha,
       tipo: categoria,
       monto: Math.abs(resultado),
+      cantidad,
       descripcion,
       external_id: externalId,
       moneda,
@@ -337,11 +338,11 @@ async function procesarBroker(client, job, datos) {
       : (['deposito', 'venta', 'ingreso'].includes(item.tipo) ? 'ingreso' : 'egreso')
     if (!item.fecha || !Number.isFinite(monto) || monto < 0 || !item.descripcion) continue
     if (esQuotex && !tiposQuotex.includes(item.tipo)) continue
-    const descripcion = esQuotex ? `[${item.tipo}] ${String(item.descripcion).trim()}` : String(item.descripcion).trim()
+    const descripcion = String(item.descripcion).trim()
     // Para compras y ventas, guardar cantidad y valor_unitario si los trae el LLM
-    const esOperacion = !esQuotex && ['compra', 'venta'].includes(item.tipo)
+    const esOperacion = esQuotex || ['compra', 'venta'].includes(item.tipo)
     const cantidad = esOperacion && item.cantidad != null ? Number(item.cantidad) : null
-    const valorUnitario = esOperacion && item.valor_unitario != null ? Number(item.valor_unitario) : null
+    const valorUnitario = !esQuotex && esOperacion && item.valor_unitario != null ? Number(item.valor_unitario) : null
     const cantidadOk = cantidad === null || (Number.isFinite(cantidad) && cantidad >= 0)
     const valorOk = valorUnitario === null || (Number.isFinite(valorUnitario) && valorUnitario >= 0)
     const cantidadFinal = cantidadOk ? cantidad : null
