@@ -151,6 +151,15 @@ export async function listarPrecios(brokerId) {
   return precios
 }
 
+export async function solicitarActualizacionPrecios(empresaId, brokerId) {
+  return apiJson(`/api/empresas/${empresaId}/precios-jobs`, 'POST', { broker_id: brokerId })
+}
+
+export async function obtenerEstadoActualizacionPrecios(empresaId, jobId) {
+  const { job } = await api(`/api/empresas/${empresaId}/precios-jobs/${jobId}`)
+  return job
+}
+
 /**
  * Totales del broker para las tarjetas de cabecera.
  *

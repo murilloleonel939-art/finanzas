@@ -967,6 +967,16 @@ app.post('/api/empresas/:empresaId/precios-jobs', requireAuth, async (req, res) 
   res.status(201).json({ job: inserted.rows[0] })
 })
 
+app.get('/api/empresas/:empresaId/precios-jobs/:jobId', requireAuth, async (req, res) => {
+  const { empresaId, jobId } = req.params
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const result = await query(`select id, empresa_id, broker_id, estado, activos_totales, activos_actualizados,
+      errores, detalles, error_mensaje, intentos, started_at, finished_at, created_at
+    from precios_jobs where id = $1 and empresa_id = $2`, [jobId, empresaId])
+  if (!result.rowCount) return error(res, 404, 'Actualización de precios no encontrada.')
+  res.json({ job: result.rows[0] })
+})
+
 app.get('/api/admin/jobs', requireAuth, requireAdmin, async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200)
   const offset = Math.max(Number(req.query.offset) || 0, 0)

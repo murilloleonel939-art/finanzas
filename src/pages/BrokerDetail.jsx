@@ -9,6 +9,8 @@ import {
   listarMovimientosBroker,
   listarActivos,
   listarPrecios,
+  solicitarActualizacionPrecios,
+  obtenerEstadoActualizacionPrecios,
   borrarMovimientoBroker,
   borrarActivo,
   calcularTotalesBroker,
@@ -28,6 +30,7 @@ import {
   Trash2,
   AlertCircle,
   ArrowUpDown,
+  RefreshCw,
 } from 'lucide-react'
 
 const PESTANAS = [
@@ -70,6 +73,8 @@ export default function BrokerDetail() {
   const [aBorrar, setABorrar] = useState(null) // { tipo, fila }
   const [importarAbierto, setImportarAbierto] = useState(false)
   const [confirmarBorradoImport, setConfirmarBorradoImport] = useState(false)
+  const [actualizandoPrecios, setActualizandoPrecios] = useState(false)
+  const [errorPrecios, setErrorPrecios] = useState('')
 
   const { data: broker, isLoading: cargandoBroker, error: errorBroker } = useQuery({
     queryKey: ['broker', brokerId],
@@ -142,6 +147,32 @@ export default function BrokerDetail() {
       refrescarImportacion()
     },
   })
+
+  const actualizarPreciosAhora = async () => {
+    if (actualizandoPrecios) return
+    setActualizandoPrecios(true)
+    setErrorPrecios('')
+    try {
+      const { job } = await solicitarActualizacionPrecios(empresaId, brokerId)
+      let intentos = 0
+      while (intentos < 120) {
+        const estado = await obtenerEstadoActualizacionPrecios(empresaId, job.id)
+        if (estado.estado === 'hecho') {
+          await queryClient.invalidateQueries({ queryKey: ['precios-broker', brokerId] })
+          await queryClient.invalidateQueries({ queryKey: ['activos-broker', brokerId] })
+          return
+        }
+        if (estado.estado === 'error') throw new Error(estado.error_mensaje || 'No se pudieron actualizar los precios.')
+        intentos += 1
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+      }
+      throw new Error('La actualización está tardando más de lo esperado. Puedes revisar los precios en unos minutos.')
+    } catch (error) {
+      setErrorPrecios(error.message || 'No se pudieron actualizar los precios.')
+    } finally {
+      setActualizandoPrecios(false)
+    }
+  }
 
   if (cargandoBroker) {
     return (
@@ -581,12 +612,30 @@ export default function BrokerDetail() {
             ) : precios.length === 0 ? (
               <div className="p-8 text-center">
                 <p className="text-muted-foreground mb-2">Sin historial de precios</p>
-                <p className="text-xs text-muted-foreground">
-                  Los precios los actualiza el worker de precios, una vez al día.
+                <p className="text-xs text-muted-foreground mb-4">
+                  Puedes solicitar una actualización manual sin esperar al proceso diario.
                 </p>
+                <Button onClick={actualizarPreciosAhora} disabled={actualizandoPrecios} className="gap-2">
+                  <RefreshCw className={`w-4 h-4 ${actualizandoPrecios ? 'animate-spin' : ''}`} />
+                  {actualizandoPrecios ? 'Actualizando...' : 'Actualizar precios ahora'}
+                </Button>
+                {errorPrecios && <p className="text-sm text-destructive mt-3">{errorPrecios}</p>}
               </div>
             ) : (
               <>
+                <div className="px-4 py-3 border-b flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Precios de mercado</p>
+                    <p className="text-xs text-muted-foreground">Actualización manual disponible en cualquier momento.</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {errorPrecios && <p className="text-sm text-destructive">{errorPrecios}</p>}
+                    <Button variant="outline" onClick={actualizarPreciosAhora} disabled={actualizandoPrecios} className="gap-2">
+                      <RefreshCw className={`w-4 h-4 ${actualizandoPrecios ? 'animate-spin' : ''}`} />
+                      {actualizandoPrecios ? 'Actualizando...' : 'Actualizar precios'}
+                    </Button>
+                  </div>
+                </div>
                 <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="border-b bg-muted/50">
