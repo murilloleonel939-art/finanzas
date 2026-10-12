@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Check, Download, PiggyBank, Printer, RotateCcw, Save, FolderOpen, Trash2 } from 'lucide-react'
+import { CalendarDays, Check, Download, PiggyBank, RotateCcw, Save, FolderOpen, Trash2 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 
 const RETOS = [
@@ -42,6 +42,7 @@ export default function DesafioAhorro() {
   const [metaSeleccionada, setMetaSeleccionada] = useState('')
   const [aviso, setAviso] = useState('')
   const [mostrarAvisoReinicio, setMostrarAvisoReinicio] = useState(false)
+  const fechaRef = useRef(null)
 
   useEffect(() => {
     setReto(cargarEstado(empresaId))
@@ -124,13 +125,6 @@ export default function DesafioAhorro() {
     setAviso(`Meta «${guardada.nombre}» eliminada de las metas guardadas.`)
   }
 
-  function exportarCSV() {
-    const filas = [['Deposito', 'Monto sugerido', 'Estado', 'Fecha de ahorro']]
-    montos.forEach((monto, i) => filas.push([i + 1, monto, reto.completados[i + 1] ? 'Completado' : 'Pendiente', reto.completados[i + 1] || '']))
-    const csv = '\uFEFF' + filas.map((fila) => fila.map((celda) => `"${String(celda).replaceAll('"', '""')}"`).join(';')).join('\n')
-    descargar(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'desafio-de-ahorro.csv')
-  }
-
   function descargarTarjeta() {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="420"><rect width="100%" height="100%" rx="30" fill="#102017"/><text x="55" y="85" fill="#b9d8bf" font-family="Arial" font-size="28">MI DESAFÍO DE AHORRO</text><text x="55" y="175" fill="#f2c15d" font-family="Arial" font-weight="bold" font-size="64">${moneda(ahorrado)}</text><text x="58" y="220" fill="#d3e2d4" font-family="Arial" font-size="24">ahorrados de ${moneda(meta)}</text><rect x="55" y="265" width="790" height="22" rx="11" fill="#293b30"/><rect x="55" y="265" width="${Math.round(790 * progreso / 100)}" height="22" rx="11" fill="#56a66a"/><text x="55" y="345" fill="#d3e2d4" font-family="Arial" font-size="22">${depositosHechos}/${montos.length} depósitos completados · ${progreso.toFixed(0)}%</text></svg>`
     descargar(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), 'tarjeta-desafio-ahorro.svg')
@@ -141,9 +135,10 @@ export default function DesafioAhorro() {
   }
 
   function confirmarReinicio() {
+    setMetaSeleccionada('')
     setReto(estadoInicial())
     setMostrarAvisoReinicio(false)
-    setAviso('Progreso reiniciado.')
+    setAviso('Progreso reiniciado. Elige una meta guardada cuando quieras continuarla.')
   }
 
   const fechaFinal = new Date(`${reto.inicio}T12:00:00`)
@@ -172,7 +167,7 @@ export default function DesafioAhorro() {
                 <label className="text-xs font-medium text-[#aab8aa]">Incremento<input type="number" min="0" step="500" value={reto.incremento} onChange={(e) => actualizar({ incremento: Math.max(0, Number(e.target.value) || 0) })} className="mt-1 w-full rounded-lg border border-[#29372d] bg-[#0a120c] px-3 py-2 text-sm text-white" /></label>
               </div>
               <div className="mt-4 grid grid-cols-[1fr_110px] gap-3">
-                <label className="text-xs font-medium text-[#aab8aa]">Fecha de inicio<input type="date" value={reto.inicio} onChange={(e) => actualizar({ inicio: e.target.value })} className="mt-1 w-full rounded-lg border border-[#29372d] bg-[#0a120c] px-3 py-2 text-sm text-white" /></label>
+                <label className="text-xs font-medium text-[#aab8aa]">Fecha de inicio<div className="relative mt-1"><input ref={fechaRef} type="date" value={reto.inicio} onChange={(e) => actualizar({ inicio: e.target.value })} className="w-full rounded-lg border border-[#29372d] bg-[#0a120c] px-3 py-2 pr-10 text-sm text-white" /><button type="button" aria-label="Abrir calendario" onClick={() => fechaRef.current?.showPicker?.()} className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-[#c8d7c9] hover:text-[#f0c65e]"><CalendarDays className="h-4 w-4" /></button></div></label>
                 <label className="text-xs font-medium text-[#aab8aa]">Frecuencia<select value={reto.frecuencia} onChange={(e) => actualizar({ frecuencia: e.target.value })} className="mt-1 w-full rounded-lg border border-[#29372d] bg-[#0a120c] px-3 py-2 text-sm text-white"><option>Diaria</option><option>Semanal</option><option>Quincenal</option><option>Mensual</option></select></label>
               </div>
               <div className="mt-4 rounded-xl border border-[#193421] bg-[#12281a] p-4"><p className="text-lg font-bold text-[#c8e1c8]">{moneda(meta)}</p><p className="text-sm text-[#aab9ab]">meta total · termina alrededor de {fechaFinTexto}</p></div>
@@ -183,8 +178,6 @@ export default function DesafioAhorro() {
               <SectionTitle>Mis metas guardadas</SectionTitle>
               {metas.length === 0 ? <p className="mt-3 text-xs text-[#aab9ab]">Guarda una meta para poder cargarla y continuar más adelante.</p> : <div className="mt-3 space-y-2">{metas.map((metaGuardada) => <button key={metaGuardada.id} type="button" onClick={() => cargarMeta(metaGuardada.id)} className={`w-full rounded-lg border p-3 text-left ${metaSeleccionada === metaGuardada.id ? 'border-[#dcb650] bg-[#253323]' : 'border-[#29372d] bg-[#0b140e] hover:border-[#69806b]'}`}><span className="flex items-center justify-between gap-2"><strong className="truncate text-sm">{metaGuardada.nombre}</strong><FolderOpen className="h-4 w-4 shrink-0 text-[#c8d7c9]" /></span><span className="mt-1 block text-xs text-[#aab9ab]">{metaGuardada.cantidad} depósitos · {moneda(metaGuardada.incremento)} de incremento · {(Object.keys(metaGuardada.completados || {}).length)} completados</span></button>)}</div>}
               {metaSeleccionada && <button type="button" onClick={eliminarMeta} className="mt-3 rounded-full border border-[#472721] px-3 py-2 text-xs font-semibold text-[#f28e7d] hover:bg-[#291815]"><Trash2 className="mr-1 inline h-3.5 w-3.5" />Eliminar meta guardada</button>}
-              <div className="my-4 border-t border-[#29372d]" />
-              <div className="flex flex-wrap gap-2"><button type="button" onClick={() => window.print()} className="rounded-full border border-[#29372d] px-3 py-2 text-xs font-semibold hover:bg-[#1a281d]"><Printer className="mr-1 inline h-3.5 w-3.5" />Imprimir</button><button type="button" onClick={exportarCSV} className="rounded-full border border-[#29372d] px-3 py-2 text-xs font-semibold hover:bg-[#1a281d]"><Download className="mr-1 inline h-3.5 w-3.5" />Exportar CSV</button></div>
               {mostrarAvisoReinicio ? <div className="mt-4 rounded-lg border border-[#755238] bg-[#251d12] p-3"><p className="text-xs text-[#f0d3a5]">¿Borrar todos los depósitos marcados y reiniciar este desafío?</p><div className="mt-2 flex gap-2"><button type="button" onClick={confirmarReinicio} className="rounded-full bg-[#e6b84f] px-3 py-1.5 text-xs font-bold text-[#1b2015]">Sí, reiniciar</button><button type="button" onClick={() => setMostrarAvisoReinicio(false)} className="rounded-full border border-[#53604e] px-3 py-1.5 text-xs">Cancelar</button></div></div> : <button type="button" onClick={reiniciar} className="mt-4 w-full rounded-full border border-[#472721] px-3 py-2 text-xs font-semibold text-[#f28e7d] hover:bg-[#291815]"><RotateCcw className="mr-1 inline h-3.5 w-3.5" />Reiniciar progreso</button>}
             </Card>
           </aside>
