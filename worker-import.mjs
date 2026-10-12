@@ -144,7 +144,7 @@ async function extraerLote(texto, prompt, esBroker, esDale, indice, total) {
       const text = payload.content?.filter((part) => part.type === 'text').map((part) => part.text).join('') || ''
       if (!text) throw new Error(`Pateway devolvió contenido vacío (stop_reason: ${payload.stop_reason || 'desconocido'})`)
       try {
-        const datos = validarRespuestaExtraccion(text)
+        const datos = validarRespuestaExtraccion(text, { omitirFilasIncompletas: esBroker })
         return esBroker
           ? { movimientos: asArray(datos.movimientos), activos: asArray(datos.activos) }
           : esDale

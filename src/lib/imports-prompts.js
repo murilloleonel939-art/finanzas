@@ -176,6 +176,9 @@ REGLAS OBLIGATORIAS:
    - Si es un CDA o certificado → 'cdat'
 
 4. No inventes datos.
+5. Ignora encabezados, subtotales, totales, saldos, filas de continuación y filas sin fecha, tipo, monto o descripción. Nunca las incluyas en `movimientos`.
+6. Las posiciones abiertas solo van en `activos`; no las repitas como movimientos.
+7. Si una fila no tiene todos los campos obligatorios, omítela y continúa con las demás filas válidas.
 
 FORMATO DE SALIDA:
 Retorna un objeto JSON con dos arrays:
@@ -281,7 +284,9 @@ Retorna SOLO el JSON array, sin explicaciones.`;
  * @returns {Array} Array de movimientos/activos
  * @throws {Error} Si no es JSON válido o estructura incorrecta
  */
-export function validarRespuestaExtraccion(response) {
+export function validarRespuestaExtraccion(response, opciones = {}) {
+  const omitirFilasIncompletas = opciones.omitirFilasIncompletas === true
+  const esMovimientoCompleto = (item) => Boolean(item?.fecha && item?.tipo && item?.monto != null && item?.descripcion)
   try {
     const texto = String(response || '').trim()
       .replace(/^```(?:json)?\s*/i, '')
@@ -298,20 +303,22 @@ export function validarRespuestaExtraccion(response) {
     // Validar estructura según si es array o objeto
     if (Array.isArray(parsed)) {
       // Validar cada elemento es un movimiento válido
-      for (const item of parsed) {
-        if (!item.fecha || !item.tipo || !item.monto || !item.descripcion) {
+      const movimientos = omitirFilasIncompletas ? parsed.filter(esMovimientoCompleto) : parsed
+      for (const item of movimientos) {
+        if (!esMovimientoCompleto(item)) {
           throw new Error('Movimiento incompleto: falta fecha, tipo, monto o descripcion');
         }
       }
-      return parsed;
+      return movimientos;
     } else if (parsed.movimientos && Array.isArray(parsed.movimientos)) {
       // Estructura de Dale o broker { movimientos: [...], ... }
-      for (const item of parsed.movimientos) {
-        if (!item.fecha || !item.tipo || !item.monto || !item.descripcion) {
+      const movimientos = omitirFilasIncompletas ? parsed.movimientos.filter(esMovimientoCompleto) : parsed.movimientos
+      for (const item of movimientos) {
+        if (!esMovimientoCompleto(item)) {
           throw new Error('Movimiento incompleto: falta fecha, tipo, monto o descripcion')
         }
       }
-      return parsed;
+      return omitirFilasIncompletas ? { ...parsed, movimientos } : parsed;
     } else {
       throw new Error('Respuesta no es array ni estructura de broker');
     }
