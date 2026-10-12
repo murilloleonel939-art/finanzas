@@ -25,7 +25,11 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 ### Claves de PDF e importaciones
 
 - Importación de extractos en PDF, CSV, XLS y XLSX.
-- Regla específica para el banco Dale: extrae y guarda el saldo inicial y el saldo final del archivo sin convertirlos en movimientos. Las reglas especiales de Nequi se conservan sin cambios.
+- Regla específica para el banco Dale: extrae y guarda el saldo inicial y el saldo final del archivo sin convertirlos en movimientos. También clasifica correctamente los movimientos según el extracto: abonos/créditos/ingresos suman y débitos/retiros/pagos/salidas restan.
+- Los importes de Dale admiten formatos colombianos como `1.234.567,89` y se normalizan conservando su valor numérico completo.
+- Los saldos de Dale se detectan mediante etiquetas como `Saldo inicial`, `Saldo final`, `Saldo de apertura` y `Saldo de cierre`, incluso cuando el monto aparece en la línea siguiente.
+- Las reglas especiales de Nequi se conservan sin cambios: `Saldo anterior` permanece como movimiento inicial y no se suma como ingreso operativo.
+- La lógica específica de saldos y clasificación solo se aplica cuando el banco es Dale; los demás bancos mantienen su flujo normal.
 - Procesamiento asíncrono mediante jobs y worker.
 - Extracción de texto PDF con Poppler (`pdfinfo` y `pdftotext`).
 - Detección de duplicados y seguimiento del estado del job.
@@ -151,7 +155,7 @@ El contenedor expone el puerto `3000`. La migración es idempotente y el superus
 | `npm run worker:precios` | Worker de actualización de precios |
 | `npm run verificar` | Verificar columnas esperadas |
 | `npm run pruebas` | Suite de precios |
-| `npm run pruebas:importacion` | Pruebas de importación |
+| `npm run pruebas:importacion` | Pruebas de importación, incluido el flujo específico de Dale |
 | `npm run pruebas:exportacion` | Pruebas de exportación |
 | `npm run verificar:admin` | Verificación administrativa |
 
