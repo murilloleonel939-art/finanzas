@@ -210,7 +210,7 @@ export default function CuentaDetail() {
           <Card className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Saldo inicial</p>
             <p className="text-2xl font-bold">
-              {formatearMonto(resumen.saldoInicial ?? 0, cuenta.tipo_moneda)}
+              {formatearMonto(cuenta.saldo_inicial ?? resumen.saldoInicial ?? 0, cuenta.tipo_moneda)}
             </p>
           </Card>
           <Card className="p-4 border-l-4 border-l-emerald-500">
@@ -226,13 +226,19 @@ export default function CuentaDetail() {
             </p>
           </Card>
           <Card className="p-4">
+            <p className="text-xs text-muted-foreground mb-1">Saldo final del extracto</p>
+            <p className="text-2xl font-bold">
+              {formatearMonto(cuenta.saldo_final ?? cuenta.monto, cuenta.tipo_moneda)}
+            </p>
+          </Card>
+          <Card className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Saldo actual</p>
             <p
               className={`text-2xl font-bold ${
                 cuenta.monto >= 0 ? 'text-emerald-600' : 'text-rose-600'
               }`}
             >
-               {formatearMonto(cuenta.monto, cuenta.tipo_moneda)}
+              {formatearMonto(cuenta.monto, cuenta.tipo_moneda)}
             </p>
           </Card>
         </div>

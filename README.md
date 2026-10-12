@@ -25,6 +25,7 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 ### Claves de PDF e importaciones
 
 - Importación de extractos en PDF, CSV, XLS y XLSX.
+- Los extractos bancarios pueden extraer y guardar por cuenta el saldo inicial y el saldo final del período; estos valores no se mezclan con ingresos ni egresos.
 - Procesamiento asíncrono mediante jobs y worker.
 - Extracción de texto PDF con Poppler (`pdfinfo` y `pdftotext`).
 - Detección de duplicados y seguimiento del estado del job.

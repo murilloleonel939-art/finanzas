@@ -63,7 +63,11 @@ INSTRUCCIONES CRÍTICAS:
 ${providerInstruction}
 ${instruccionNequi}
 REGLAS OBLIGATORIAS:
-1. Extrae SOLO filas que son movimientos reales. NO incluyas:
+1. Identifica también los saldos del resumen del extracto:
+   - saldo_inicial: saldo inicial o saldo anterior del período, como número positivo.
+   - saldo_final: saldo final o saldo al corte del período, como número positivo.
+   - Si alguno no aparece en este lote, usa null. Nunca confundas un total de movimientos con un saldo.
+2. Extrae SOLO filas que son movimientos reales. NO incluyas:
    - Encabezados o títulos
    - Totales o resúmenes
    - Saldos finales (excepto "Saldo anterior" en extractos Nequi)
@@ -86,8 +90,11 @@ REGLAS OBLIGATORIAS:
 7. No inventes datos. Si falta información, déjalo null.
 
 FORMATO DE SALIDA:
-Retorna un array JSON válido de movimientos. Ejemplo:
-[
+Retorna un objeto JSON con los saldos y el array de movimientos. Los saldos son del archivo completo; si este lote no los contiene, usa null:
+{
+  "saldo_inicial": 1000000,
+  "saldo_final": 1250000,
+  "movimientos": [
   {
     "fecha": "2024-01-15",
     "tipo": "ingreso",
@@ -106,9 +113,10 @@ Retorna un array JSON válido de movimientos. Ejemplo:
     "external_id": null,
     "status": null
   }
-]
+  ]
+}
 
-Retorna SOLO el JSON array, sin explicaciones adicionales.`;
+Retorna SOLO el objeto JSON, sin explicaciones adicionales.`;
 }
 
 /**
@@ -291,7 +299,12 @@ export function validarRespuestaExtraccion(response) {
       }
       return parsed;
     } else if (parsed.movimientos && Array.isArray(parsed.movimientos)) {
-      // Estructura de broker { movimientos: [...], activos: [...] }
+      // Estructura de cuenta o broker { movimientos: [...], ... }
+      for (const item of parsed.movimientos) {
+        if (!item.fecha || !item.tipo || !item.monto || !item.descripcion) {
+          throw new Error('Movimiento incompleto: falta fecha, tipo, monto o descripcion')
+        }
+      }
       return parsed;
     } else {
       throw new Error('Respuesta no es array ni estructura de broker');
