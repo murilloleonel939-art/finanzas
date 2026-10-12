@@ -176,8 +176,8 @@ REGLAS OBLIGATORIAS:
    - Si es un CDA o certificado → 'cdat'
 
 4. No inventes datos.
-5. Ignora encabezados, subtotales, totales, saldos, filas de continuación y filas sin fecha, tipo, monto o descripción. Nunca las incluyas en `movimientos`.
-6. Las posiciones abiertas solo van en `activos`; no las repitas como movimientos.
+5. Ignora encabezados, subtotales, totales, saldos, filas de continuación y filas sin fecha, tipo, monto o descripción. Nunca las incluyas en movimientos.
+6. Las posiciones abiertas solo van en activos; no las repitas como movimientos.
 7. Si una fila no tiene todos los campos obligatorios, omítela y continúa con las demás filas válidas.
 
 FORMATO DE SALIDA:
