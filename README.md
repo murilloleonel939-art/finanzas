@@ -44,19 +44,40 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 ### Brokers e inversiones
 
 - Brokers por empresa y moneda.
-- Movimientos de brokers con cantidades, valores unitarios y deduplicación.
+- Movimientos de caja y operaciones de compra o venta con cantidades y valores unitarios.
+- Cálculo de caja, valor de activos, inversión, costo de posiciones y comisiones por moneda.
+- Ganancia o pérdida bruta y resultado después de comisiones.
 - Importación de extractos del broker desde PDF, CSV, XLS y XLSX, con procesamiento asíncrono de movimientos y posiciones/activos.
 - Cada fila importada se vincula con el job que la creó, lo que permite borrar la última importación completa desde el detalle del broker (movimientos y activos) sin afectar el historial de precios.
 - Activos de inversión: acciones, ETF, bonos, fondos, criptomonedas, opciones y otros.
 - Precios históricos por activo.
-- Jobs de actualización de precios y barridos automáticos.
+- Actualización manual y automática de precios mediante jobs y workers.
+- Pestañas de **Movimientos**, **Activos**, **Precios** y **Asesor** en el detalle de cada broker.
 
-### Wallets
+### Asesor informativo de portafolio
+
+- Vista consolidada por empresa en `/empresa/:empresaId/asesor-portafolio`.
+- Pestaña **Asesor** junto a **Precios** en `/empresa/:empresaId/brokers/:brokerId`.
+- Usa exclusivamente brokers, activos, movimientos y precios ya registrados en Finanzas.
+- Muestra posiciones, valor actual, capital invertido, ganancia o pérdida y rentabilidad.
+- Separa los resultados por moneda y no convierte ni suma divisas diferentes.
+- Identifica la concentración de la posición principal.
+- Presenta observaciones sobre concentración, resultados, monedas y comisiones.
+- Mantiene las comisiones separadas del costo bruto de inversión.
+- Incluye recomendaciones de carácter informativo basadas en los datos disponibles.
+- No se conecta con la API de Interactive Brokers.
+- No envía órdenes ni ejecuta operaciones.
+- No reemplaza la asesoría financiera profesional.
+
+### Wallets y Earn
 
 - Proveedores de wallet de tipo cripto, fiat o ambos.
 - Wallets por proveedor, dirección y moneda.
 - Saldos por moneda y recálculo de saldos.
 - Movimientos de wallet con deduplicación e importación.
+- Configuración y consulta de activos Earn.
+- Catálogo de monedas fiat y cripto con precisión específica por moneda.
+- No se realiza conversión automática entre divisas.
 
 ### Comisionistas y fiducias
 
@@ -162,6 +183,22 @@ El contenedor expone el puerto `3000`. La migración es idempotente y el superus
 | `npm run pruebas:importacion` | Pruebas de importación, incluido el flujo específico de Dale |
 | `npm run pruebas:exportacion` | Pruebas de exportación |
 | `npm run verificar:admin` | Verificación administrativa |
+
+## Rutas principales de la interfaz
+
+| Ruta | Función |
+| --- | --- |
+| `/login` | Inicio de sesión. |
+| `/register` | Registro de usuario. |
+| `/workspace` | Empresas disponibles. |
+| `/admin` | Panel de superadministración. |
+| `/empresa/:empresaId` | Resumen de empresa. |
+| `/empresa/:empresaId/bancos` | Bancos y cuentas. |
+| `/empresa/:empresaId/brokers` | Lista de brokers. |
+| `/empresa/:empresaId/brokers/:brokerId` | Movimientos, activos, precios y asesor del broker. |
+| `/empresa/:empresaId/asesor-portafolio` | Asesor consolidado de portafolio. |
+| `/empresa/:empresaId/wallets` | Proveedores y wallets. |
+| `/empresa/:empresaId/comisionistas-fiducias` | Comisionistas y fiducias. |
 
 ## API principal
 
