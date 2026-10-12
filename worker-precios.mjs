@@ -19,7 +19,7 @@
  *
  * Variables:
  *   DATABASE_URL                (requerida por server/db.mjs)
- *   POLL_INTERVAL_MS            (opcional, 300000 = 5 min)
+ *   POLL_INTERVAL_MS            (opcional, 5000 = 5 s)
  *   UNA_VEZ=1                   (opcional: una vuelta y salir — para cron externo)
  *   SIN_COLA=1                  (opcional: no atiende la cola, solo el barrido)
  *   SIN_BARRIDO=1               (opcional: solo atiende la cola, sin barrer)
@@ -54,7 +54,7 @@ import {
 // CONFIGURACIÓN
 // ============================================================================
 
-const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '300000', 10)
+const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '5000', 10)
 const UNA_VEZ = process.env.UNA_VEZ === '1'
 const SIN_BARRIDO = process.env.SIN_BARRIDO === '1'
 const SIN_COLA = process.env.SIN_COLA === '1'
@@ -103,9 +103,10 @@ function log(msg, nivel = 'info') {
  * millones: una consulta más específica no compensa el método extra.
  */
 async function activosDelJob(job) {
-  const todos = await datos.obtenerActivosParaActualizar(job.empresa_id)
-  if (!job.broker_id) return todos
-  return todos.filter((a) => a.broker_id === job.broker_id)
+  if (job.broker_id) {
+    return datos.obtenerActivosBrokerParaActualizar(job.empresa_id, job.broker_id)
+  }
+  return datos.obtenerActivosParaActualizar(job.empresa_id)
 }
 
 /**

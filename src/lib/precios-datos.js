@@ -28,6 +28,13 @@ export function crearPreciosDatos(db) {
     const r = await q(`select id, empresa_id, broker_id, nombre_activo, tipo_activo, moneda from activos_broker where empresa_id = $1 and deleted_at is null order by nombre_activo`, [empresaId])
     return r.rows
   }
+  async function obtenerActivosBrokerParaActualizar(empresaId, brokerId) {
+    const r = await q(`select id, empresa_id, broker_id, nombre_activo, tipo_activo, moneda
+      from activos_broker
+      where empresa_id = $1 and broker_id = $2 and deleted_at is null
+      order by nombre_activo`, [empresaId, brokerId])
+    return r.rows
+  }
   async function obtenerTodosActivosParaActualizar() {
     const r = await q('select id, empresa_id, broker_id, nombre_activo, tipo_activo, moneda from activos_broker where deleted_at is null order by nombre_activo')
     return r.rows
@@ -62,7 +69,7 @@ export function crearPreciosDatos(db) {
     const r = await q("delete from precios_barridos where estado = 'procesando' and started_at < now() - ($1 * interval '1 minute') returning fecha", [minutos])
     return r.rowCount
   }
-  return { obtenerPrecioActual, obtenerHistorialPrecios, obtenerPreciosEmpresa, registrarPrecio, actualizarValorUnitarioActivo, obtenerActivosParaActualizar, obtenerTodosActivosParaActualizar, obtenerTickersUnicos, obtenerUltimoBarridoHecho, apartarBarrido, cerrarBarrido, recuperarBarridosColgados }
+  return { obtenerPrecioActual, obtenerHistorialPrecios, obtenerPreciosEmpresa, registrarPrecio, actualizarValorUnitarioActivo, obtenerActivosParaActualizar, obtenerActivosBrokerParaActualizar, obtenerTodosActivosParaActualizar, obtenerTickersUnicos, obtenerUltimoBarridoHecho, apartarBarrido, cerrarBarrido, recuperarBarridosColgados }
 }
 
 export function hoyLocal(ahora = new Date()) {

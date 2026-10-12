@@ -55,6 +55,7 @@ const ENDPOINT = 'https://query1.finance.yahoo.com/v8/finance/chart'
 // Yahoo corta la conexión si se le mandan muchas a la vez. Cinco en paralelo
 // mantiene un ciclo de 50 tickers por debajo de los ~15 segundos.
 const CONCURRENCIA = 5
+const TIMEOUT_MS = 15000
 
 const CABECERAS = {
   // Sin User-Agent de navegador, Yahoo responde 429 con frecuencia.
@@ -134,14 +135,21 @@ async function pedirSimbolo(simbolo) {
   const url = `${ENDPOINT}/${encodeURIComponent(simbolo)}?interval=1d&range=5d`
 
   let respuesta
+  const controlador = new AbortController()
+  const temporizador = setTimeout(() => controlador.abort(), TIMEOUT_MS)
   try {
-    respuesta = await fetch(url, { headers: CABECERAS })
+    respuesta = await fetch(url, { headers: CABECERAS, signal: controlador.signal })
   } catch (err) {
-    throw new ErrorTicker(`Fallo de red pidiendo ${simbolo}: ${err.message}`, {
+    const motivo = err?.name === 'AbortError' ? `tiempo agotado tras ${TIMEOUT_MS / 1000}s` : err.message
+    throw new ErrorTicker(`Fallo de red pidiendo ${simbolo}: ${motivo}`, {
       ticker: simbolo,
     })
+  } finally {
+    clearTimeout(temporizador)
   }
-
+  if (!respuesta) {
+    throw new ErrorTicker(`No hubo respuesta para ${simbolo}`, { ticker: simbolo })
+  }
   // 404 es «ese símbolo no existe», no un fallo transitorio: reintentarlo no
   // sirve de nada y solo gasta cuota.
   if (respuesta.status === 404) {
