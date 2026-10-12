@@ -567,7 +567,12 @@ app.get('/api/brokers/:brokerId/activos', requireAuth, async (req, res) => {
   const brokerResult = await query('select empresa_id from brokers where id = $1 and deleted_at is null', [req.params.brokerId])
   if (!brokerResult.rowCount) return error(res, 404, 'Broker no encontrado.')
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, brokerResult.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
-  const result = await query(`select id, nombre_activo, tipo_activo, cantidad, valor_unitario, moneda, (cantidad * valor_unitario) as valor_total
+  const result = await query(`select id, nombre_activo, tipo_activo, cantidad, valor_unitario, valor_compra_unitario, moneda,
+       (cantidad * valor_unitario) as valor_total,
+       (cantidad * valor_compra_unitario) as valor_compra_total,
+       (valor_unitario - valor_compra_unitario) as variacion_unitaria,
+       (cantidad * (valor_unitario - valor_compra_unitario)) as variacion_total,
+       case when valor_compra_unitario > 0 then ((valor_unitario - valor_compra_unitario) / valor_compra_unitario) * 100 else null end as variacion_pct
     from activos_broker where broker_id = $1 and deleted_at is null order by nombre_activo`, [req.params.brokerId])
   res.json({ activos: result.rows })
 })
@@ -583,8 +588,8 @@ app.post('/api/empresas/:empresaId/brokers/:brokerId/activos', requireAuth, asyn
   const broker = await query('select id from brokers where id = $1 and empresa_id = $2 and deleted_at is null', [req.params.brokerId, req.params.empresaId])
   if (!broker.rowCount) return error(res, 404, 'Broker no encontrado.')
   try {
-    const created = await query(`insert into activos_broker (empresa_id, broker_id, nombre_activo, tipo_activo, cantidad, valor_unitario, moneda, created_by)
-      values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`, [req.params.empresaId, req.params.brokerId, nombre, tipo, cantidad, valor, moneda, req.auth.sub])
+    const created = await query(`insert into activos_broker (empresa_id, broker_id, nombre_activo, tipo_activo, cantidad, valor_unitario, valor_compra_unitario, moneda, created_by)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`, [req.params.empresaId, req.params.brokerId, nombre, tipo, cantidad, valor, valor, moneda, req.auth.sub])
     res.status(201).json({ activoId: created.rows[0].id })
   } catch (err) {
     if (err.code === '23505') return error(res, 409, `Ya existe una posición en ${nombre} para este broker.`)

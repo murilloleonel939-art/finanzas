@@ -38,6 +38,11 @@ const PESTANAS = [
 
 const POR_PAGINA = 20
 
+function formatearFecha(fecha) {
+  if (!fecha) return '—'
+  return String(fecha).slice(0, 10)
+}
+
 /**
  * BrokerDetail: detalle de un broker con tres pestañas (PRD §5).
  *
@@ -357,7 +362,7 @@ export default function BrokerDetail() {
                           return (
                             <tr key={m.id} className="border-b last:border-0 hover:bg-muted/30">
                               <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                                {m.fecha}
+                                {formatearFecha(m.fecha)}
                               </td>
                               <td className="px-4 py-3">{m.descripcion}</td>
                               <td className="px-4 py-3">
@@ -473,8 +478,10 @@ export default function BrokerDetail() {
                       <th className="text-left px-4 py-3 font-medium">Activo</th>
                       <th className="text-left px-4 py-3 font-medium">Tipo</th>
                       <th className="text-right px-4 py-3 font-medium">Cantidad</th>
-                      <th className="text-right px-4 py-3 font-medium">Valor unit.</th>
-                      <th className="text-right px-4 py-3 font-medium">Valor total</th>
+                      <th className="text-right px-4 py-3 font-medium">Compra unit.</th>
+                      <th className="text-right px-4 py-3 font-medium">Actual unit.</th>
+                      <th className="text-right px-4 py-3 font-medium">Variación</th>
+                      <th className="text-right px-4 py-3 font-medium">Valor actual</th>
                       <th className="w-10" />
                     </tr>
                   </thead>
@@ -491,7 +498,13 @@ export default function BrokerDetail() {
                           {Number(a.cantidad).toLocaleString('es-CO')}
                         </td>
                         <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">
+                          {formatearMonto(a.valor_compra_unitario, a.moneda)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">
                           {formatearMonto(a.valor_unitario, a.moneda)}
+                        </td>
+                        <td className={`px-4 py-3 text-right font-medium whitespace-nowrap ${Number(a.variacion_unitaria) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {a.variacion_pct == null ? '—' : `${Number(a.variacion_unitaria) >= 0 ? '▲' : '▼'} ${Number(a.variacion_pct).toFixed(2)} % (${formatearMonto(a.variacion_total, a.moneda)})`}
                         </td>
                         <td className="px-4 py-3 text-right font-bold whitespace-nowrap">
                           {formatearMonto(a.valor_total, a.moneda)}

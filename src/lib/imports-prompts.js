@@ -154,7 +154,9 @@ SECCIONES A EXTRAER:
 
 3. **Posiciones abiertas** (o "Open Positions") → activos
    - Usar el campo Cantidad (o Quantity) como cantidad.
-   - Usar el campo Precio trans. o Precio de entrada (o Avg Price / Cost Basis per share) como valor_unitario; NO usar Precio de cierre ni MTM.
+   - Usar el precio actual de mercado/cierre del extracto como valor_unitario actual.
+   - No usar el precio de transacción como valor actual si el extracto trae también precio de mercado o MTM.
+   - El precio de transacción/Avg Price/Cost Basis se usa como valor de compra cuando no exista un precio actual separado.
 
 REGLAS OBLIGATORIAS:
 1. Para MOVIMIENTOS extrae:
@@ -171,7 +173,7 @@ REGLAS OBLIGATORIAS:
    - nombre: nombre completo del activo
    - tipo: 'accion', 'etf', 'cdat', 'otro'
    - cantidad: número de unidades (campo Cantidad / Quantity)
-   - valor_unitario: precio de entrada o precio de transacción (campo Precio trans. / Avg Price), NO el precio de cierre
+   - valor_unitario: precio actual de mercado/cierre/MTM (campo Precio trans. / Avg Price), usar el precio actual de mercado/cierre/MTM; el precio de entrada queda en valor_compra_unitario
    - moneda: moneda del activo
 
 3. Clasifica automáticamente:
@@ -194,7 +196,7 @@ Retorna un objeto JSON con dos arrays:
     { "fecha": "2026-08-01", "tipo": "deposito", "monto": "5000", "descripcion": "Deposito inicial", "cantidad": null, "valor_unitario": null, "external_id": "DEP-001" }
   ],
   "activos": [
-    { "ticker": "VOO", "nombre": "Vanguard S&P 500 ETF", "tipo": "etf", "cantidad": "0.0018", "valor_unitario": "703.7000", "moneda": "USD" }
+    { "ticker": "VOO", "nombre": "Vanguard S&P 500 ETF", "tipo": "etf", "cantidad": "0.0018", "valor_unitario": "703.7000", "valor_compra_unitario": "650.0000", "moneda": "USD" }
   ]
 }
 

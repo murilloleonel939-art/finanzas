@@ -283,13 +283,14 @@ async function procesarBroker(client, job, datos) {
   }
   for (const item of asArray(datos?.activos)) {
     const cantidad = Number(item.cantidad); const valor = Number(item.valor_unitario)
-    if (!item.nombre && !item.ticker || !Number.isFinite(cantidad) || cantidad < 0 || !Number.isFinite(valor) || valor < 0) continue
+    const valorCompra = item.valor_compra_unitario == null ? valor : Number(item.valor_compra_unitario)
+    if (!item.nombre && !item.ticker || !Number.isFinite(cantidad) || cantidad < 0 || !Number.isFinite(valor) || valor < 0 || !Number.isFinite(valorCompra) || valorCompra < 0) continue
     const nombre = String(item.ticker || item.nombre).trim(); const tipo = item.tipo === 'etf' ? 'etf' : item.tipo === 'bono' ? 'bono' : item.tipo === 'fondo' ? 'fondo' : item.tipo === 'criptomoneda' ? 'criptomoneda' : 'accion'
     // En conflicto no se reasigna `import_job_id`: una posición que ya existía
     // antes del job no debe desaparecer al revertir esa importación.
-    const r = await client.query(`insert into activos_broker (empresa_id, broker_id, nombre_activo, tipo_activo, cantidad, valor_unitario, moneda, import_job_id, created_by)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9) on conflict (broker_id, lower(nombre_activo)) where deleted_at is null do update set cantidad = excluded.cantidad, valor_unitario = excluded.valor_unitario, moneda = excluded.moneda, updated_at = now() returning id`,
-      [job.empresa_id, job.broker_id, nombre, tipo, cantidad, valor, item.moneda || 'USD', job.id, job.created_by])
+    const r = await client.query(`insert into activos_broker (empresa_id, broker_id, nombre_activo, tipo_activo, cantidad, valor_unitario, valor_compra_unitario, moneda, import_job_id, created_by)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) on conflict (broker_id, lower(nombre_activo)) where deleted_at is null do update set cantidad = excluded.cantidad, valor_unitario = excluded.valor_unitario, moneda = excluded.moneda, updated_at = now() returning id`,
+      [job.empresa_id, job.broker_id, nombre, tipo, cantidad, valor, valorCompra, item.moneda || 'USD', job.id, job.created_by])
     if (r.rowCount) activos++
   }
   return { creados: movimientos, activos, duplicados }

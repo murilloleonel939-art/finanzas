@@ -132,6 +132,7 @@ create table if not exists activos_broker (
   tipo_activo text not null default 'accion' check (tipo_activo in ('accion','etf','bono','fondo','criptomoneda','opcion','otro')),
   cantidad numeric(28,10) not null default 0 check (cantidad >= 0),
   valor_unitario numeric(20,8) not null default 0 check (valor_unitario >= 0),
+  valor_compra_unitario numeric(20,8) check (valor_compra_unitario is null or valor_compra_unitario >= 0),
   moneda text not null default 'USD',
   import_job_id uuid,
   created_by uuid references usuarios(id) on delete set null,
