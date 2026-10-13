@@ -12,9 +12,9 @@ export const PROVIDER_RULES = {
     displayName: 'DolarApp',
     description: 'Wallet de dólares y conversiones COP',
     instruction: `Este es un extracto de DolarApp. Estas reglas son exclusivas de DolarApp:
-- Cuando la columna Tipo diga exactamente "Compra USDc", clasifica el movimiento como ingreso. Cuando diga "Venta USDc" y la moneda equivalente sea COP, aplica la misma lógica de análisis, pero clasifícalo como egreso/débito. Trata USDT y USDC como la misma moneda: guarda la moneda como USDC.
-- Para "Compra USDc" o "Venta USDc" cuya moneda equivalente sea COP, usa como monto principal el monto de USDC, guarda la moneda equivalente en moneda_equivalente y conserva el valor de la columna "Monto Local Equivalente" en monto_equivalente. No confundas monto_equivalente COP con el monto USDC.
-- Extrae la columna "TRM" del día en trm si aparece en el documento. La columna "Monto Local Equivalente" es el valor COP de la operación y debe guardarse en monto_equivalente, aunque en la descripción aparezca junto a un nombre o una dirección. Devuelve también valor_trm y diferencia_cambio cuando moneda_equivalente sea COP. valor_trm = monto USDC multiplicado por trm; para Compra USDc, diferencia_cambio = valor_trm menos monto_equivalente; para Venta USDc, diferencia_cambio = monto_equivalente menos valor_trm.
+- Cuando la columna Tipo diga exactamente "Compra USDc" o "Compra EURc", clasifica el movimiento como ingreso. Cuando diga "Venta USDc" o "Venta EURc" y la moneda equivalente sea COP, aplica la misma lógica de análisis, pero clasifícalo como egreso/débito. Trata USDT y USDC como la misma moneda: guarda la moneda como USDC y conserva EURc como EUR.
+- Para "Compra USDc", "Venta USDc", "Compra EURc" o "Venta EURc" cuya moneda equivalente sea COP, usa como monto principal el monto de la moneda de la operación, guarda la moneda equivalente en moneda_equivalente y conserva el valor de la columna "Monto Local Equivalente" en monto_equivalente. No confundas monto_equivalente COP con el monto USDC.
+- Extrae la columna "TRM" del día en trm si aparece en el documento. La columna "Monto Local Equivalente" es el valor COP de la operación y debe guardarse en monto_equivalente, aunque en la descripción aparezca junto a un nombre o una dirección. Devuelve también valor_trm y diferencia_cambio cuando moneda_equivalente sea COP. Para USDc usa la TRM del dólar; para EURc usa la TRM histórica EUR/COP. valor_trm = monto de la moneda operada multiplicado por trm; en compras, diferencia_cambio = valor_trm menos monto_equivalente; en ventas, diferencia_cambio = monto_equivalente menos valor_trm.
 - En cada fila devuelve explícitamente monto, moneda, moneda_equivalente, monto_equivalente, trm, valor_trm y diferencia_cambio aunque alguno sea null. No inventes el equivalente COP.
 - Si la TRM no aparece en el documento, devuelve trm como null para que el sistema la consulte por la fecha de la operación.
 - Para cada fila DolarApp devuelve tipo_movimiento con el texto literal de la columna Tipo (p. ej. "Compra USDc"), descripcion con la descripción/destino literal, monto con el valor numérico de la moneda principal de esa fila, moneda con la moneda que indique el extracto para esa fila, moneda_equivalente con COP solo cuando el PDF muestre COP en esa columna, monto_equivalente con el valor numérico que sigue a COP en esa misma fila (p. ej. "+ 3.05 COP + 10,000 ALEJANDRO" significa monto_equivalente=10000), y external_id con el hash si aparece. Una wallet DolarApp puede tener varias monedas: no fuerces USD ni USDC si el extracto indica otra moneda. Nunca interpretes el monto de la moneda principal como monto COP.
@@ -306,7 +306,7 @@ REGLAS OBLIGATORIAS:
    - external_id: si existe, null en caso contrario
    - status: 'completed', 'pending', 'failed' si existe, null en caso contrario
    - Para DolarApp, incluye moneda_equivalente y monto_equivalente cuando aparezcan; incluye trm si aparece en el PDF, y deja trm como null si no aparece.
-   - Para DolarApp, incluye valor_trm y diferencia_cambio cuando sea una Compra USDc con equivalente COP.
+   - Para DolarApp, incluye valor_trm y diferencia_cambio cuando sea una Compra o Venta USDc o EURc con equivalente COP.
 
 4. En swaps, crea dos movimientos (entrada y salida de diferentes monedas).
 5. Los Earn incluyen el tipo de producto en la descripción.
