@@ -104,6 +104,7 @@ export default function WalletDetail() {
 
   const esPaypal = String(wallet?.proveedor_nombre || '').trim().toLowerCase() === 'paypal'
   const todoEarn = esProveedorEarn(wallet?.proveedor_nombre)
+  const esDolarapp = String(wallet?.proveedor_nombre || '').trim().toLowerCase() === 'dolarapp'
   const mostrarEarn = !esPaypal
 
   const meses = useMemo(() => getMesesDisponibles(movimientos), [movimientos])
@@ -269,6 +270,11 @@ export default function WalletDetail() {
                 { key: 'tipo_movimiento', label: 'Tipo' },
                 { key: 'monto', label: 'Monto' },
                 { key: 'moneda', label: 'Moneda' },
+                ...(esDolarapp ? [
+                  { key: 'trm', label: 'TRM' },
+                  { key: 'valor_trm', label: 'valorTrm' },
+                  { key: 'diferencia_cambio', label: 'Diferencia cambio' },
+                ] : []),
               ]}
               nombreArchivo={`movimientos_${wallet.nombre_wallet}_${periodo}`}
               titulo={`Movimientos - ${wallet.nombre_wallet} (${periodo})`}
@@ -529,6 +535,11 @@ export default function WalletDetail() {
                           <th className="text-left px-4 py-3 font-medium">Descripción</th>
                           <th className="text-left px-4 py-3 font-medium">Tipo</th>
                           <th className="text-right px-4 py-3 font-medium">Monto</th>
+                           {esDolarapp && <>
+                             <th className="text-right px-4 py-3 font-medium">TRM</th>
+                             <th className="text-right px-4 py-3 font-medium">valorTrm</th>
+                             <th className="text-right px-4 py-3 font-medium">Diferencia cambio</th>
+                           </>}
                           <th className="text-right px-4 py-3 font-medium">Saldo</th>
                           <th className="w-10" />
                         </tr>
@@ -559,6 +570,11 @@ export default function WalletDetail() {
                               {m.tipo === 'ingreso' ? '+' : '−'}
                               {formatearMonto(m.monto, m.tipo_moneda)}
                             </td>
+                            {esDolarapp && <>
+                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.trm ?? '—'}</td>
+                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.valor_trm != null ? formatearMonto(m.valor_trm, 'COP') : '—'}</td>
+                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.diferencia_cambio != null ? formatearMonto(m.diferencia_cambio, 'COP') : '—'}</td>
+                            </>}
                             <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">
                               {formatearMonto(m.saldo_resultante, m.tipo_moneda)}
                             </td>

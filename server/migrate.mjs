@@ -30,6 +30,10 @@ await query('alter table movimientos_broker add column if not exists import_job_
 await query('alter table activos_broker add column if not exists import_job_id uuid')
 await query('alter table activos_broker add column if not exists valor_compra_unitario numeric(20,8)')
 await query('alter table movimientos_wallet add column if not exists import_job_id uuid')
+await query('alter table movimientos_wallet add column if not exists trm numeric(20,8)')
+await query('alter table movimientos_wallet add column if not exists monto_equivalente numeric(20,8)')
+await query('alter table movimientos_wallet add column if not exists valor_trm numeric(20,8)')
+await query('alter table movimientos_wallet add column if not exists diferencia_cambio numeric(20,8)')
 // Los créditos de Coindepo se descartaron: un préstamo es un movimiento más, no
 // una entidad aparte. Si una instalación anterior alcanzó a crear la tabla, se
 // retira para que no quede una fuente de datos que ya nadie mantiene.

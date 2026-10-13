@@ -157,9 +157,10 @@ export async function listarMovimientosWallet(walletId) {
   return movimientos
 }
 
-export function crearMovimientoWallet({ empresaId, walletId, fecha, descripcion, tipo, monto, tipoMoneda }) {
+export function crearMovimientoWallet({ empresaId, walletId, fecha, descripcion, tipo, monto, tipoMoneda, trm, montoEquivalente, valorTrm, diferenciaCambio }) {
   return apiJson(`/api/empresas/${empresaId}/wallets/${walletId}/movimientos`, 'POST', {
-    fecha, descripcion, tipo, monto, tipo_moneda: tipoMoneda,
+    fecha, descripcion, tipo, monto, tipo_moneda: tipoMoneda, trm, monto_equivalente: montoEquivalente,
+    valor_trm: valorTrm, diferencia_cambio: diferenciaCambio,
   })
 }
 

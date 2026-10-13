@@ -25,13 +25,14 @@ export default function ExportButtons({
       }
 
       // Encabezados
-      const encabezados = columnas.join(',')
+      const encabezados = columnas.map((col) => typeof col === 'string' ? col : col.label).join(',')
 
       // Filas
       const filas = datos.map(fila =>
         columnas
           .map(col => {
-            const valor = fila[col]
+            const clave = typeof col === 'string' ? col : col.key
+            const valor = fila[clave]
             // Escapar comillas y envolver en comillas si contiene comas
             if (valor === null || valor === undefined) return ''
             const str = String(valor)

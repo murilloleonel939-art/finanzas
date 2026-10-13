@@ -835,7 +835,7 @@ app.get('/api/wallets/:walletId/movimientos', requireAuth, async (req, res) => {
   const wallet = await query('select empresa_id from wallets where id = $1 and deleted_at is null', [req.params.walletId])
   if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, wallet.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
-  const result = await query(`select m.id, m.fecha, m.descripcion, m.tipo, m.monto, m.tipo_moneda, p.nombre_proveedor as proveedor_nombre, m.external_id, m.created_at
+  const result = await query(`select m.id, m.fecha, m.descripcion, m.tipo, m.monto, m.tipo_moneda, m.trm, m.monto_equivalente, m.valor_trm, m.diferencia_cambio, p.nombre_proveedor as proveedor_nombre, m.external_id, m.created_at
     from movimientos_wallet m join wallet_providers p on p.id = m.proveedor_id and p.deleted_at is null
     where m.wallet_id = $1 and m.deleted_at is null order by m.fecha desc, m.created_at desc`, [req.params.walletId])
   res.json({ movimientos: result.rows })
@@ -845,6 +845,10 @@ app.post('/api/empresas/:empresaId/wallets/:walletId/movimientos', requireAuth, 
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
   const { fecha, descripcion, tipo } = req.body
   const moneda = String(req.body.tipo_moneda || '').trim().toUpperCase()
+  const trm = Number(req.body.trm)
+  const montoEquivalente = Number(req.body.monto_equivalente)
+  const valorTrm = Number(req.body.valor_trm)
+  const diferenciaCambio = Number(req.body.diferencia_cambio)
   const monto = Number(req.body.monto)
   const wallet = await query('select proveedor_id from wallets where id = $1 and empresa_id = $2 and deleted_at is null', [req.params.walletId, req.params.empresaId])
   if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
@@ -852,8 +856,8 @@ app.post('/api/empresas/:empresaId/wallets/:walletId/movimientos', requireAuth, 
   const client = await pool.connect()
   try {
     await client.query('begin')
-    const created = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, created_by)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`, [req.params.empresaId, wallet.rows[0].proveedor_id, req.params.walletId, fecha, descripcion.trim(), tipo, monto, moneda.trim(), req.auth.sub])
+    const created = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, trm, monto_equivalente, valor_trm, diferencia_cambio, created_by)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) returning id`, [req.params.empresaId, wallet.rows[0].proveedor_id, req.params.walletId, fecha, descripcion.trim(), tipo, monto, moneda.trim(), Number.isFinite(trm) ? trm : null, Number.isFinite(montoEquivalente) ? montoEquivalente : null, Number.isFinite(valorTrm) ? valorTrm : null, Number.isFinite(diferenciaCambio) ? diferenciaCambio : null, req.auth.sub])
     const descuadres = await recalcularWallet(req.params.walletId, client)
     if (descuadres.length) {
       await client.query('rollback')

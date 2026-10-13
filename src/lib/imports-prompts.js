@@ -8,6 +8,16 @@
 // ============================================================================
 
 export const PROVIDER_RULES = {
+  dolarapp: {
+    displayName: 'DolarApp',
+    description: 'Wallet de dólares y conversiones COP',
+    instruction: `Este es un extracto de DolarApp. Estas reglas son exclusivas de DolarApp:
+- Cuando la columna Tipo diga exactamente "Compra USDc", clasifica el movimiento como ingreso y trata USDT y USDC como la misma moneda: guarda la moneda como USDC.
+- Para "Compra USDc" cuya moneda equivalente sea COP, usa como monto principal el monto de USDC, conserva el monto equivalente COP en monto_equivalente y extrae la TRM del día en trm si aparece en el documento.
+- Devuelve también valor_trm y diferencia_cambio cuando la moneda equivalente sea COP. valor_trm = monto USDC multiplicado por trm; diferencia_cambio = monto_equivalente COP menos valor_trm.
+- Si la TRM no aparece en el documento, devuelve trm como null para que el sistema la consulte por la fecha de la operación.
+- Conserva la descripción y el tipo originales, y no uses reglas genéricas para estas filas.`,
+  },
   paypal: {
     displayName: 'PayPal',
     description: 'Extractos de transacciones PayPal',
@@ -289,6 +299,8 @@ REGLAS OBLIGATORIAS:
    - moneda: moneda del movimiento (BTC, ETH, USDT, etc.)
    - external_id: si existe, null en caso contrario
    - status: 'completed', 'pending', 'failed' si existe, null en caso contrario
+   - Para DolarApp, incluye moneda_equivalente y monto_equivalente cuando aparezcan; incluye trm si aparece en el PDF, y deja trm como null si no aparece.
+   - Para DolarApp, incluye valor_trm y diferencia_cambio cuando sea una Compra USDc con equivalente COP.
 
 4. En swaps, crea dos movimientos (entrada y salida de diferentes monedas).
 5. Los Earn incluyen el tipo de producto en la descripción.

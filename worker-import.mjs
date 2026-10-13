@@ -75,6 +75,33 @@ function esCoindepo(job) {
 function esPaypal(job) {
   return normalizarTextoClave(job?.proveedor) === 'paypal'
 }
+function esDolarapp(job) {
+  return normalizarTextoClave(job?.proveedor) === 'dolarapp'
+}
+const trmCache = new Map()
+async function obtenerTrmOficial(fecha) {
+  const clave = String(fecha || '').slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(clave)) return NaN
+  if (trmCache.has(clave)) return trmCache.get(clave)
+  try {
+    const url = `https://www.datos.gov.co/resource/32sa-8pi3.json?$where=vigenciadesde%20%3C%3D%20%27${clave}T00%3A00%3A00.000%27%20and%20vigenciahasta%20%3E%3D%20%27${clave}T00%3A00%3A00.000%27&$limit=1`
+    const response = await fetch(url)
+    if (!response.ok) throw new Error(`TRM HTTP ${response.status}`)
+    const rows = await response.json()
+    const valor = parseMontoImportado(rows?.[0]?.valor)
+    trmCache.set(clave, valor)
+    return valor
+  } catch (err) {
+    log(`No se pudo consultar la TRM oficial para ${clave}: ${err.message}`, 'warn')
+    return NaN
+  }
+}
+function normalizarMovimientoDolarapp(item) {
+  const descripcion = String(item?.descripcion || '').trim()
+  const etiqueta = normalizarTextoClave(`${item?.tipo || ''} ${descripcion}`)
+  if (etiqueta.includes('compra usdc')) return { tipo: 'ingreso', descripcion }
+  return { tipo: item?.tipo, descripcion }
+}
 function normalizarMovimientoPaypal(item) {
   const descripcion = String(item?.descripcion || '').trim()
   const etiqueta = normalizarTextoClave(descripcion)
@@ -373,14 +400,29 @@ async function procesarWallet(client, job, datos) {
       ? normalizarMovimientoCoindepo(item, montoBruto)
       : esPaypal(job)
         ? normalizarMovimientoPaypal(item)
-        : { tipo: item.tipo, descripcion: item.descripcion }
+        : esDolarapp(job)
+          ? normalizarMovimientoDolarapp(item)
+          : { tipo: item.tipo, descripcion: item.descripcion }
     const grossImportado = esPaypal(job) ? parseMontoImportado(item.gross) : NaN
     const montoPrincipal = esPaypal(job) && Number.isFinite(grossImportado) ? Math.abs(grossImportado) : monto
     if (!item.fecha || !Number.isFinite(montoPrincipal) || montoPrincipal <= 0 || !regla?.descripcion || !['ingreso', 'egreso'].includes(regla.tipo)) continue
-    const moneda = String(item.moneda || 'USD').trim().toUpperCase()
-    const r = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, external_id, source_file, import_job_id, created_by)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
-      [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, String(regla.descripcion).trim(), regla.tipo, montoPrincipal, moneda, item.external_id || null, job.storage_path, job.id, job.created_by])
+    const dolarapp = esDolarapp(job)
+    const moneda = dolarapp ? 'USDC' : String(item.moneda || 'USD').trim().toUpperCase()
+    const descripcionClave = normalizarTextoClave(`${item.tipo || ''} ${item.descripcion || ''}`)
+    const esCompraUsdC = dolarapp && descripcionClave.includes('compra usdc')
+    const montoEquivalente = esCompraUsdC ? parseMontoImportado(item.monto_equivalente ?? item.equivalente) : NaN
+    let trm = esCompraUsdC ? parseMontoImportado(item.trm) : NaN
+    if (esCompraUsdC && !Number.isFinite(trm)) trm = await obtenerTrmOficial(item.fecha)
+    const valorTrm = esCompraUsdC && Number.isFinite(trm) ? montoPrincipal * trm : NaN
+    const diferenciaCambio = esCompraUsdC && Number.isFinite(montoEquivalente) && Number.isFinite(valorTrm)
+      ? montoEquivalente - valorTrm
+      : NaN
+    const r = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, trm, monto_equivalente, valor_trm, diferencia_cambio, external_id, source_file, import_job_id, created_by)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
+      [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, String(regla.descripcion).trim(), esCompraUsdC ? 'ingreso' : regla.tipo, montoPrincipal, moneda,
+        Number.isFinite(trm) ? trm : null, Number.isFinite(montoEquivalente) ? montoEquivalente : null,
+        Number.isFinite(valorTrm) ? valorTrm : null, Number.isFinite(diferenciaCambio) ? diferenciaCambio : null,
+        item.external_id || null, job.storage_path, job.id, job.created_by])
     if (r.rowCount) creados++; else duplicados++
     const esRetiroPaypalCop = esPaypal(job)
       && regla.tipo === 'egreso'
