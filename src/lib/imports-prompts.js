@@ -13,8 +13,9 @@ export const PROVIDER_RULES = {
     description: 'Wallet de dólares y conversiones COP',
     instruction: `Este es un extracto de DolarApp. Estas reglas son exclusivas de DolarApp:
 - Cuando la columna Tipo diga exactamente "Compra USDc", clasifica el movimiento como ingreso y trata USDT y USDC como la misma moneda: guarda la moneda como USDC.
-- Para "Compra USDc" cuya moneda equivalente sea COP, usa como monto principal el monto de USDC, conserva el monto equivalente COP en monto_equivalente y extrae la TRM del día en trm si aparece en el documento.
-- Devuelve también valor_trm y diferencia_cambio cuando la moneda equivalente sea COP. valor_trm = monto USDC multiplicado por trm; diferencia_cambio = monto_equivalente COP menos valor_trm.
+- Para "Compra USDc" cuya moneda equivalente sea COP, usa como monto principal el monto de USDC, guarda la moneda equivalente en moneda_equivalente y conserva el valor de la columna "Monto Local Equivalente" en monto_equivalente. No confundas monto_equivalente COP con el monto USDC.
+- Extrae la columna "TRM" del día en trm si aparece en el documento. Devuelve también valor_trm y diferencia_cambio cuando la moneda equivalente sea COP. valor_trm = monto USDC multiplicado por trm; diferencia_cambio = monto_equivalente COP menos valor_trm.
+- En cada fila devuelve explícitamente monto, moneda, moneda_equivalente, monto_equivalente, trm, valor_trm y diferencia_cambio aunque alguno sea null. No inventes el equivalente COP.
 - Si la TRM no aparece en el documento, devuelve trm como null para que el sistema la consulte por la fecha de la operación.
 - Conserva la descripción y el tipo originales, y no uses reglas genéricas para estas filas.`,
   },
@@ -297,6 +298,9 @@ REGLAS OBLIGATORIAS:
    - monto: número positivo
    - descripcion: detalle de la transacción
    - moneda: moneda del movimiento (BTC, ETH, USDT, etc.)
+   - tipo_original: valor literal de la columna Tipo cuando exista
+   - moneda_equivalente: valor literal de la columna Moneda Local Equivalente cuando exista
+   - monto_equivalente: valor literal de la columna Monto Local Equivalente cuando exista
    - external_id: si existe, null en caso contrario
    - status: 'completed', 'pending', 'failed' si existe, null en caso contrario
    - Para DolarApp, incluye moneda_equivalente y monto_equivalente cuando aparezcan; incluye trm si aparece en el PDF, y deja trm como null si no aparece.

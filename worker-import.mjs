@@ -97,8 +97,10 @@ async function obtenerTrmOficial(fecha) {
   }
 }
 function normalizarMovimientoDolarapp(item) {
-  const descripcion = String(item?.descripcion || '').trim()
-  const etiqueta = normalizarTextoClave(`${item?.tipo || ''} ${descripcion}`)
+  const descripcionOriginal = String(item?.descripcion || '').trim()
+  const tipoOriginal = String(item?.tipo || '').trim()
+  const descripcion = descripcionOriginal || tipoOriginal
+  const etiqueta = normalizarTextoClave(`${tipoOriginal} ${descripcionOriginal}`)
   if (etiqueta.includes('compra usdc')) return { tipo: 'ingreso', descripcion }
   return { tipo: item?.tipo, descripcion }
 }
@@ -410,8 +412,16 @@ async function procesarWallet(client, job, datos) {
     const moneda = dolarapp ? 'USDC' : String(item.moneda || 'USD').trim().toUpperCase()
     const descripcionClave = normalizarTextoClave(`${item.tipo || ''} ${item.descripcion || ''}`)
     const esCompraUsdC = dolarapp && descripcionClave.includes('compra usdc')
-    const montoEquivalente = esCompraUsdC ? parseMontoImportado(item.monto_equivalente ?? item.equivalente) : NaN
-    let trm = esCompraUsdC ? parseMontoImportado(item.trm) : NaN
+    const montoEquivalente = esCompraUsdC
+      ? [item.monto_equivalente, item.monto_local_equivalente, item.montoLocalEquivalente, item.equivalente, item.valor_equivalente]
+        .map(parseMontoImportado)
+        .find(Number.isFinite)
+      : NaN
+    let trm = esCompraUsdC
+      ? [item.trm, item.valor_trm, item.trm_dia, item.trm_del_dia]
+        .map(parseMontoImportado)
+        .find(Number.isFinite)
+      : NaN
     if (esCompraUsdC && !Number.isFinite(trm)) trm = await obtenerTrmOficial(item.fecha)
     const valorTrm = esCompraUsdC && Number.isFinite(trm) ? montoPrincipal * trm : NaN
     const diferenciaCambio = esCompraUsdC && Number.isFinite(montoEquivalente) && Number.isFinite(valorTrm)
