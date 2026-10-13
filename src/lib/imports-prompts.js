@@ -15,9 +15,9 @@ export const PROVIDER_RULES = {
 - Interest Payment = tipo "ingreso" y la descripcion debe empezar con "Interest Payment"; son los intereses generados.
 - Deposit = tipo "ingreso" y la descripcion debe empezar con "Deposit"; es un depósito.
 - Withdrawal = tipo "egreso" y la descripcion debe empezar con "Withdrawal"; es una salida.
-- Loan Withdrawal = si el valor es positivo, tipo "ingreso" y la descripcion debe empezar con "Loan Withdrawal"; entra a la cuenta. Si el valor es negativo, tipo "egreso".
-- Loan Repayment = si el valor es negativo, tipo "egreso" y la descripcion debe empezar con "Loan Repayment"; sale de la cuenta. Si el valor es positivo, tipo "ingreso".
-Devuelve siempre el monto como valor absoluto positivo. TRES REGLAS QUE NO PUEDES ROMPER: (1) "Loan Withdrawal" y "Loan Repayment" NO son intereses generados y no deben describirse como intereses, rendimientos ni ganancias; solo "Interest Payment" lo es. (2) Conserva el nombre literal de la fila al inicio de la descripcion, sin traducirlo ni renombrarlo. (3) No clasifiques estas reglas como proveedor genérico.`,
+- Loan Withdrawal = el monto del PDF conserva su signo: valor positivo, tipo "ingreso"; valor negativo, tipo "egreso".
+- Loan Repayment = el monto del PDF conserva su signo: valor negativo, tipo "egreso"; valor positivo, tipo "ingreso".
+- Para Coindepo, devuelve el monto firmado exactamente como aparece en el PDF, incluyendo el signo menos. No conviertas los importes a valor absoluto. TRES REGLAS QUE NO PUEDES ROMPER: (1) "Loan Withdrawal" y "Loan Repayment" NO son intereses generados y no deben describirse como intereses, rendimientos ni ganancias; solo "Interest Payment" lo es. (2) Conserva el nombre literal de la fila al inicio de la descripcion, sin traducirlo ni renombrarlo. (3) No clasifiques estas reglas como proveedor genérico.`,
   },
   'otro': {
     displayName: 'Otro',
@@ -49,6 +49,10 @@ export function generarPromptMovimientosCuenta(context) {
     : PROVIDER_RULES.otro.instruction;
   const esNequi = /nequi/i.test(`${banco || ''} ${proveedor || ''}`)
   const esDale = /\bdale\b/i.test(`${banco || ''}`)
+  const esCoindepo = /coindepo/i.test(String(proveedor || banco || ''))
+  const instruccionCoindepo = esCoindepo
+    ? `\nREGLA CRÍTICA COINDEPO — PREVALECE SOBRE CUALQUIER REGLA GENERAL DE MONTO:\n- Copia el signo tal como aparece en el PDF. En particular, una fila "Loan Repayment" con monto -13.00865441 USDT debe salir con monto -13.00865441 y tipo "egreso", NUNCA como positivo/ingreso. No elimines el signo menos.\n- Loan Withdrawal positivo = ingreso; Loan Repayment negativo = egreso.\n`
+    : ''
   const instruccionDale = esDale
     ? `\nREGLA ESPECIAL BANCO DALE:\n- El archivo contiene un saldo inicial y un saldo final. Extráelos como saldo_inicial y saldo_final.\n- No conviertas esos saldos en movimientos y no los sumes a ingresos o egresos.\n- Busca literalmente las etiquetas "Saldo inicial", "Saldo final", "Saldo de apertura", "Saldo de cierre" o equivalentes del extracto. No uses el saldo de una transacción ni un total de movimientos.\n- Conserva el valor numérico completo, incluyendo separadores de miles; no redondees ni lo conviertas a otra moneda.\n- Para los movimientos Dale: una fila marcada como "Abono", "Crédito" o "Ingreso" es tipo "ingreso"; una marcada como "Débito", "Debito", "Retiro", "Pago" o "Salida" es tipo "egreso". No inviertas el tipo por el signo visual ni clasifiques por el saldo de la fila.\n- Devuelve el monto como número positivo, sin símbolos de moneda y sin cambiar sus dígitos; por ejemplo, "1.234.567,89" debe ser "1234567.89".\n- Si un saldo no aparece en este lote, usa null.\n`
     : ''
@@ -73,6 +77,7 @@ CONTEXTO:
 
 INSTRUCCIONES CRÍTICAS:
 ${providerInstruction}
+${instruccionCoindepo}
 ${instruccionDale}
 ${instruccionNequi}
 REGLAS OBLIGATORIAS:
@@ -233,6 +238,9 @@ export function generarPromptMovimientosWallet(context) {
   const providerInstruction = proveedor
     ? (PROVIDER_RULES[proveedor.toLowerCase()]?.instruction || PROVIDER_RULES.otro.instruction)
     : PROVIDER_RULES.otro.instruction;
+  const instruccionCoindepo = /coindepo/i.test(String(proveedor || ''))
+    ? `\nREGLA CRÍTICA COINDEPO: conserva exactamente el signo del monto como figura en el PDF. Loan Repayment -13.00865441 USDT debe ser monto -13.00865441, tipo "egreso"; no lo conviertas a positivo. Loan Withdrawal positivo es ingreso.\n`
+    : ''
 
   return `Eres un experto en extracción de transacciones de wallets cripto.
 Tu tarea es extraer movimientos de un extracto de wallet ${proveedor}.
@@ -244,7 +252,7 @@ CONTEXTO:
 
 INSTRUCCIONES CRÍTICAS:
 ${providerInstruction}
-
+${instruccionCoindepo}
 REGLAS OBLIGATORIAS:
 1. Extrae SOLO transacciones reales:
    - Depósitos (transfer in)

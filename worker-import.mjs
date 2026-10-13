@@ -83,11 +83,18 @@ function esCoindepo(job) {
 function normalizarMovimientoCoindepo(item, montoBruto) {
   const etiqueta = normalizarTextoClave(`${item?.tipo || ''} ${item?.descripcion || ''}`)
   const positivo = !Number.isFinite(montoBruto) || montoBruto > 0
+  const tipoExtraido = normalizarTextoClave(item?.tipo || '')
+  const indicaEgreso = ['egreso', 'retiro', 'salida', 'debit', 'debito', 'withdrawal'].some((t) => tipoExtraido.includes(t))
+  const indicaIngreso = ['ingreso', 'deposito', 'abono', 'credit'].some((t) => tipoExtraido.includes(t))
   if (etiqueta.includes('loan withdrawal')) {
-    return { tipo: positivo ? 'ingreso' : 'egreso', descripcion: prefijarDescripcion(item.descripcion, 'Loan Withdrawal') }
+    const tipo = montoBruto < 0 || indicaEgreso ? 'egreso' : 'ingreso'
+    return { tipo, descripcion: prefijarDescripcion(item.descripcion, 'Loan Withdrawal') }
   }
   if (etiqueta.includes('loan repayment')) {
-    return { tipo: positivo ? 'ingreso' : 'egreso', descripcion: prefijarDescripcion(item.descripcion, 'Loan Repayment') }
+    // El modelo puede devolver monto absoluto pese al PDF negativo. En tal caso,
+    // respeta el tipo extraído como segunda señal; el valor firmado es fuente primaria.
+    const tipo = montoBruto < 0 || (montoBruto >= 0 && indicaEgreso && !indicaIngreso) ? 'egreso' : 'ingreso'
+    return { tipo, descripcion: prefijarDescripcion(item.descripcion, 'Loan Repayment') }
   }
   if (etiqueta.includes('interest payment')) return { tipo: 'ingreso', descripcion: prefijarDescripcion(item.descripcion, 'Interest Payment') }
   if (etiqueta.includes('withdrawal')) return { tipo: 'egreso', descripcion: prefijarDescripcion(item.descripcion, 'Withdrawal') }
