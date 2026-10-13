@@ -417,7 +417,8 @@ async function procesarWallet(client, job, datos) {
     const descripcionClave = normalizarTextoClave(`${item.tipo_original || ''} ${item.tipo_movimiento || ''} ${item.tipo_operacion || ''} ${item.operacion || ''} ${item.tipo || ''} ${item.descripcion || ''} ${regla.descripcion || ''}`)
     const monedaEquivalenteTexto = `${item.moneda_equivalente || item.monedaLocalEquivalente || item.moneda_local_equivalente || ''} ${item.descripcion || ''} ${regla.descripcion || ''}`
     const monedaEquivalente = normalizarTextoClave(monedaEquivalenteTexto)
-    const esOperacionUsdCCop = dolarapp && (descripcionClave.includes('compra usdc') || descripcionClave.includes('venta usdc')) && monedaEquivalente.includes('cop')
+    const esVentaUsdCCop = dolarapp && descripcionClave.includes('venta usdc') && monedaEquivalente.includes('cop')
+    const esOperacionUsdCCop = dolarapp && (descripcionClave.includes('compra usdc') || esVentaUsdCCop) && monedaEquivalente.includes('cop')
     const montoDesdeDescripcion = String(item.descripcion || '').match(/[+-]\s*[\d.,]+\s+cop\s+[+-]\s*([$\d.,]+)/i)?.[1]
     const montoEquivalente = esOperacionUsdCCop
       ? [item.monto_equivalente, item.monto_local_equivalente, item.montoLocalEquivalente, item.equivalente, item.valor_equivalente, montoDesdeDescripcion]
@@ -432,7 +433,7 @@ async function procesarWallet(client, job, datos) {
     if (esOperacionUsdCCop && !Number.isFinite(trm)) trm = await obtenerTrmOficial(item.fecha)
     const valorTrm = esOperacionUsdCCop && Number.isFinite(trm) ? montoPrincipal * trm : NaN
     const diferenciaCambio = esOperacionUsdCCop && Number.isFinite(montoEquivalente) && Number.isFinite(valorTrm)
-      ? valorTrm - montoEquivalente
+      ? esVentaUsdCCop ? montoEquivalente - valorTrm : valorTrm - montoEquivalente
       : NaN
     const r = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, trm, monto_equivalente, valor_trm, diferencia_cambio, external_id, source_file, import_job_id, created_by)
       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
