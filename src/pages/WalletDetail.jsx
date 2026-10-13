@@ -554,17 +554,6 @@ export default function WalletDetail() {
                 </div>
               ) : (
                 <>
-                  {esDolarapp && (
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {movsVisibles.map((m) => (
-                        <article key={m.id} className="rounded-xl border bg-background p-4 shadow-sm">
-                          <div className="flex items-start justify-between gap-3 mb-3"><div className="min-w-0"><p className="text-xs text-muted-foreground">{String(m.fecha).slice(0, 10)}</p><p className="mt-1 font-medium leading-5 break-words">{m.descripcion}</p></div><span className={`shrink-0 text-xs font-medium px-2 py-1 rounded ${m.tipo === 'ingreso' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}</span></div>
-                          <div className="grid grid-cols-2 gap-3 border-t pt-3 text-sm"><div><p className="text-xs text-muted-foreground">Monto</p><p className={`font-semibold ${m.tipo === 'ingreso' ? 'text-emerald-600' : 'text-rose-600'}`}>{m.tipo === 'ingreso' ? '+' : '−'}{formatearNumeroCompacto(m.monto, 2)} {m.tipo_moneda}</p></div><div><p className="text-xs text-muted-foreground">TRM</p><p>{formatearValorTrm(m.trm)}</p></div><div><p className="text-xs text-muted-foreground">M. de compra</p><p>{m.monto_equivalente != null ? formatearPesos(m.monto_equivalente) : '—'}</p></div><div><p className="text-xs text-muted-foreground">Valor TRM</p><p>{m.valor_trm != null ? formatearPesos(m.valor_trm) : '—'}</p></div><div><p className="text-xs text-muted-foreground">Diferencia cambio</p><p>{m.diferencia_cambio != null ? formatearPesos(m.diferencia_cambio) : '—'}</p></div><div><p className="text-xs text-muted-foreground">Saldo</p><p>{formatearNumeroCompacto(m.saldo_resultante, 2)} {m.tipo_moneda}</p></div></div>
-                          <div className="mt-3 flex justify-end"><button onClick={() => setABorrar(m)} disabled={borrandoId === m.id} className="p-1.5 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30" title="Borrar movimiento">{borrandoId === m.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}</button></div>
-                        </article>
-                      ))}
-                    </div>
-                  )}
                   <div className="overflow-x-auto rounded-lg border bg-background">
                     <table className="w-full min-w-[1040px] text-sm table-fixed">
                       <thead className="border-b bg-muted/50">
