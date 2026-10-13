@@ -74,6 +74,7 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - Vista consolidada por empresa en `/empresa/:empresaId/asesor-portafolio`.
 - Pestaña **Asesor** junto a **Precios** en `/empresa/:empresaId/brokers/:brokerId`.
 - Usa exclusivamente brokers, activos, movimientos y precios ya registrados en Finanzas.
+- Analiza únicamente brokers que tengan activos registrados; los brokers sin posiciones, como Quotex, quedan fuera del análisis.
 - Muestra posiciones, valor actual, capital invertido, ganancia o pérdida y rentabilidad.
 - Separa los resultados por moneda y no convierte ni suma divisas diferentes.
 - Identifica la concentración de la posición principal.
@@ -83,6 +84,14 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - No se conecta con la API de Interactive Brokers.
 - No envía órdenes ni ejecuta operaciones.
 - No reemplaza la asesoría financiera profesional.
+
+### Desafío de ahorro
+
+- Módulo disponible en `/empresa/:empresaId/desafio-ahorro`.
+- Permite configurar una meta con nombre, cantidad de depósitos, incremento, frecuencia y fecha de inicio.
+- Permite marcar depósitos, consultar el progreso y seguir el ahorro acumulado.
+- Permite guardar varias metas personalizadas, cargarlas cuando sea necesario y continuar alimentando su progreso.
+- Las metas y el progreso se guardan localmente en el navegador, separados por empresa.
 
 ### Wallets y Earn
 
@@ -212,6 +221,7 @@ El contenedor expone el puerto `3000`. La migración es idempotente y el superus
 | `/empresa/:empresaId/brokers` | Lista de brokers. |
 | `/empresa/:empresaId/brokers/:brokerId` | Movimientos, activos, precios y asesor del broker. |
 | `/empresa/:empresaId/asesor-portafolio` | Asesor consolidado de portafolio. |
+| `/empresa/:empresaId/desafio-ahorro` | Metas y seguimiento del desafío de ahorro. |
 | `/empresa/:empresaId/wallets` | Proveedores y wallets. |
 | `/empresa/:empresaId/comisionistas-fiducias` | Comisionistas y fiducias. |
 

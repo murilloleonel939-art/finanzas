@@ -6,7 +6,7 @@ import { borrarMovimientoWallet } from '@/lib/wallets-datos'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import WalletEarnAssets from '@/components/wallets/WalletEarnAssets'
-import { Loader2, Plus, Trash2, Sparkles, TrendingUp } from 'lucide-react'
+import { Loader2, Trash2, Sparkles, TrendingUp, Upload } from 'lucide-react'
 
 /**
  * WalletEarn: pestaña Earn de una wallet (PRD §7 y §8.4-B.2).
@@ -34,6 +34,7 @@ export default function WalletEarn({
   proveedorNombre,
   monedaPrincipal,
   onBorrar,
+  onImportar,
   periodo,
 }) {
   const queryClient = useQueryClient()
@@ -150,11 +151,10 @@ export default function WalletEarn({
             </p>
             <Button
               variant="outline"
-              disabled
+              onClick={onImportar}
               className="gap-2"
-              title="La importación de extractos todavía no está disponible"
             >
-              <Plus className="w-4 h-4" />
+              <Upload className="w-4 h-4" />
               Importar extracto
             </Button>
           </div>

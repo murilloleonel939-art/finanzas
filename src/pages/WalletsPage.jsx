@@ -9,11 +9,12 @@ import {
   borrarWallet,
 } from '@/lib/wallets-datos'
 import { esProveedorEarn } from '@/lib/earnConfig'
+import ImportarWalletModal from '@/components/ImportarWalletModal'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import { Loader2, Plus, ChevronRight, Trash2, AlertCircle, Wallet, Sparkles } from 'lucide-react'
+import { Loader2, Plus, ChevronRight, Trash2, AlertCircle, Wallet, Sparkles, Upload } from 'lucide-react'
 
 /**
  * WalletsPage: proveedores de wallet con sus wallets (PRD §6 y §11.3).
@@ -35,6 +36,7 @@ export default function WalletsPage() {
 
   const [proveedorABorrar, setProveedorABorrar] = useState(null)
   const [walletABorrar, setWalletABorrar] = useState(null)
+  const [walletAImportar, setWalletAImportar] = useState(null)
 
   const { data: proveedores = [], isLoading, error } = useQuery({
     queryKey: ['proveedores-wallet', empresaId],
@@ -192,6 +194,13 @@ export default function WalletsPage() {
                             <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
                           </button>
                           <button
+                            onClick={() => setWalletAImportar(w)}
+                            className="p-1.5 hover:bg-primary/10 rounded text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
+                            title="Importar extracto"
+                          >
+                            <Upload className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => setWalletABorrar(w)}
                             className="p-1.5 mr-1 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
                             title="Borrar wallet"
@@ -221,6 +230,19 @@ export default function WalletsPage() {
           </div>
         )}
       </div>
+
+      <ImportarWalletModal
+        isOpen={!!walletAImportar}
+        onClose={() => setWalletAImportar(null)}
+        empresaId={empresaId}
+        walletId={walletAImportar?.id}
+        walletProveedor={walletAImportar?.proveedor_nombre}
+        walletNombre={walletAImportar?.nombre_wallet}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['proveedores-wallet', empresaId] })
+          queryClient.invalidateQueries({ queryKey: ['wallets-empresa', empresaId] })
+        }}
+      />
 
       <ConfirmDialog
         open={!!proveedorABorrar}

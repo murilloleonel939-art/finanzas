@@ -13,6 +13,7 @@ import { esProveedorEarn, esMovimientoEarn } from '@/lib/earnConfig'
 import { getMesesDisponibles, filtrarPorMes, formatMes, MES_TODOS } from '@/components/shared/MonthFilter'
 import MonthFilter from '@/components/shared/MonthFilter'
 import WalletEarn from '@/components/wallets/WalletEarn'
+import ImportarWalletModal from '@/components/ImportarWalletModal'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -26,6 +27,7 @@ import {
   AlertCircle,
   ArrowUpDown,
   Sparkles,
+  Upload,
   Wallet as WalletIcon,
 } from 'lucide-react'
 
@@ -67,6 +69,7 @@ export default function WalletDetail() {
   const [pagina, setPagina] = useState(0)
   const [aBorrar, setABorrar] = useState(null)
   const [descuadres, setDescuadres] = useState([])
+  const [importarAbierto, setImportarAbierto] = useState(false)
 
   const { data: wallet, isLoading: cargandoWallet, error: errorWallet } = useQuery({
     queryKey: ['wallet', walletId],
@@ -123,6 +126,15 @@ export default function WalletDetail() {
     () => filtrarPorMes(movimientos, mes),
     [movimientos, mes]
   )
+
+  // Tras importar hay que refrescar movimientos y saldos: el worker inserta las
+  // filas y el servidor recalcula `wallet_saldos` en la misma operación, así que
+  // leer solo los movimientos dejaría el saldo desfasado.
+  function alImportar() {
+    queryClient.invalidateQueries({ queryKey: ['movimientos-wallet', walletId] })
+    queryClient.invalidateQueries({ queryKey: ['saldos-wallet', walletId] })
+    queryClient.invalidateQueries({ queryKey: ['wallets-empresa', empresaId] })
+  }
 
   const totalPaginas = Math.ceil(movimientosFiltrados.length / POR_PAGINA)
   const paginaSegura = Math.min(pagina, Math.max(0, totalPaginas - 1))
@@ -314,6 +326,7 @@ export default function WalletDetail() {
             proveedorNombre={wallet.proveedor_nombre}
             monedaPrincipal={wallet.tipo_moneda}
             periodo={periodo}
+            onImportar={() => setImportarAbierto(true)}
             onBorrar={() =>
               queryClient.invalidateQueries({ queryKey: ['movimientos-wallet', walletId] })
             }
@@ -472,10 +485,10 @@ export default function WalletDetail() {
               </Button>
               <Button
                 variant="outline"
-                disabled
+                onClick={() => setImportarAbierto(true)}
                 className="gap-2"
-                title="La importación de extractos desde PDF todavía no está disponible"
               >
+                <Upload className="w-4 h-4" />
                 Importar extracto
               </Button>
             </div>
@@ -488,6 +501,16 @@ export default function WalletDetail() {
           </>
         )}
       </div>
+
+      <ImportarWalletModal
+        isOpen={importarAbierto}
+        onClose={() => setImportarAbierto(false)}
+        empresaId={empresaId}
+        walletId={walletId}
+        walletProveedor={wallet.proveedor_nombre}
+        walletNombre={wallet.nombre_wallet}
+        onSuccess={alImportar}
+      />
 
       <ConfirmDialog
         open={!!aBorrar}
