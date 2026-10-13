@@ -102,7 +102,9 @@ export default function WalletDetail() {
     queryFn: () => obtenerUltimaImportacionWallet(empresaId, walletId),
   })
 
+  const esPaypal = String(wallet?.proveedor_nombre || '').trim().toLowerCase() === 'paypal'
   const todoEarn = esProveedorEarn(wallet?.proveedor_nombre)
+  const mostrarEarn = !esPaypal
 
   const meses = useMemo(() => getMesesDisponibles(movimientos), [movimientos])
 
@@ -435,7 +437,7 @@ export default function WalletDetail() {
         </div>
 
         {/* Pestañas SOLO en la variante B */}
-        {!todoEarn && (
+        {mostrarEarn && !todoEarn && (
           <div className="flex gap-1 border-b mb-6">
             {[
               { id: 'movimientos', etiqueta: 'Movimientos' },
@@ -465,7 +467,7 @@ export default function WalletDetail() {
         )}
 
         {/* ---- Variante B, pestaña Earn ---- */}
-        {!todoEarn && pestana === 'earn' && (
+        {mostrarEarn && !todoEarn && pestana === 'earn' && (
           <WalletEarn
             empresaId={empresaId}
             walletId={walletId}
