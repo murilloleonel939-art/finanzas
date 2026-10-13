@@ -451,7 +451,10 @@ async function recalcularSaldoWalletImportada(client, walletId) {
     from movimientos_wallet where wallet_id = $1 and deleted_at is null group by tipo_moneda`, [walletId])
   await client.query('delete from wallet_saldos where wallet_id = $1', [walletId])
   for (const row of result.rows) {
-    await client.query('insert into wallet_saldos (wallet_id, moneda, monto) values ($1, $2, $3)', [walletId, String(row.tipo_moneda).trim().toUpperCase(), Number(row.monto)])
+    const monto = Number(row.monto)
+    // wallet_saldos no admite saldos negativos. Se conserva el historial completo
+    // de movimientos y se registra cero hasta que exista un ingreso que cubra el egreso.
+    await client.query('insert into wallet_saldos (wallet_id, moneda, monto) values ($1, $2, $3)', [walletId, String(row.tipo_moneda).trim().toUpperCase(), Number.isFinite(monto) ? Math.max(0, monto) : 0])
   }
 }
 
