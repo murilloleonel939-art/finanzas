@@ -420,7 +420,7 @@ async function procesarWallet(client, job, datos) {
   const wallet = (await client.query('select empresa_id, proveedor_id from wallets where id = $1 and deleted_at is null', [job.wallet_id])).rows[0]
   if (!wallet) throw new Error('Wallet destino no encontrada.')
   for (const item of asArray(datos)) {
-    const montoBruto = Number(item.monto)
+    const montoBruto = parseMontoImportado(item.monto)
     const monto = Math.abs(montoBruto)
     const regla = esCoindepo(job)
       ? normalizarMovimientoCoindepo(item, montoBruto)
