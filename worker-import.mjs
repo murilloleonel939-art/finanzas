@@ -434,8 +434,11 @@ async function procesarWalletDolarapp(client, job, datos, wallet) {
     const diferenciaCambio = Number.isFinite(montoEquivalente) && Number.isFinite(valorTrm)
       ? esVenta ? montoEquivalente - valorTrm : valorTrm - montoEquivalente
       : NaN
-    const idBase = `${item.fecha}|${monto}|${moneda}|${regla.tipo}|${regla.descripcion}|${item.orden ?? ''}|${montoEquivalente ?? ''}`
-    const externalId = item.external_id || `dolarapp-${crypto.createHash('sha256').update(idBase).digest('hex')}`
+    const idBase = `${item.fecha}|${monto}|${moneda}|${regla.tipo}|${regla.descripcion}|${item.orden ?? ''}|${montoEquivalente ?? ''}|${item.trm ?? ''}`
+    // En DolarApp, el identificador recibido del extractor puede repetirse en
+    // filas distintas. La posición del PDF ya forma parte de idBase, por lo que
+    // preserva cada fila real y mantiene idempotente la reimportación del archivo.
+    const externalId = `dolarapp-${crypto.createHash('sha256').update(idBase).digest('hex')}`
     const r = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, trm, monto_equivalente, valor_trm, diferencia_cambio, external_id, source_file, import_job_id, created_by)
       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
       [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, String(regla.descripcion).trim(), regla.tipo, monto, moneda,
