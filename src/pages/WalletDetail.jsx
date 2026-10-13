@@ -142,7 +142,7 @@ export default function WalletDetail() {
       .filter((c) => c.otorgado > 0 || c.pagado > 0)
       .map((c) => ({
         ...c,
-        pendiente: Number((c.otorgado - c.pagado).toFixed(8)),
+        pendiente: Number(Math.abs(c.pagado - c.otorgado).toFixed(8)),
       }))
   }, [movimientos, todoEarn])
 
@@ -359,13 +359,13 @@ export default function WalletDetail() {
                   <div className="space-y-1">
                     <Fila etiqueta="Crédito otorgado" valor={c.otorgado} moneda={c.moneda} />
                     <Fila etiqueta="Pagos de Loan Repayment" valor={c.pagado} moneda={c.moneda} tono="negativo" />
-                    <Fila etiqueta="Crédito pendiente" valor={c.pendiente} moneda={c.moneda} tono={c.pendiente < 0 ? 'negativo' : undefined} />
+                    <Fila etiqueta="Intereses del crédito" valor={c.pendiente} moneda={c.moneda} />
                   </div>
                 </div>
               ))}
             </div>
             <p className="text-xs text-muted-foreground mt-3">
-              Los pagos muestran el total de Loan Repayment negativos. El extracto no separa cuánto corresponde a capital e intereses, por eso no se presenta como interés pagado.
+              Los intereses del crédito muestran la diferencia absoluta entre los pagos de Loan Repayment y el crédito otorgado.
             </p>
           </Card>
         )}
