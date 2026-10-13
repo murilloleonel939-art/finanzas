@@ -8,6 +8,18 @@
 // ============================================================================
 
 export const PROVIDER_RULES = {
+  paypal: {
+    displayName: 'PayPal',
+    description: 'Extractos de transacciones PayPal',
+    instruction: `Este es un extracto de PayPal. Aplica exclusivamente estas reglas usando las columnas literales Description, Currency y Gross:
+- Mass Pay Payment: toda descripción que empiece por "Mass Pay Payment" es un ingreso; usa únicamente el valor de la columna Gross.
+- Website Payment: toda descripción que empiece por "Website Payment" es un egreso; usa únicamente el valor de la columna Gross.
+- General Currency Conversion con Currency USD: es un egreso; usa únicamente el valor de la columna Gross.
+- General Currency Conversion con Currency COP: es un ingreso; usa únicamente el valor de la columna Gross.
+- User Initiated Withdrawal con Currency COP: es un egreso; usa únicamente el valor de la columna Gross. Si la columna Fee tiene valor, consérvalo en el campo fee del movimiento.
+- Nunca uses la columna Net como monto principal. Devuelve Gross en el campo monto, como número positivo, y usa tipo ingreso o egreso para indicar la dirección.
+- Conserva la descripción literal y no clasifiques estas filas con reglas genéricas.`,
+  },
   coindepo: {
     displayName: 'Coindepo',
     description: 'Plataforma de productos Earn/Staking',

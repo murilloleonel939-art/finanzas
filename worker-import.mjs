@@ -72,6 +72,23 @@ function normalizarTextoClave(valor) {
 function esCoindepo(job) {
   return normalizarTextoClave(job?.proveedor) === 'coindepo'
 }
+function esPaypal(job) {
+  return normalizarTextoClave(job?.proveedor) === 'paypal'
+}
+function normalizarMovimientoPaypal(item) {
+  const descripcion = String(item?.descripcion || '').trim()
+  const etiqueta = normalizarTextoClave(descripcion)
+  const moneda = String(item?.moneda || '').trim().toUpperCase()
+  if (etiqueta.startsWith('mass pay payment')) return { tipo: 'ingreso', descripcion }
+  if (etiqueta.startsWith('website payment')) return { tipo: 'egreso', descripcion }
+  if (etiqueta.startsWith('general currency conversion')) {
+    return { tipo: moneda === 'COP' ? 'ingreso' : 'egreso', descripcion }
+  }
+  if (etiqueta.startsWith('user initiated withdrawal') && moneda === 'COP') {
+    return { tipo: 'egreso', descripcion }
+  }
+  return null
+}
 // Reglas EXCLUSIVAS de Coindepo. El signo decide la dirección en los eventos de
 // préstamo: «Loan Withdrawal» positivo entra a la cuenta; «Loan Repayment»
 // negativo sale de ella. El monto que se guarda siempre es positivo (CHECK
@@ -352,12 +369,17 @@ async function procesarWallet(client, job, datos) {
   for (const item of asArray(datos)) {
     const montoBruto = Number(item.monto)
     const monto = Math.abs(montoBruto)
-    const regla = esCoindepo(job) ? normalizarMovimientoCoindepo(item, montoBruto) : { tipo: item.tipo, descripcion: item.descripcion }
-    if (!item.fecha || !Number.isFinite(monto) || monto <= 0 || !regla.descripcion || !['ingreso', 'egreso'].includes(regla.tipo)) continue
+    const regla = esCoindepo(job)
+      ? normalizarMovimientoCoindepo(item, montoBruto)
+      : esPaypal(job)
+        ? normalizarMovimientoPaypal(item)
+        : { tipo: item.tipo, descripcion: item.descripcion }
+    const montoPrincipal = esPaypal(job) && Number.isFinite(Number(item.gross)) ? Math.abs(Number(item.gross)) : monto
+    if (!item.fecha || !Number.isFinite(montoPrincipal) || montoPrincipal <= 0 || !regla?.descripcion || !['ingreso', 'egreso'].includes(regla.tipo)) continue
     const moneda = String(item.moneda || 'USD').trim().toUpperCase()
     const r = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, external_id, source_file, import_job_id, created_by)
       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
-      [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, String(regla.descripcion).trim(), regla.tipo, monto, moneda, item.external_id || null, job.storage_path, job.id, job.created_by])
+      [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, String(regla.descripcion).trim(), regla.tipo, montoPrincipal, moneda, item.external_id || null, job.storage_path, job.id, job.created_by])
     if (r.rowCount) creados++; else duplicados++
   }
   return { creados, duplicados }
