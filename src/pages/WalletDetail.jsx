@@ -46,14 +46,26 @@ function formatearNumeroCompacto(valor, maxDecimales = 2) {
   if (valor === null || valor === undefined || valor === '') return '—'
   const numero = Number(valor)
   if (!Number.isFinite(numero)) return '—'
-  return new Intl.NumberFormat('es-CO', { maximumFractionDigits: maxDecimales }).format(numero)
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: maxDecimales }).format(numero)
+}
+
+function formatearPesos(valor) {
+  if (valor === null || valor === undefined || valor === '') return '—'
+  const numero = Number(valor)
+  if (!Number.isFinite(numero)) return '—'
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(numero)
 }
 
 function formatearValorTrm(valor) {
   if (valor === null || valor === undefined || valor === '') return '—'
   const numero = Number(valor)
   if (!Number.isFinite(numero)) return '—'
-  return new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(numero)
+  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(numero)
 }
 
 /**
@@ -542,14 +554,14 @@ export default function WalletDetail() {
                 </div>
               ) : (
                 <>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                  <div className="overflow-x-auto rounded-lg border bg-background">
+                    <table className="w-full min-w-[1040px] text-sm table-fixed">
                       <thead className="border-b bg-muted/50">
                         <tr>
-                          <th className="text-left px-4 py-3 font-medium">Fecha</th>
-                          <th className="text-left px-4 py-3 font-medium">Descripción</th>
-                          <th className="text-left px-4 py-3 font-medium">Tipo</th>
-                          <th className="text-right px-4 py-3 font-medium">Monto</th>
+                          <th className="w-[120px] text-left px-4 py-3 font-medium">Fecha</th>
+                          <th className="w-[300px] text-left px-4 py-3 font-medium">Descripción</th>
+                          <th className="w-[110px] text-left px-4 py-3 font-medium">Tipo</th>
+                          <th className="w-[145px] text-right px-4 py-3 font-medium">Monto</th>
                            {esDolarapp && <>
                              <th className="text-right px-4 py-3 font-medium">TRM</th>
                              <th className="text-right px-4 py-3 font-medium">M. de compra</th>
@@ -588,9 +600,9 @@ export default function WalletDetail() {
                             </td>
                             {esDolarapp && <>
                               <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{formatearValorTrm(m.trm)}</td>
-                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.monto_equivalente != null ? formatearNumeroCompacto(m.monto_equivalente, 2) + ' COP' : '—'}</td>
-                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.valor_trm != null ? formatearNumeroCompacto(m.valor_trm, 2) + ' COP' : '—'}</td>
-                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.diferencia_cambio != null ? formatearNumeroCompacto(m.diferencia_cambio, 2) + ' COP' : '—'}</td>
+                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.monto_equivalente != null ? formatearPesos(m.monto_equivalente) : '—'}</td>
+                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.valor_trm != null ? formatearPesos(m.valor_trm) : '—'}</td>
+                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.diferencia_cambio != null ? formatearPesos(m.diferencia_cambio) : '—'}</td>
                             </>}
                             <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">
                               {formatearMonto(m.saldo_resultante, m.tipo_moneda)}
