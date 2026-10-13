@@ -107,6 +107,7 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - **Reglas exclusivas de Coindepo** al importar: `Interest Payment` entra como ingreso y es el único concepto que cuenta como interés generado; `Deposit` como ingreso; `Withdrawal` como egreso; `Loan Withdrawal` con valor positivo entra a la cuenta (y con valor negativo sale); `Loan Repayment` con valor negativo sale de la cuenta (y con valor positivo entra).
 - Para préstamos Coindepo se conserva el signo indicado en el PDF durante la extracción. Por ejemplo, `Loan Repayment -13.00865441 USDT` se importa como egreso por `13.00865441 USDT`; si el extractor devuelve el monto positivo por error, el worker usa el tipo extraído como respaldo. La base guarda el monto positivo y representa la salida mediante `tipo = egreso`.
 - Los movimientos de préstamo (`Loan Withdrawal`, `Loan Repayment`) **nunca cuentan como intereses generados**: entra dinero que hay que devolver, no un rendimiento del capital. Por eso se excluyen explícitamente de «Intereses ganados» y de «Total recompensas».
+- La casilla **Crédito** se muestra únicamente en wallets del proveedor **Coindepo**. Se calcula por moneda usando los movimientos: suma `Loan Withdrawal` positivos como crédito otorgado, suma los `Loan Repayment` negativos como pagos y muestra **Intereses del crédito** como la diferencia absoluta entre pagos y crédito otorgado.
 - Configuración y consulta de activos Earn.
 - Catálogo de monedas fiat y cripto con precisión específica por moneda.
 - No se realiza conversión automática entre divisas.
