@@ -417,9 +417,9 @@ async function procesarWalletDolarapp(client, job, datos, wallet) {
     const monto = Math.abs(parseMontoImportado(item.monto))
     if (!item.fecha || !Number.isFinite(monto) || monto <= 0 || !regla?.descripcion || !['ingreso', 'egreso'].includes(regla.tipo)) continue
     const clave = normalizarTextoClave(`${item.tipo_original || ''} ${item.tipo_movimiento || ''} ${item.tipo_operacion || ''} ${item.operacion || ''} ${item.tipo || ''} ${item.descripcion || ''}`)
-    const esEur = clave.includes('eurc')
-    const esCompra = clave.includes('compra usdc') || clave.includes('compra eurc')
-    const esVenta = clave.includes('venta usdc') || clave.includes('venta eurc')
+    const esEur = /\beurc?\b/.test(clave)
+    const esCompra = clave.includes('compra usdc') || /\bcompra eurc?\b/.test(clave)
+    const esVenta = clave.includes('venta usdc') || /\bventa eurc?\b/.test(clave)
     const textoEquivalente = `${item.moneda_equivalente || item.monedaLocalEquivalente || item.moneda_local_equivalente || ''} ${item.descripcion || ''}`
     const tieneCop = normalizarTextoClave(textoEquivalente).includes('cop')
     const monedaDeclarada = String(item.moneda || item.moneda_principal || '').trim().toUpperCase()
@@ -429,7 +429,9 @@ async function procesarWalletDolarapp(client, job, datos, wallet) {
       ? [item.monto_equivalente, item.monto_local_equivalente, item.montoLocalEquivalente, item.equivalente, item.valor_equivalente, montoDesdeDescripcion].map(parseMontoImportado).find(Number.isFinite)
       : NaN
     let trm = esCompra || esVenta ? [item.trm, item.valor_trm, item.trm_dia, item.trm_del_dia].map(parseMontoImportado).find(Number.isFinite) : NaN
-    if (tieneCop && (esCompra || esVenta) && !Number.isFinite(trm)) trm = esEur ? await obtenerTrmEuroDolarapp(item.fecha) : await obtenerTrmOficial(item.fecha)
+    if ((esCompra || esVenta) && (tieneCop || Number.isFinite(montoEquivalente)) && !Number.isFinite(trm)) {
+      trm = esEur ? await obtenerTrmEuroDolarapp(item.fecha) : await obtenerTrmOficial(item.fecha)
+    }
     const valorTrm = Number.isFinite(trm) ? monto * trm : NaN
     const diferenciaCambio = Number.isFinite(montoEquivalente) && Number.isFinite(valorTrm)
       ? esVenta ? montoEquivalente - valorTrm : valorTrm - montoEquivalente
