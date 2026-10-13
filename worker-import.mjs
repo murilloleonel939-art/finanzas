@@ -423,7 +423,7 @@ async function procesarWalletDolarapp(client, job, datos, wallet) {
     const textoEquivalente = `${item.moneda_equivalente || item.monedaLocalEquivalente || item.moneda_local_equivalente || ''} ${item.descripcion || ''}`
     const tieneCop = normalizarTextoClave(textoEquivalente).includes('cop')
     const monedaDeclarada = String(item.moneda || item.moneda_principal || '').trim().toUpperCase()
-    const moneda = monedaDeclarada === 'EURC' || (!monedaDeclarada && esEur) ? 'EUR' : ['USDT', 'USDC'].includes(monedaDeclarada) || (!monedaDeclarada && !esEur) ? 'USDC' : monedaDeclarada
+    const moneda = monedaDeclarada === 'EURC' || (!monedaDeclarada && esEur) ? 'EUR' : ['USD', 'USDT', 'USDC'].includes(monedaDeclarada) || (!monedaDeclarada && !esEur) ? 'USDC' : monedaDeclarada
     const montoDesdeDescripcion = String(item.descripcion || '').match(/[+-]\s*[\d.,]+\s+cop\s+[+-]\s*([$\d.,]+)/i)?.[1]
     const montoEquivalente = esCompra || esVenta
       ? [item.monto_equivalente, item.monto_local_equivalente, item.montoLocalEquivalente, item.equivalente, item.valor_equivalente, montoDesdeDescripcion].map(parseMontoImportado).find(Number.isFinite)
