@@ -99,6 +99,10 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - Wallets por proveedor, dirección y moneda.
 - Saldos por moneda y recálculo de saldos.
 - Movimientos de wallet con deduplicación e importación.
+- Importación de extractos desde PDF, CSV, XLS y XLSX con reglas por proveedor; los proveedores sin reglas propias usan la extracción genérica.
+- Cada movimiento importado se vincula con el job que lo creó, lo que permite borrar la última importación desde el detalle de la wallet sin afectar los movimientos manuales ni los de otros archivos.
+- **Reglas exclusivas de Coindepo** al importar: `Interest Payment` entra como interés generado, `Deposit` como ingreso, `Withdrawal` como egreso, `Loan Withdrawal` con valor positivo entra a la cuenta y abre un crédito, y `Loan Repayment` con valor negativo sale de la cuenta y baja ese crédito.
+- Los créditos de Coindepo se muestran como **deuda separada** del saldo de la wallet: no se suman al saldo porque es dinero adeudado, no disponible. El saldo pendiente de cada crédito se reconstruye por FIFO desde los `Loan Repayment` vivos, de modo que borrar un movimiento o revertir una importación devuelve la deuda a su valor real.
 - Configuración y consulta de activos Earn.
 - Catálogo de monedas fiat y cripto con precisión específica por moneda.
 - No se realiza conversión automática entre divisas.

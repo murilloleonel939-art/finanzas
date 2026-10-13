@@ -66,6 +66,76 @@ function normalizarTipoDale(item) {
   if (/\b(debito|retiro|pago|salida)\b/.test(etiqueta)) return 'egreso'
   return item?.tipo
 }
+function normalizarTextoClave(valor) {
+  return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+function esCoindepo(job) {
+  return normalizarTextoClave(job?.proveedor) === 'coindepo'
+}
+// Reglas EXCLUSIVAS de Coindepo. El signo del extracto decide la dirección en
+// los eventos de préstamo: «Loan Withdrawal» positivo entra a la cuenta y abre
+// un crédito; «Loan Repayment» negativo sale de la cuenta y baja ese crédito.
+// El monto que se guarda siempre es positivo (CHECK monto > 0), la dirección va
+// en `tipo`.
+function normalizarMovimientoCoindepo(item, montoBruto) {
+  const etiqueta = normalizarTextoClave(`${item?.tipo || ''} ${item?.descripcion || ''}`)
+  const positivo = !Number.isFinite(montoBruto) || montoBruto > 0
+  if (etiqueta.includes('loan withdrawal')) {
+    return positivo
+      ? { tipo: 'ingreso', descripcion: prefijarDescripcion(item.descripcion, 'Loan Withdrawal'), loanEvent: 'withdrawal' }
+      : { tipo: 'egreso', descripcion: prefijarDescripcion(item.descripcion, 'Loan Withdrawal'), loanEvent: null }
+  }
+  if (etiqueta.includes('loan repayment')) {
+    return positivo
+      ? { tipo: 'ingreso', descripcion: prefijarDescripcion(item.descripcion, 'Loan Repayment'), loanEvent: null }
+      : { tipo: 'egreso', descripcion: prefijarDescripcion(item.descripcion, 'Loan Repayment'), loanEvent: 'repayment' }
+  }
+  if (etiqueta.includes('interest payment')) return { tipo: 'ingreso', descripcion: prefijarDescripcion(item.descripcion, 'Interest Payment'), loanEvent: null }
+  if (etiqueta.includes('withdrawal')) return { tipo: 'egreso', descripcion: prefijarDescripcion(item.descripcion, 'Withdrawal'), loanEvent: null }
+  if (etiqueta.includes('deposit')) return { tipo: 'ingreso', descripcion: prefijarDescripcion(item.descripcion, 'Deposit'), loanEvent: null }
+  return { tipo: item?.tipo, descripcion: item?.descripcion, loanEvent: null }
+}
+function prefijarDescripcion(descripcion, prefijo) {
+  const texto = String(descripcion || '').trim()
+  return texto.toLowerCase().startsWith(prefijo.toLowerCase()) ? texto : `${prefijo}${texto ? ` - ${texto}` : ''}`
+}
+function referenciaCredito(item) {
+  return String(item?.loan_ref || item?.external_id || item?.producto || item?.product || 'Coindepo loan').trim() || 'Coindepo loan'
+}
+/**
+ * Reconstruye la deuda de cada crédito Coindepo desde cero (FIFO).
+ *
+ * No se aplica el pago "al vuelo" sobre el crédito que esté abierto: si se
+ * reimporta el mismo archivo, o si después se borra esa importación, un
+ * incremento dejaría la deuda desviada sin que nadie lo note. Se recalculan
+ * todos los créditos vivos y todos los Loan Repayment vivos de la wallet, y los
+ * pagos se asignan del crédito más antiguo al más nuevo — igual que
+ * `recalcularCreditosWallet` en el servidor.
+ */
+async function recalcularCreditosCoindepo(client, walletId) {
+  const creditos = (await client.query(`select id, moneda, monto_inicial from wallet_creditos
+    where wallet_id = $1 and deleted_at is null order by fecha asc, created_at asc`, [walletId])).rows
+  const saldos = new Map(creditos.map((c) => [c.id, Number(c.monto_inicial)]))
+  const pagos = (await client.query(`select tipo_moneda, fecha, created_at, monto from movimientos_wallet
+    where wallet_id = $1 and tipo = 'egreso' and deleted_at is null and descripcion ilike 'Loan Repayment%'
+    order by fecha asc, created_at asc`, [walletId])).rows
+  for (const pago of pagos) {
+    let restante = Number(pago.monto)
+    const moneda = String(pago.tipo_moneda).trim().toUpperCase()
+    for (const credito of creditos) {
+      if (restante <= 0) break
+      if (String(credito.moneda).trim().toUpperCase() !== moneda) continue
+      const saldo = saldos.get(credito.id)
+      if (saldo <= 0) continue
+      const abono = Math.min(saldo, restante)
+      saldos.set(credito.id, Number((saldo - abono).toFixed(8)))
+      restante = Number((restante - abono).toFixed(8))
+    }
+  }
+  for (const [id, saldo] of saldos) {
+    await client.query('update wallet_creditos set saldo_pendiente = $2, updated_at = now() where id = $1', [id, Math.max(0, saldo)])
+  }
+}
 function extraerSaldosDaleDeTexto(lotes) {
   const resultado = { saldo_inicial: null, saldo_final: null }
   const monto = '[-$\\s]*([0-9][0-9.,]*)'
@@ -307,18 +377,34 @@ async function procesarCuenta(client, job, datos) {
 }
 
 async function procesarWallet(client, job, datos) {
-  let creados = 0; let duplicados = 0
+  let creados = 0; let duplicados = 0; let creditos = 0
   const wallet = (await client.query('select empresa_id, proveedor_id from wallets where id = $1 and deleted_at is null', [job.wallet_id])).rows[0]
   if (!wallet) throw new Error('Wallet destino no encontrada.')
   for (const item of asArray(datos)) {
-    const monto = Number(item.monto)
-    if (!item.fecha || !Number.isFinite(monto) || monto <= 0 || !item.descripcion || !['ingreso', 'egreso'].includes(item.tipo)) continue
+    const montoBruto = Number(item.monto)
+    const monto = Math.abs(montoBruto)
+    const regla = esCoindepo(job) ? normalizarMovimientoCoindepo(item, montoBruto) : { tipo: item.tipo, descripcion: item.descripcion, loanEvent: item.loan_event }
+    if (!item.fecha || !Number.isFinite(monto) || monto <= 0 || !regla.descripcion || !['ingreso', 'egreso'].includes(regla.tipo)) continue
+    const moneda = String(item.moneda || 'USD').trim().toUpperCase()
     const r = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, external_id, source_file, import_job_id, created_by)
       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
-      [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, String(item.descripcion).trim(), item.tipo, monto, item.moneda || 'USD', item.external_id || null, job.storage_path, job.id, job.created_by])
-    if (r.rowCount) creados++; else duplicados++
+      [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, String(regla.descripcion).trim(), regla.tipo, monto, moneda, item.external_id || null, job.storage_path, job.id, job.created_by])
+    if (r.rowCount) {
+      creados++
+      // El crédito nace con el desembolso y se guarda con su monto original:
+      // `saldo_pendiente` lo reconstruye `recalcularCreditosWallet` a partir de
+      // todos los Loan Repayment vivos, de modo que reimportar o borrar un
+      // archivo no deje una deuda inventada.
+      if (esCoindepo(job) && regla.loanEvent === 'withdrawal') {
+        const credito = await client.query(`insert into wallet_creditos (empresa_id, proveedor_id, wallet_id, import_job_id, fecha, descripcion, moneda, monto_inicial, saldo_pendiente, external_id, source_file, created_by)
+          values ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
+          [job.empresa_id, wallet.proveedor_id, job.wallet_id, job.id, item.fecha, referenciaCredito(item), moneda, monto, item.external_id || null, job.storage_path, job.created_by])
+        if (credito.rowCount) creditos++
+      }
+    } else duplicados++
   }
-  return { creados, duplicados }
+  if (esCoindepo(job)) await recalcularCreditosCoindepo(client, job.wallet_id)
+  return { creados, activos: creditos, duplicados }
 }
 
 async function procesarBroker(client, job, datos) {

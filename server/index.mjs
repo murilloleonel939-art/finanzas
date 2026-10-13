@@ -779,6 +779,8 @@ app.delete('/api/empresas/:empresaId/wallets/:walletId/ultima-importacion', requ
       limit 1 for update`, [walletId, empresaId])
     if (!job.rowCount) { await client.query('rollback'); return error(res, 404, 'No hay una importación reciente para borrar.') }
     const deleted = await client.query('update movimientos_wallet set deleted_at = now() where import_job_id = $1 and deleted_at is null', [job.rows[0].id])
+    await client.query('update wallet_creditos set deleted_at = now(), updated_at = now() where import_job_id = $1 and deleted_at is null', [job.rows[0].id])
+    await recalcularCreditosWallet(walletId, client)
     const descuadres = await recalcularWallet(walletId, client)
     if (descuadres.length) {
       await client.query('rollback')
@@ -800,6 +802,16 @@ app.get('/api/wallets/:walletId/saldos', requireAuth, async (req, res) => {
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, wallet.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
   const result = await query('select wallet_id, moneda, monto, updated_at from wallet_saldos where wallet_id = $1 order by moneda', [req.params.walletId])
   res.json({ saldos: result.rows })
+})
+
+app.get('/api/wallets/:walletId/creditos', requireAuth, async (req, res) => {
+  const wallet = await query('select empresa_id from wallets where id = $1 and deleted_at is null', [req.params.walletId])
+  if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, wallet.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const result = await query(`select id, fecha, descripcion, moneda, monto_inicial, saldo_pendiente, external_id
+    from wallet_creditos where wallet_id = $1 and deleted_at is null and saldo_pendiente > 0
+    order by fecha desc, created_at desc`, [req.params.walletId])
+  res.json({ creditos: result.rows })
 })
 
 app.get('/api/wallets/:walletId/movimientos', requireAuth, async (req, res) => {
@@ -835,6 +847,40 @@ app.post('/api/empresas/:empresaId/wallets/:walletId/movimientos', requireAuth, 
   } catch (err) { await client.query('rollback'); throw err } finally { client.release() }
 })
 
+/**
+ * Reconstruye la deuda de cada crédito de la wallet desde cero, por FIFO.
+ *
+ * `saldo_pendiente` no se guarda como fuente de verdad: es una caché. La verdad
+ * es «monto inicial del crédito menos los Loan Repayment vivos», asignados del
+ * crédito más antiguo al más nuevo. Así, borrar un movimiento —o revertir una
+ * importación completa— devuelve la deuda a su valor real en vez de dejar el
+ * crédito descontado para siempre.
+ */
+async function recalcularCreditosWallet(walletId, client = pool) {
+  const creditos = (await client.query(`select id, moneda, monto_inicial from wallet_creditos
+    where wallet_id = $1 and deleted_at is null order by fecha asc, created_at asc`, [walletId])).rows
+  const saldos = new Map(creditos.map((c) => [c.id, Number(c.monto_inicial)]))
+  const pagos = (await client.query(`select tipo_moneda, monto from movimientos_wallet
+    where wallet_id = $1 and tipo = 'egreso' and deleted_at is null and descripcion ilike 'Loan Repayment%'
+    order by fecha asc, created_at asc`, [walletId])).rows
+  for (const pago of pagos) {
+    let restante = Number(pago.monto)
+    const moneda = String(pago.tipo_moneda).trim().toUpperCase()
+    for (const credito of creditos) {
+      if (restante <= 0) break
+      if (String(credito.moneda).trim().toUpperCase() !== moneda) continue
+      const saldo = saldos.get(credito.id)
+      if (saldo <= 0) continue
+      const abono = Math.min(saldo, restante)
+      saldos.set(credito.id, Number((saldo - abono).toFixed(8)))
+      restante = Number((restante - abono).toFixed(8))
+    }
+  }
+  for (const [id, saldo] of saldos) {
+    await client.query('update wallet_creditos set saldo_pendiente = $2, updated_at = now() where id = $1', [id, Math.max(0, saldo)])
+  }
+}
+
 async function recalcularWallet(walletId, client = pool) {
   const result = await client.query(`select tipo, tipo_moneda, sum(case when tipo = 'ingreso' then monto else -monto end) as monto
     from movimientos_wallet where wallet_id = $1 and deleted_at is null group by tipo_moneda, tipo`, [walletId])
@@ -868,6 +914,9 @@ app.delete('/api/empresas/:empresaId/wallets/:walletId/movimientos/:movimientoId
     await client.query('begin')
     const deleted = await client.query('update movimientos_wallet set deleted_at = now() where id = $1 and wallet_id = $2 and empresa_id = $3 and deleted_at is null', [req.params.movimientoId, req.params.walletId, req.params.empresaId])
     if (!deleted.rowCount) { await client.query('rollback'); return error(res, 404, 'Movimiento no encontrado.') }
+    // Borrar un Loan Repayment tiene que devolver la deuda al crédito, o el
+    // saldo pendiente quedaría descontado por un pago que ya no existe.
+    await recalcularCreditosWallet(req.params.walletId, client)
     const descuadres = await recalcularWallet(req.params.walletId, client)
     if (descuadres.length) {
       await client.query('rollback')
