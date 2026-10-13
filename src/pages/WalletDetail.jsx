@@ -42,6 +42,20 @@ import {
 
 const POR_PAGINA = 20
 
+function formatearNumeroCompacto(valor, maxDecimales = 2) {
+  if (valor === null || valor === undefined || valor === '') return '—'
+  const numero = Number(valor)
+  if (!Number.isFinite(numero)) return '—'
+  return new Intl.NumberFormat('es-CO', { maximumFractionDigits: maxDecimales }).format(numero)
+}
+
+function formatearValorTrm(valor) {
+  if (valor === null || valor === undefined || valor === '') return '—'
+  const numero = Number(valor)
+  if (!Number.isFinite(numero)) return '—'
+  return new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(numero)
+}
+
 /**
  * WalletDetail: detalle de una wallet, con DOS variantes (PRD §7).
  *
@@ -550,7 +564,7 @@ export default function WalletDetail() {
                         {movsVisibles.map((m) => (
                           <tr key={m.id} className="border-b last:border-0 hover:bg-muted/30">
                             <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                              {m.fecha}
+                              {String(m.fecha).slice(0, 10)}
                             </td>
                             <td className="px-4 py-3">{m.descripcion}</td>
                             <td className="px-4 py-3">
@@ -570,13 +584,13 @@ export default function WalletDetail() {
                               }`}
                             >
                               {m.tipo === 'ingreso' ? '+' : '−'}
-                              {formatearMonto(m.monto, m.tipo_moneda)}
+                              {formatearNumeroCompacto(m.monto, 2)} {m.tipo_moneda}
                             </td>
                             {esDolarapp && <>
-                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.trm ?? '—'}</td>
-                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.monto_equivalente != null ? formatearMonto(m.monto_equivalente, 'COP') : '—'}</td>
-                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.valor_trm != null ? formatearMonto(m.valor_trm, 'COP') : '—'}</td>
-                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.diferencia_cambio != null ? formatearMonto(m.diferencia_cambio, 'COP') : '—'}</td>
+                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{formatearValorTrm(m.trm)}</td>
+                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.monto_equivalente != null ? formatearNumeroCompacto(m.monto_equivalente, 2) + ' COP' : '—'}</td>
+                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.valor_trm != null ? formatearNumeroCompacto(m.valor_trm, 2) + ' COP' : '—'}</td>
+                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.diferencia_cambio != null ? formatearNumeroCompacto(m.diferencia_cambio, 2) + ' COP' : '—'}</td>
                             </>}
                             <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">
                               {formatearMonto(m.saldo_resultante, m.tipo_moneda)}
