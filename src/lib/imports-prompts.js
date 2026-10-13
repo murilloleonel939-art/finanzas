@@ -18,7 +18,8 @@ export const PROVIDER_RULES = {
 - En cada fila devuelve explícitamente monto, moneda, moneda_equivalente, monto_equivalente, trm, valor_trm y diferencia_cambio aunque alguno sea null. No inventes el equivalente COP.
 - Si la TRM no aparece en el documento, devuelve trm como null para que el sistema la consulte por la fecha de la operación.
 - Para cada fila DolarApp devuelve tipo_movimiento con el texto literal de la columna Tipo (p. ej. "Compra USDc"), descripcion con la descripción/destino literal, monto con el valor numérico de la moneda principal de esa fila, moneda con la moneda que indique el extracto para esa fila, moneda_equivalente con COP solo cuando el PDF muestre COP en esa columna, monto_equivalente con el valor numérico que sigue a COP en esa misma fila (p. ej. "+ 3.05 COP + 10,000 ALEJANDRO" significa monto_equivalente=10000), y external_id con el hash si aparece. Una wallet DolarApp puede tener varias monedas: no fuerces USD ni USDC si el extracto indica otra moneda. Nunca interpretes el monto de la moneda principal como monto COP.
-- Conserva la descripción y el tipo originales, y no uses reglas genéricas para estas filas.`,
+- Conserva la descripción y el tipo originales, y no uses reglas genéricas para estas filas.
+- Lee primero el período del extracto. Para fechas abreviadas como "Jul 23" o "23 Jul", usa el año del período que aparece en el PDF. Nunca uses 2024 por defecto ni copies el año de un ejemplo. Todas las filas del período de julio de 2026 deben devolver fechas como 2026-07-23.`,
   },
   paypal: {
     displayName: 'PayPal',
@@ -114,7 +115,7 @@ REGLAS OBLIGATORIAS:
    - Líneas vacías o de separación
 
 2. Para cada movimiento extrae:
-   - fecha: YYYY-MM-DD (obligatorio)
+   - fecha: YYYY-MM-DD (obligatorio). Conserva exactamente el día, mes y año que aparecen en el PDF; nunca completes, reemplaces o supongas el año a partir de ejemplos. Si el PDF muestra fechas como "23 Jul" y el período indica 2026, devuelve "2026-07-23".
    - tipo: 'ingreso' o 'egreso' (obligatorio)
    - monto: número positivo, sin signo (obligatorio)
    - descripcion: texto de la transacción (obligatorio)
@@ -309,7 +310,7 @@ REGLAS OBLIGATORIAS:
 
 4. En swaps, crea dos movimientos (entrada y salida de diferentes monedas).
 5. Los Earn incluyen el tipo de producto en la descripción.
-6. Todas las fechas válidas en el rango del extracto.
+6. Todas las fechas deben estar dentro del rango del extracto. Lee el período y el año del encabezado antes de convertir fechas abreviadas; si una fecha queda fuera de ese rango, corrígela usando el año del período.
 
 FORMATO DE SALIDA:
 Retorna un array JSON de movimientos:
