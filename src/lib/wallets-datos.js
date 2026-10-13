@@ -190,6 +190,18 @@ export function borrarUltimaImportacionWallet(empresaId, walletId) {
 }
 
 /**
+ * Borra TODOS los movimientos y créditos de la wallet, para volver a empezar.
+ *
+ * No borra la wallet: se conserva el proveedor, el nombre y la dirección. Lo
+ * que queda en cero es el saldo, porque `wallet_saldos` se recalcula desde los
+ * movimientos y ya no hay ninguno. Es irreversible desde la interfaz, así que se
+ * confirma antes.
+ */
+export function borrarDatosWallet(empresaId, walletId) {
+  return api(`/api/empresas/${empresaId}/wallets/${walletId}/datos`, { method: 'DELETE' })
+}
+
+/**
  * Recalcula los saldos de una wallet a partir de TODOS sus movimientos.
  *
  * Igual que `recalcularSaldoCuenta`: es un recálculo completo y no un

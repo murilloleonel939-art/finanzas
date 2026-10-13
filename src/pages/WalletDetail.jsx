@@ -10,6 +10,7 @@ import {
   analizarWallet,
   obtenerUltimaImportacionWallet,
   borrarUltimaImportacionWallet,
+  borrarDatosWallet,
   listarCreditosWallet,
 } from '@/lib/wallets-datos'
 import { esProveedorEarn, esMovimientoEarn } from '@/lib/earnConfig'
@@ -20,6 +21,12 @@ import ImportarWalletModal from '@/components/ImportarWalletModal'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import ExportButtons from '@/components/ExportButtons'
 import {
@@ -75,6 +82,7 @@ export default function WalletDetail() {
   const [descuadres, setDescuadres] = useState([])
   const [importarAbierto, setImportarAbierto] = useState(false)
   const [confirmarBorradoImport, setConfirmarBorradoImport] = useState(false)
+  const [confirmarBorradoDatos, setConfirmarBorradoDatos] = useState(false)
 
   const { data: wallet, isLoading: cargandoWallet, error: errorWallet } = useQuery({
     queryKey: ['wallet', walletId],
@@ -178,6 +186,18 @@ export default function WalletDetail() {
     },
   })
 
+  // Deja la wallet vacía para repetir pruebas desde cero. No borra la wallet:
+  // el proveedor, el nombre y la dirección se conservan. El saldo queda en cero
+  // porque se recalcula y ya no hay movimientos que lo sostengan.
+  const { mutate: eliminarDatos, isPending: borrandoDatos } = useMutation({
+    mutationFn: () => borrarDatosWallet(empresaId, walletId),
+    onSuccess: () => {
+      setConfirmarBorradoDatos(false)
+      setPagina(0)
+      alImportar()
+    },
+  })
+
   const totalPaginas = Math.ceil(movimientosFiltrados.length / POR_PAGINA)
   const paginaSegura = Math.min(pagina, Math.max(0, totalPaginas - 1))
   const movsVisibles = movimientosFiltrados.slice(
@@ -237,17 +257,24 @@ export default function WalletDetail() {
               {wallet.direccion ? ` • ${wallet.direccion}` : ''}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {ultimaImportacion && (
-              <Button
-                variant="outline"
-                onClick={() => setConfirmarBorradoImport(true)}
-                className="gap-2 text-destructive hover:text-destructive"
-              >
-                <Trash2 className="w-4 h-4" />
-                Borrar última importación
-              </Button>
-            )}
+          <div className="flex flex-wrap gap-2 items-center">
+            <ExportButtons
+              datos={movsVisibles}
+              columnas={[
+                { key: 'fecha', label: 'Fecha' },
+                { key: 'descripcion', label: 'Descripción' },
+                { key: 'tipo_movimiento', label: 'Tipo' },
+                { key: 'monto', label: 'Monto' },
+                { key: 'moneda', label: 'Moneda' },
+              ]}
+              nombreArchivo={`movimientos_${wallet.nombre_wallet}_${periodo}`}
+              titulo={`Movimientos - ${wallet.nombre_wallet} (${periodo})`}
+              disabled={movsVisibles.length === 0}
+            />
+            <Button onClick={() => navigate(rutaMovimiento)} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Registrar movimiento
+            </Button>
             <Button
               variant="outline"
               onClick={() => setImportarAbierto(true)}
@@ -256,6 +283,31 @@ export default function WalletDetail() {
               <Upload className="w-4 h-4" />
               Importar extracto
             </Button>
+            {/* Un solo botón destructivo para no llenar la cabecera: dentro
+                caben las dos formas de deshacer, que son distintas. «Borrar
+                última importación» es quirúrgico —solo lo que creó ese archivo,
+                conservando los movimientos manuales— y «Borrar datos» deja la
+                wallet vacía para volver a empezar. */}
+            {(movimientos.length > 0 || creditos.length > 0) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="gap-2 text-destructive hover:text-destructive">
+                    <Trash2 className="w-4 h-4" />
+                    Borrar
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {ultimaImportacion && (
+                    <DropdownMenuItem onClick={() => setConfirmarBorradoImport(true)}>
+                      Última importación ({ultimaImportacion.movimientos_vivos ?? 0})
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => setConfirmarBorradoDatos(true)}>
+                    Todos los datos de la wallet
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
 
@@ -599,34 +651,6 @@ export default function WalletDetail() {
               )}
             </Card>
 
-            <div className="flex gap-3 mt-4 flex-wrap">
-              <ExportButtons
-                datos={movsVisibles}
-                columnas={[
-                  { key: 'fecha', label: 'Fecha' },
-                  { key: 'descripcion', label: 'Descripción' },
-                  { key: 'tipo_movimiento', label: 'Tipo' },
-                  { key: 'monto', label: 'Monto' },
-                  { key: 'moneda', label: 'Moneda' },
-                ]}
-                nombreArchivo={`movimientos_${wallet.nombre_wallet}_${periodo}`}
-                titulo={`Movimientos - ${wallet.nombre_wallet} (${periodo})`}
-                disabled={movsVisibles.length === 0}
-              />
-              <Button onClick={() => navigate(rutaMovimiento)} className="gap-2">
-                <Plus className="w-4 h-4" />
-                Registrar movimiento
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setImportarAbierto(true)}
-                className="gap-2"
-              >
-                <Upload className="w-4 h-4" />
-                Importar extracto
-              </Button>
-            </div>
-
             <p className="text-xs text-muted-foreground mt-4">
               El saldo inicial de cada moneda se reconstruye desde su saldo almacenado, para que
               al filtrar por un mes intermedio sea el real y no un promedio con el saldo de hoy.
@@ -654,6 +678,16 @@ export default function WalletDetail() {
         onConfirm={() => eliminarImportacion()}
         isLoading={borrandoImportacion}
         actionText="Borrar importación"
+      />
+
+      <ConfirmDialog
+        open={confirmarBorradoDatos}
+        onOpenChange={(abierto) => !abierto && setConfirmarBorradoDatos(false)}
+        title="¿Borrar todos los datos de la wallet?"
+        description={`Se eliminarán los ${movimientos.length} movimiento(s) y ${creditos.length} crédito(s) de esta wallet, y el saldo quedará en cero. La wallet, su proveedor y su dirección se conservan. Úsalo para rehacer pruebas o reimportar un extracto desde cero; los archivos ya importados dejarán de estar enlazados, así que una reimportación futura volverá a crear sus movimientos como nuevos.`}
+        onConfirm={() => eliminarDatos()}
+        isLoading={borrandoDatos}
+        actionText="Borrar todos los datos"
       />
 
       <ConfirmDialog

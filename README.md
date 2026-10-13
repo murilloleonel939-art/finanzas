@@ -101,6 +101,9 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - Movimientos de wallet con deduplicación e importación.
 - Importación de extractos desde PDF, CSV, XLS y XLSX con reglas por proveedor; los proveedores sin reglas propias usan la extracción genérica.
 - Cada movimiento importado se vincula con el job que lo creó, lo que permite borrar la última importación desde el detalle de la wallet sin afectar los movimientos manuales ni los de otros archivos.
+- El detalle de la wallet concentra todas las acciones en la cabecera: **Exportar**, **Registrar movimiento**, **Importar extracto** y un menú **Borrar** con las dos formas de deshacer.
+- **Borrar última importación** elimina solo lo que creó el último archivo, conservando los movimientos manuales y los de otros archivos.
+- **Borrar todos los datos** vacía la wallet —movimientos y créditos— y deja el saldo en cero, para rehacer pruebas o reimportar un extracto desde cero. La wallet, su proveedor y su dirección se conservan; el borrado es lógico, así que nada desaparece de la base.
 - **Reglas exclusivas de Coindepo** al importar: `Interest Payment` entra como interés generado, `Deposit` como ingreso, `Withdrawal` como egreso, `Loan Withdrawal` con valor positivo entra a la cuenta y abre un crédito, y `Loan Repayment` con valor negativo sale de la cuenta y baja ese crédito.
 - Los créditos de Coindepo se muestran como **deuda separada** del saldo de la wallet: no se suman al saldo porque es dinero adeudado, no disponible. El saldo pendiente de cada crédito se reconstruye por FIFO desde los `Loan Repayment` vivos, de modo que borrar un movimiento o revertir una importación devuelve la deuda a su valor real.
 - Configuración y consulta de activos Earn.

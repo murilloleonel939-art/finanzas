@@ -796,6 +796,37 @@ app.delete('/api/empresas/:empresaId/wallets/:walletId/ultima-importacion', requ
   }
 })
 
+/**
+ * Borra TODOS los datos de una wallet: movimientos y créditos.
+ *
+ * Existe para volver a empezar —rehacer pruebas, reimportar un extracto con las
+ * reglas ya corregidas— sin tener que borrar la wallet y recrearla. Es un
+ * borrado lógico, así que nada desaparece de la base; lo que sí ocurre es que el
+ * saldo vuelve a cero, porque `wallet_saldos` se recalcula desde los movimientos
+ * y ya no queda ninguno. Por eso el cliente avisa antes de hacerlo.
+ */
+app.delete('/api/empresas/:empresaId/wallets/:walletId/datos', requireAuth, async (req, res) => {
+  const { empresaId, walletId } = req.params
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const wallet = await client.query('select id from wallets where id = $1 and empresa_id = $2 and deleted_at is null for update', [walletId, empresaId])
+    if (!wallet.rowCount) { await client.query('rollback'); return error(res, 404, 'Wallet no encontrada.') }
+    const movimientos = await client.query('update movimientos_wallet set deleted_at = now() where wallet_id = $1 and deleted_at is null', [walletId])
+    const creditos = await client.query('update wallet_creditos set deleted_at = now(), updated_at = now() where wallet_id = $1 and deleted_at is null', [walletId])
+    await recalcularCreditosWallet(walletId, client)
+    await recalcularWallet(walletId, client)
+    await client.query('commit')
+    res.json({ movimientos_eliminados: movimientos.rowCount, creditos_eliminados: creditos.rowCount })
+  } catch (err) {
+    await client.query('rollback')
+    throw err
+  } finally {
+    client.release()
+  }
+})
+
 app.get('/api/wallets/:walletId/saldos', requireAuth, async (req, res) => {
   const wallet = await query('select empresa_id from wallets where id = $1 and deleted_at is null', [req.params.walletId])
   if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
