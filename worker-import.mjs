@@ -378,7 +378,7 @@ async function extraerDatos(filePath, job, contexto) {
     filas.sort((a, b) => Number(a.orden ?? 0) - Number(b.orden ?? 0))
   }
   const items = job.target === 'broker' ? [...acumulado.movimientos, ...acumulado.activos] : esDale ? acumulado.movimientos : acumulado
-  for (const item of items) if (!item.external_id && item.fecha) item.external_id = await derivarExternalId(item)
+  for (const item of items) if (!item.external_id && item.fecha) item.external_id = await derivarExternalId(item, { incluirOrden: job.target === 'wallet' && esDolarapp(job) })
   return acumulado
 }
 
@@ -424,7 +424,7 @@ async function procesarWallet(client, job, datos) {
   const wallet = (await client.query('select empresa_id, proveedor_id from wallets where id = $1 and deleted_at is null', [job.wallet_id])).rows[0]
   if (!wallet) throw new Error('Wallet destino no encontrada.')
   for (const item of asArray(datos)) {
-    const montoBruto = parseMontoImportado(item.monto)
+    const montoBruto = esDolarapp(job) ? parseMontoImportado(item.monto) : Number(item.monto)
     const monto = Math.abs(montoBruto)
     const regla = esCoindepo(job)
       ? normalizarMovimientoCoindepo(item, montoBruto)

@@ -396,11 +396,11 @@ export function validarRespuestaExtraccion(response, opciones = {}) {
  * @param {Object} movimiento - { fecha, monto, tipo, descripcion, ... }
  * @returns {string} Hash SHA-256 en hex
  */
-export async function derivarExternalId(movimiento) {
-  const { fecha, monto, tipo, descripcion, orden, moneda, tipo_moneda, tipo_original, tipo_movimiento, moneda_equivalente, monto_equivalente } = movimiento;
-  // El orden forma parte de la identidad cuando el PDF no trae un ID propio.
-  // Sin él, dos filas legítimas con los mismos datos visibles se deduplican.
-  const key = [fecha, monto, tipo, descripcion, orden, moneda || tipo_moneda, tipo_original || tipo_movimiento, moneda_equivalente, monto_equivalente].map((valor) => String(valor ?? '')).join('|');
+export async function derivarExternalId(movimiento, opciones = {}) {
+  const { fecha, monto, tipo, descripcion } = movimiento;
+  const partes = [fecha, monto, tipo, descripcion];
+  if (opciones.incluirOrden) partes.push(movimiento.orden, movimiento.moneda || movimiento.tipo_moneda, movimiento.tipo_original || movimiento.tipo_movimiento, movimiento.moneda_equivalente, movimiento.monto_equivalente);
+  const key = partes.map((valor) => String(valor ?? '')).join('|');
   
   // Usar SubtleCrypto si está disponible (browser/Node 15+)
   if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.subtle) {
