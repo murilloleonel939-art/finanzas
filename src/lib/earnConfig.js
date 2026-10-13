@@ -101,7 +101,11 @@ export function esMovimientoEarn(movimiento, nombreProveedor) {
  * pantalla de proveedores "todo es Earn", que es una métrica distinta de
  * «Total recompensas»: no las mezcles.
  */
-export const REGEX_INTERES = /(interes|interest|rendimiento|ganancia|yield)/
+// La métrica «Intereses ganados» solo cuenta el concepto explícito Interest
+// Payment. Coincidir con palabras amplias como «ganancia», «yield» o cualquier
+// «interés» inflaba el total con movimientos que no son el pago de intereses,
+// especialmente en Coindepo, donde se pidió contar exclusivamente esa fila.
+export const REGEX_INTERES = /^interest payment(?:\s|$)/
 
 /**
  * Conceptos que **nunca** son intereses, aunque el extracto los describa con
@@ -126,10 +130,14 @@ export const REGEX_NO_INTERES = /(loan|prestamo|credito)/
  * sobre el texto original, para que "Interés" (con tilde) y "INTERES" cuenten
  * igual. Es la implementación del `esInteres` que pide el PRD §8.4-A.
  */
-export function esInteres(descripcion) {
+export function esInteres(descripcion, nombreProveedor) {
   const norm = normalizarTexto(descripcion)
   if (REGEX_NO_INTERES.test(norm)) return false
-  return REGEX_INTERES.test(norm)
+  // En Coindepo, la única fila que genera intereses es Interest Payment.
+  // Limitar por proveedor evita contar depósitos, premios u otras filas cuya
+  // descripción contenga palabras ambiguas como «yield» o «ganancia».
+  if (esProveedorEarn(nombreProveedor)) return REGEX_INTERES.test(norm)
+  return /(interes|interest|rendimiento|ganancia|yield)/.test(norm)
 }
 
 // ---------------------------------------------------------------------
@@ -200,7 +208,7 @@ const esEgreso = (m) => m.tipo === 'egreso'
  * `salidasNetas = recompensas + redimido - invertido`. Puede ser negativo: no
  * es un error, significa que se suscribió más capital del que se rescató.
  */
-export function resumenEarn(movimientos = []) {
+export function resumenEarn(movimientos = [], proveedorNombre = '') {
   const invertido = sumaMonetaria(
     movimientos,
     (m) => esEgreso(m) && categoriaEarn(m.descripcion) === CATEGORIA_EARN.SUSCRIPCION
@@ -225,7 +233,7 @@ export function resumenEarn(movimientos = []) {
     salidasNetas: Number((recompensas + redimido - invertido).toFixed(8)),
     // Intereses ganados con el regex amplio: es la métrica que pide la
     // pantalla de proveedores "todo es Earn" (§8.4-A), distinta de `recompensas`.
-    interesesGanados: sumaMonetaria(movimientos, (m) => esIngreso(m) && esInteres(m.descripcion)),
+    interesesGanados: sumaMonetaria(movimientos, (m) => esIngreso(m) && esInteres(m.descripcion, proveedorNombre)),
     total: movimientos.length,
   }
 }

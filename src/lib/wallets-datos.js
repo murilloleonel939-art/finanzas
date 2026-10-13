@@ -272,7 +272,7 @@ export function saldosPorMoneda(movimientos = []) {
  * @param esDelPeriodo    predicado para decidir si una fila entra en el resumen
  *                        (p. ej. el mes elegido en el MonthFilter)
  */
-export function analizarWallet(movimientos = [], saldosFinales = [], esDelPeriodo = () => true) {
+export function analizarWallet(movimientos = [], saldosFinales = [], esDelPeriodo = () => true, proveedorNombre = '') {
   const final = new Map()
   for (const s of saldosFinales) {
     final.set(String(s.moneda).toUpperCase(), Number(s.monto ?? 0))
@@ -333,7 +333,7 @@ export function analizarWallet(movimientos = [], saldosFinales = [], esDelPeriod
     const monto = Number(m.monto ?? 0)
     if (m.tipo === 'ingreso') {
       acc.ingresos += monto
-      if (esInteres(m.descripcion)) acc.interesesGanados += monto
+      if (esInteres(m.descripcion, proveedorNombre)) acc.interesesGanados += monto
     } else {
       acc.egresos += monto
     }

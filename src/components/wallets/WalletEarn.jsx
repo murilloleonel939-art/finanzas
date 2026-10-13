@@ -46,7 +46,7 @@ export default function WalletEarn({
     [movimientos, proveedorNombre]
   )
 
-  const resumen = useMemo(() => resumenEarn(earn), [earn])
+  const resumen = useMemo(() => resumenEarn(earn, proveedorNombre), [earn, proveedorNombre])
 
   const activos = useMemo(
     () => activosConSaldo(activosEarnPorMoneda(earn)),

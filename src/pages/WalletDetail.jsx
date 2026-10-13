@@ -114,8 +114,8 @@ export default function WalletDetail() {
       analizarWallet(movimientos, saldos, (m) => {
         if (mes === MES_TODOS) return true
         return String(m.fecha ?? '').startsWith(mes)
-      }),
-    [movimientos, saldos, mes]
+      }, wallet?.proveedor_nombre),
+    [movimientos, saldos, mes, wallet?.proveedor_nombre]
   )
 
   const periodo = mes === MES_TODOS ? 'acumulado' : formatMes(mes)
