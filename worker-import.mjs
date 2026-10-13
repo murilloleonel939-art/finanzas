@@ -418,8 +418,8 @@ async function procesarWalletDolarapp(client, job, datos, wallet) {
     if (!item.fecha || !Number.isFinite(monto) || monto <= 0 || !regla?.descripcion || !['ingreso', 'egreso'].includes(regla.tipo)) continue
     const clave = normalizarTextoClave(`${item.tipo_original || ''} ${item.tipo_movimiento || ''} ${item.tipo_operacion || ''} ${item.operacion || ''} ${item.tipo || ''} ${item.descripcion || ''}`)
     const esEur = /\beurc?\b/.test(clave)
-    const esCompra = clave.includes('compra usdc') || /\bcompra eurc?\b/.test(clave)
-    const esVenta = clave.includes('venta usdc') || /\bventa eurc?\b/.test(clave)
+    const esCompra = /\bcompra\s+(?:usdc|eurc?)\b/.test(clave)
+    const esVenta = /\bventa\s+(?:usdc|eurc?)\b/.test(clave)
     const textoEquivalente = `${item.moneda_equivalente || item.monedaLocalEquivalente || item.moneda_local_equivalente || ''} ${item.descripcion || ''}`
     const tieneCop = normalizarTextoClave(textoEquivalente).includes('cop')
     const monedaDeclarada = String(item.moneda || item.moneda_principal || '').trim().toUpperCase()
