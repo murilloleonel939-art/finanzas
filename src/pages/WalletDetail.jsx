@@ -120,6 +120,32 @@ export default function WalletDetail() {
 
   const periodo = mes === MES_TODOS ? 'acumulado' : formatMes(mes)
 
+  // Resumen acumulado del crédito desde los movimientos de Coindepo. Los montos
+  // se guardan positivos y la dirección está en `tipo`: Loan Withdrawal ingreso
+  // suma crédito; Loan Repayment egreso reduce el saldo pendiente.
+  const creditosPorMoneda = useMemo(() => {
+    if (!todoEarn) return []
+    const porMoneda = new Map()
+    for (const m of movimientos) {
+      const descripcion = String(m.descripcion || '').trim().toLowerCase()
+      const moneda = String(m.tipo_moneda || 'N/A').toUpperCase()
+      if (!porMoneda.has(moneda)) porMoneda.set(moneda, { moneda, otorgado: 0, pagado: 0 })
+      const credito = porMoneda.get(moneda)
+      if (descripcion.startsWith('loan withdrawal') && m.tipo === 'ingreso') {
+        credito.otorgado += Number(m.monto || 0)
+      }
+      if (descripcion.startsWith('loan repayment') && m.tipo === 'egreso') {
+        credito.pagado += Number(m.monto || 0)
+      }
+    }
+    return [...porMoneda.values()]
+      .filter((c) => c.otorgado > 0 || c.pagado > 0)
+      .map((c) => ({
+        ...c,
+        pendiente: Number((c.otorgado - c.pagado).toFixed(8)),
+      }))
+  }, [movimientos, todoEarn])
+
   const { mutate: eliminar, variables: borrandoId } = useMutation({
     // Borrar un movimiento desvía `wallet_saldos`, que es una tabla de valores
     // que mantiene el código: hay que recalcular en la misma operación. Si el
@@ -315,6 +341,32 @@ export default function WalletDetail() {
                 ×
               </button>
             </div>
+          </Card>
+        )}
+
+        {/* Resumen de crédito Coindepo: derivado exclusivamente del historial de movimientos. */}
+        {todoEarn && creditosPorMoneda.length > 0 && (
+          <Card className="p-4 mb-6 border-l-4 border-l-amber-500">
+            <div className="flex items-center gap-2 mb-3">
+              <WalletIcon className="w-5 h-5 text-amber-500" />
+              <h2 className="text-sm font-semibold">Crédito</h2>
+              <span className="text-xs text-muted-foreground">acumulado de movimientos</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {creditosPorMoneda.map((c) => (
+                <div key={c.moneda} className="rounded-md border p-3">
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">{c.moneda}</p>
+                  <div className="space-y-1">
+                    <Fila etiqueta="Crédito otorgado" valor={c.otorgado} moneda={c.moneda} />
+                    <Fila etiqueta="Pagos de Loan Repayment" valor={c.pagado} moneda={c.moneda} tono="negativo" />
+                    <Fila etiqueta="Crédito pendiente" valor={c.pendiente} moneda={c.moneda} tono={c.pendiente < 0 ? 'negativo' : undefined} />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Los pagos muestran el total de Loan Repayment negativos. El extracto no separa cuánto corresponde a capital e intereses, por eso no se presenta como interés pagado.
+            </p>
           </Card>
         )}
 
