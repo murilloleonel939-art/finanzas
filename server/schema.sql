@@ -197,28 +197,6 @@ create table if not exists wallet_saldos (
   primary key (wallet_id, moneda)
 );
 
-create table if not exists wallet_creditos (
-  id uuid primary key default gen_random_uuid(),
-  empresa_id uuid not null references empresas(id) on delete cascade,
-  proveedor_id uuid not null references wallet_providers(id) on delete cascade,
-  wallet_id uuid not null references wallets(id) on delete cascade,
-  import_job_id uuid,
-  fecha date not null,
-  descripcion text not null,
-  moneda text not null default 'USD',
-  monto_inicial numeric(20,8) not null check (monto_inicial > 0),
-  saldo_pendiente numeric(20,8) not null default 0 check (saldo_pendiente >= 0),
-  external_id text,
-  source_file text,
-  created_by uuid references usuarios(id) on delete set null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  deleted_at timestamptz
-);
-create index if not exists wallet_creditos_wallet_idx on wallet_creditos (wallet_id, fecha desc) where deleted_at is null;
-create index if not exists wallet_creditos_import_job_idx on wallet_creditos (import_job_id) where import_job_id is not null and deleted_at is null;
-create unique index if not exists wallet_creditos_dedupe_idx on wallet_creditos (wallet_id, external_id) where external_id is not null and deleted_at is null;
-
 create table if not exists movimientos_wallet (
   id uuid primary key default gen_random_uuid(),
   empresa_id uuid not null references empresas(id) on delete cascade,

@@ -12,12 +12,12 @@ export const PROVIDER_RULES = {
     displayName: 'Coindepo',
     description: 'Plataforma de productos Earn/Staking',
     instruction: `Este es un extracto de Coindepo. Aplica estas reglas exclusivas de Coindepo usando literalmente la columna Type/Description cuando exista:
-- Interest Payment = tipo "ingreso" y descripcion debe empezar con "Interest Payment"; son intereses generados.
-- Deposit = tipo "ingreso" y descripcion debe empezar con "Deposit"; es depósito.
-- Withdrawal = tipo "egreso" y descripcion debe empezar con "Withdrawal"; es salida.
-- Loan Withdrawal con valor positivo = tipo "ingreso", descripcion debe empezar con "Loan Withdrawal" y loan_event debe ser "withdrawal"; entra a la wallet y además crea/aumenta una deuda.
-- Loan Repayment con valor negativo = tipo "egreso", descripcion debe empezar con "Loan Repayment" y loan_event debe ser "repayment"; sale de la wallet y disminuye la deuda.
-Devuelve siempre el monto como valor absoluto positivo. Si existe ID de préstamo, producto o referencia del crédito, inclúyelo como loan_ref. No clasifiques estas reglas como proveedor genérico ni cambies los nombres exactos.`,
+- Interest Payment = tipo "ingreso" y la descripcion debe empezar con "Interest Payment"; son los intereses generados.
+- Deposit = tipo "ingreso" y la descripcion debe empezar con "Deposit"; es un depósito.
+- Withdrawal = tipo "egreso" y la descripcion debe empezar con "Withdrawal"; es una salida.
+- Loan Withdrawal = si el valor es positivo, tipo "ingreso" y la descripcion debe empezar con "Loan Withdrawal"; entra a la cuenta. Si el valor es negativo, tipo "egreso".
+- Loan Repayment = si el valor es negativo, tipo "egreso" y la descripcion debe empezar con "Loan Repayment"; sale de la cuenta. Si el valor es positivo, tipo "ingreso".
+Devuelve siempre el monto como valor absoluto positivo. TRES REGLAS QUE NO PUEDES ROMPER: (1) "Loan Withdrawal" y "Loan Repayment" NO son intereses generados y no deben describirse como intereses, rendimientos ni ganancias; solo "Interest Payment" lo es. (2) Conserva el nombre literal de la fila al inicio de la descripcion, sin traducirlo ni renombrarlo. (3) No clasifiques estas reglas como proveedor genérico.`,
   },
   'otro': {
     displayName: 'Otro',
@@ -267,8 +267,6 @@ REGLAS OBLIGATORIAS:
    - moneda: moneda del movimiento (BTC, ETH, USDT, etc.)
    - external_id: si existe, null en caso contrario
    - status: 'completed', 'pending', 'failed' si existe, null en caso contrario
-   - loan_event: solo para Coindepo, usa 'withdrawal' en Loan Withdrawal, 'repayment' en Loan Repayment, null en los demás
-   - loan_ref: solo para Coindepo, referencia del crédito si existe, null si no aparece
 
 4. En swaps, crea dos movimientos (entrada y salida de diferentes monedas).
 5. Los Earn incluyen el tipo de producto en la descripción.
@@ -294,8 +292,6 @@ Retorna un array JSON de movimientos:
     "moneda": "ETH",
     "external_id": null,
     "status": "completed",
-    "loan_event": null,
-    "loan_ref": null
   }
 ]
 

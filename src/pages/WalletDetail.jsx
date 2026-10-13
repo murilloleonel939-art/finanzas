@@ -11,7 +11,6 @@ import {
   obtenerUltimaImportacionWallet,
   borrarUltimaImportacionWallet,
   borrarDatosWallet,
-  listarCreditosWallet,
 } from '@/lib/wallets-datos'
 import { esProveedorEarn, esMovimientoEarn } from '@/lib/earnConfig'
 import { getMesesDisponibles, filtrarPorMes, formatMes, MES_TODOS } from '@/components/shared/MonthFilter'
@@ -38,7 +37,6 @@ import {
   ArrowUpDown,
   Sparkles,
   Upload,
-  Landmark,
   Wallet as WalletIcon,
 } from 'lucide-react'
 
@@ -104,11 +102,6 @@ export default function WalletDetail() {
     queryFn: () => obtenerUltimaImportacionWallet(empresaId, walletId),
   })
 
-  const { data: creditos = [] } = useQuery({
-    queryKey: ['creditos-wallet', walletId],
-    queryFn: () => listarCreditosWallet(walletId),
-  })
-
   const todoEarn = esProveedorEarn(wallet?.proveedor_nombre)
 
   const meses = useMemo(() => getMesesDisponibles(movimientos), [movimientos])
@@ -145,23 +138,6 @@ export default function WalletDetail() {
     },
   })
 
-  // La deuda se muestra por moneda y aparte del saldo: un crédito no es dinero
-  // de la wallet. Sumarlo al saldo daría un número que no cuadra con el
-  // extracto, y esconderlo dejaría al usuario creyendo que ese dinero es suyo.
-  const deudaPorMoneda = useMemo(() => {
-    const porMoneda = new Map()
-    for (const c of creditos) {
-      const moneda = String(c.moneda || '').toUpperCase()
-      if (!moneda) continue
-      const actual = porMoneda.get(moneda) ?? { moneda, pendiente: 0, inicial: 0, cuantos: 0 }
-      actual.pendiente += Number(c.saldo_pendiente ?? 0)
-      actual.inicial += Number(c.monto_inicial ?? 0)
-      actual.cuantos += 1
-      porMoneda.set(moneda, actual)
-    }
-    return [...porMoneda.values()].sort((a, b) => a.moneda.localeCompare(b.moneda))
-  }, [creditos])
-
   const movimientosFiltrados = useMemo(
     () => filtrarPorMes(movimientos, mes),
     [movimientos, mes]
@@ -173,7 +149,6 @@ export default function WalletDetail() {
   function alImportar() {
     queryClient.invalidateQueries({ queryKey: ['movimientos-wallet', walletId] })
     queryClient.invalidateQueries({ queryKey: ['saldos-wallet', walletId] })
-    queryClient.invalidateQueries({ queryKey: ['creditos-wallet', walletId] })
     queryClient.invalidateQueries({ queryKey: ['ultima-importacion-wallet', walletId] })
     queryClient.invalidateQueries({ queryKey: ['wallets-empresa', empresaId] })
   }
@@ -288,7 +263,7 @@ export default function WalletDetail() {
                 última importación» es quirúrgico —solo lo que creó ese archivo,
                 conservando los movimientos manuales— y «Borrar datos» deja la
                 wallet vacía para volver a empezar. */}
-            {(movimientos.length > 0 || creditos.length > 0) && (
+            {movimientos.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="gap-2 text-destructive hover:text-destructive">
@@ -400,78 +375,6 @@ export default function WalletDetail() {
             ))
           )}
         </div>
-
-        {/* Deuda por créditos (Coindepo): saldo SEPARADO del saldo de la
-            wallet. Se pinta solo si hay créditos vivos, para no dejar una
-            tarjeta en cero en wallets que nunca prestan. */}
-        {deudaPorMoneda.length > 0 && (
-          <Card className="p-4 mb-6 border-l-4 border-l-amber-500">
-            <div className="flex items-start gap-3">
-              <Landmark className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-semibold mb-1">Deuda por créditos</p>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Saldo pendiente de los «Loan Withdrawal» de Coindepo. No se suma al saldo de la
-                  wallet: es dinero adeudado, no disponible.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
-                  {deudaPorMoneda.map((d) => (
-                    <div key={d.moneda} className="flex items-baseline justify-between gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        {d.moneda}
-                        {d.cuantos > 1 ? ` · ${d.cuantos} créditos` : ''}
-                        <span className="ml-1 opacity-70">
-                          de {formatearMonto(d.inicial, d.moneda)}
-                        </span>
-                      </span>
-                      <span className="text-sm font-medium text-amber-600 whitespace-nowrap">
-                        {formatearMonto(d.pendiente, d.moneda)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {/* Detalle crédito por crédito: el agregado por moneda no dice cuál es
-            cuál, y con varias deudas a la vez eso es justo lo que se quiere ver. */}
-        {creditos.length > 0 && (
-          <Card className="mb-6">
-            <div className="px-4 py-3 border-b">
-              <p className="text-sm font-semibold">Créditos pendientes</p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b bg-muted/40">
-                  <tr className="text-left text-xs text-muted-foreground">
-                    <th className="px-4 py-2 font-medium">Fecha</th>
-                    <th className="px-4 py-2 font-medium">Crédito</th>
-                    <th className="px-4 py-2 font-medium text-right">Desembolso</th>
-                    <th className="px-4 py-2 font-medium text-right">Pendiente</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {creditos.map((c) => (
-                    <tr key={c.id} className="border-b last:border-0">
-                      <td className="px-4 py-2 whitespace-nowrap text-muted-foreground">
-                        {c.fecha}
-                      </td>
-                      <td className="px-4 py-2">{c.descripcion}</td>
-                      <td className="px-4 py-2 text-right whitespace-nowrap">
-                        {formatearMonto(c.monto_inicial, c.moneda)}
-                      </td>
-                      <td className="px-4 py-2 text-right whitespace-nowrap font-medium text-amber-600">
-                        {formatearMonto(c.saldo_pendiente, c.moneda)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        )}
 
         {/* Pestañas SOLO en la variante B */}
         {!todoEarn && (
@@ -684,7 +587,7 @@ export default function WalletDetail() {
         open={confirmarBorradoDatos}
         onOpenChange={(abierto) => !abierto && setConfirmarBorradoDatos(false)}
         title="¿Borrar todos los datos de la wallet?"
-        description={`Se eliminarán los ${movimientos.length} movimiento(s) y ${creditos.length} crédito(s) de esta wallet, y el saldo quedará en cero. La wallet, su proveedor y su dirección se conservan. Úsalo para rehacer pruebas o reimportar un extracto desde cero; los archivos ya importados dejarán de estar enlazados, así que una reimportación futura volverá a crear sus movimientos como nuevos.`}
+        description={`Se eliminarán los ${movimientos.length} movimiento(s) de esta wallet, y el saldo quedará en cero. La wallet, su proveedor y su dirección se conservan. Úsalo para rehacer pruebas o reimportar un extracto desde cero; los archivos ya importados dejarán de estar enlazados, así que una reimportación futura volverá a crear sus movimientos como nuevos.`}
         onConfirm={() => eliminarDatos()}
         isLoading={borrandoDatos}
         actionText="Borrar todos los datos"

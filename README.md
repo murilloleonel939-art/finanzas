@@ -103,9 +103,9 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - Cada movimiento importado se vincula con el job que lo creó, lo que permite borrar la última importación desde el detalle de la wallet sin afectar los movimientos manuales ni los de otros archivos.
 - El detalle de la wallet concentra todas las acciones en la cabecera: **Exportar**, **Registrar movimiento**, **Importar extracto** y un menú **Borrar** con las dos formas de deshacer.
 - **Borrar última importación** elimina solo lo que creó el último archivo, conservando los movimientos manuales y los de otros archivos.
-- **Borrar todos los datos** vacía la wallet —movimientos y créditos— y deja el saldo en cero, para rehacer pruebas o reimportar un extracto desde cero. La wallet, su proveedor y su dirección se conservan; el borrado es lógico, así que nada desaparece de la base.
-- **Reglas exclusivas de Coindepo** al importar: `Interest Payment` entra como interés generado, `Deposit` como ingreso, `Withdrawal` como egreso, `Loan Withdrawal` con valor positivo entra a la cuenta y abre un crédito, y `Loan Repayment` con valor negativo sale de la cuenta y baja ese crédito.
-- Los créditos de Coindepo se muestran como **deuda separada** del saldo de la wallet: no se suman al saldo porque es dinero adeudado, no disponible. El saldo pendiente de cada crédito se reconstruye por FIFO desde los `Loan Repayment` vivos, de modo que borrar un movimiento o revertir una importación devuelve la deuda a su valor real.
+- **Borrar todos los datos** vacía la wallet —todos sus movimientos— y deja el saldo en cero, para rehacer pruebas o reimportar un extracto desde cero. La wallet, su proveedor y su dirección se conservan; el borrado es lógico, así que nada desaparece de la base.
+- **Reglas exclusivas de Coindepo** al importar: `Interest Payment` entra como ingreso y es el único concepto que cuenta como interés generado; `Deposit` como ingreso; `Withdrawal` como egreso; `Loan Withdrawal` con valor positivo entra a la cuenta (y con valor negativo sale); `Loan Repayment` con valor negativo sale de la cuenta (y con valor positivo entra).
+- Los movimientos de préstamo (`Loan Withdrawal`, `Loan Repayment`) **nunca cuentan como intereses generados**: entra dinero que hay que devolver, no un rendimiento del capital. Por eso se excluyen explícitamente de «Intereses ganados» y de «Total recompensas».
 - Configuración y consulta de activos Earn.
 - Catálogo de monedas fiat y cripto con precisión específica por moneda.
 - No se realiza conversión automática entre divisas.

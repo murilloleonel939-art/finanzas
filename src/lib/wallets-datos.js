@@ -141,19 +141,6 @@ export async function listarSaldos(walletId) {
   return saldos
 }
 
-/**
- * Créditos (deuda) vivos de una wallet, del más reciente al más antiguo.
- *
- * Solo existen en wallets cuyo proveedor los genera —hoy Coindepo, con sus
- * «Loan Withdrawal»—, así que devolver una lista vacía es lo normal en el resto
- * y la sección no se pinta. `saldo_pendiente` es lo que queda por pagar; la
- * tabla guarda además `monto_inicial`, que es el desembolso original.
- */
-export async function listarCreditosWallet(walletId) {
-  const { creditos } = await api(`/api/wallets/${walletId}/creditos`)
-  return creditos
-}
-
 // ---------------------------------------------------------------------
 // Movimientos
 // ---------------------------------------------------------------------
@@ -190,7 +177,7 @@ export function borrarUltimaImportacionWallet(empresaId, walletId) {
 }
 
 /**
- * Borra TODOS los movimientos y créditos de la wallet, para volver a empezar.
+ * Borra TODOS los movimientos de la wallet, para volver a empezar.
  *
  * No borra la wallet: se conserva el proveedor, el nombre y la dirección. Lo
  * que queda en cero es el saldo, porque `wallet_saldos` se recalcula desde los

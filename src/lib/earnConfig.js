@@ -104,6 +104,22 @@ export function esMovimientoEarn(movimiento, nombreProveedor) {
 export const REGEX_INTERES = /(interes|interest|rendimiento|ganancia|yield)/
 
 /**
+ * Conceptos que **nunca** son intereses, aunque el extracto los describa con
+ * una palabra que el regex de arriba sí aceptaría.
+ *
+ * El caso real es Coindepo: un `Loan Withdrawal` entra a la cuenta como
+ * ingreso y un `Loan Repayment` sale de ella. Son movimientos de un préstamo,
+ * no rendimientos del capital —el dinero que entra hay que devolverlo—, pero
+ * como entran por el lado del ingreso acabarían sumados a «Intereses ganados»
+ * si su descripción mencionara «interés» o «ganancia» por como lo redactó el
+ * extracto. Un préstamo no se devenga: se debe.
+ *
+ * Se compara contra el texto normalizado, así que también cubre `Préstamo` y
+ * `Crédito` con o sin tilde.
+ */
+export const REGEX_NO_INTERES = /(loan|prestamo|credito)/
+
+/**
  * `true` si el concepto es un interés.
  *
  * Opera sobre la descripción normalizada en lugar de con `.test()` directo
@@ -111,7 +127,9 @@ export const REGEX_INTERES = /(interes|interest|rendimiento|ganancia|yield)/
  * igual. Es la implementación del `esInteres` que pide el PRD §8.4-A.
  */
 export function esInteres(descripcion) {
-  return REGEX_INTERES.test(normalizarTexto(descripcion))
+  const norm = normalizarTexto(descripcion)
+  if (REGEX_NO_INTERES.test(norm)) return false
+  return REGEX_INTERES.test(norm)
 }
 
 // ---------------------------------------------------------------------
@@ -138,6 +156,11 @@ export function categoriaEarn(descripcion) {
   if (contiene(norm, 'redemption') || contiene(norm, 'redeem') || contiene(norm, 'redencion')) {
     return CATEGORIA_EARN.REDENCION
   }
+  // Mismo veto que en `esInteres`: un préstamo nunca se clasifica como interés,
+  // aunque su descripción mencione intereses (los de la propia deuda, por
+  // ejemplo). Si no se veta aquí, «Total recompensas» contaría el préstamo como
+  // rendimiento del capital.
+  if (REGEX_NO_INTERES.test(norm)) return CATEGORIA_EARN.OTRO
   if (contiene(norm, 'interest') || contiene(norm, 'interes')) {
     return CATEGORIA_EARN.INTERES
   }
