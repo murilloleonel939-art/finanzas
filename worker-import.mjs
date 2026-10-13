@@ -79,6 +79,22 @@ function esDolarapp(job) {
   return normalizarTextoClave(job?.proveedor) === 'dolarapp'
 }
 const trmCache = new Map()
+async function obtenerTrmEuroDolarapp(fecha) {
+  const clave = String(fecha || '').slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(clave)) return NaN
+  const cacheKey = `dolarapp-eur:${clave}`
+  if (trmCache.has(cacheKey)) return trmCache.get(cacheKey)
+  try {
+    const response = await fetch(`https://api.frankfurter.app/${clave}?from=EUR&to=COP`)
+    if (!response.ok) throw new Error(`EUR/COP HTTP ${response.status}`)
+    const valor = parseMontoImportado((await response.json())?.rates?.COP)
+    trmCache.set(cacheKey, valor)
+    return valor
+  } catch (err) {
+    log(`DolarApp: no se pudo consultar EUR/COP para ${clave}: ${err.message}`, 'warn')
+    return NaN
+  }
+}
 async function obtenerTrmOficial(fecha) {
   const clave = String(fecha || '').slice(0, 10)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(clave)) return NaN
@@ -100,13 +116,11 @@ function normalizarMovimientoDolarapp(item) {
   const descripcionOriginal = String(item?.descripcion || '').trim()
   const tipoOperacion = String(item?.tipo_original || item?.tipo_movimiento || item?.tipo_operacion || item?.operacion || item?.tipo || '').trim()
   const etiqueta = normalizarTextoClave(`${tipoOperacion} ${descripcionOriginal}`)
-  const monedaEquivalente = String(item?.moneda_equivalente || item?.monedaLocalEquivalente || item?.moneda_local_equivalente || '').trim().toUpperCase()
-  const esOperacionUsdCCop = (etiqueta.includes('compra usdc') || etiqueta.includes('venta usdc')) && monedaEquivalente === 'COP'
-  const descripcion = esOperacionUsdCCop
-    ? [descripcionOriginal, tipoOperacion].filter(Boolean).filter((valor, indice, valores) => valores.findIndex((otro) => normalizarTextoClave(otro) === normalizarTextoClave(valor)) === indice).join(' - ')
-    : descripcionOriginal || tipoOperacion
-  if (etiqueta.includes('compra usdc')) return { tipo: 'ingreso', descripcion }
-  if (esOperacionUsdCCop) return { tipo: item?.tipo || 'egreso', descripcion }
+  const esCompra = etiqueta.includes('compra usdc') || etiqueta.includes('compra eurc')
+  const esVenta = etiqueta.includes('venta usdc') || etiqueta.includes('venta eurc')
+  const descripcion = descripcionOriginal || tipoOperacion
+  if (esCompra) return { tipo: 'ingreso', descripcion }
+  if (esVenta) return { tipo: 'egreso', descripcion }
   return { tipo: item?.tipo, descripcion }
 }
 function normalizarMovimientoPaypal(item) {
@@ -355,7 +369,7 @@ async function extraerDatos(filePath, job, contexto) {
     filas.sort((a, b) => Number(a.orden ?? 0) - Number(b.orden ?? 0))
   }
   const items = job.target === 'broker' ? [...acumulado.movimientos, ...acumulado.activos] : esDale ? acumulado.movimientos : acumulado
-  for (const item of items) if (!item.external_id && item.fecha) item.external_id = await derivarExternalId(item)
+  for (const item of items) if (!item.external_id && item.fecha && !(job.target === 'wallet' && esDolarapp(job))) item.external_id = await derivarExternalId(item)
   return acumulado
 }
 
@@ -396,10 +410,48 @@ async function procesarCuenta(client, job, datos) {
   return { creados, duplicados }
 }
 
+async function procesarWalletDolarapp(client, job, datos, wallet) {
+  let creados = 0; let duplicados = 0
+  for (const item of asArray(datos)) {
+    const regla = normalizarMovimientoDolarapp(item)
+    const monto = Math.abs(parseMontoImportado(item.monto))
+    if (!item.fecha || !Number.isFinite(monto) || monto <= 0 || !regla?.descripcion || !['ingreso', 'egreso'].includes(regla.tipo)) continue
+    const clave = normalizarTextoClave(`${item.tipo_original || ''} ${item.tipo_movimiento || ''} ${item.tipo_operacion || ''} ${item.operacion || ''} ${item.tipo || ''} ${item.descripcion || ''}`)
+    const esEur = clave.includes('eurc')
+    const esCompra = clave.includes('compra usdc') || clave.includes('compra eurc')
+    const esVenta = clave.includes('venta usdc') || clave.includes('venta eurc')
+    const textoEquivalente = `${item.moneda_equivalente || item.monedaLocalEquivalente || item.moneda_local_equivalente || ''} ${item.descripcion || ''}`
+    const tieneCop = normalizarTextoClave(textoEquivalente).includes('cop')
+    const monedaDeclarada = String(item.moneda || item.moneda_principal || '').trim().toUpperCase()
+    const moneda = monedaDeclarada === 'EURC' || (!monedaDeclarada && esEur) ? 'EUR' : ['USDT', 'USDC'].includes(monedaDeclarada) || (!monedaDeclarada && !esEur) ? 'USDC' : monedaDeclarada
+    const montoDesdeDescripcion = String(item.descripcion || '').match(/[+-]\s*[\d.,]+\s+cop\s+[+-]\s*([$\d.,]+)/i)?.[1]
+    const montoEquivalente = esCompra || esVenta
+      ? [item.monto_equivalente, item.monto_local_equivalente, item.montoLocalEquivalente, item.equivalente, item.valor_equivalente, montoDesdeDescripcion].map(parseMontoImportado).find(Number.isFinite)
+      : NaN
+    let trm = esCompra || esVenta ? [item.trm, item.valor_trm, item.trm_dia, item.trm_del_dia].map(parseMontoImportado).find(Number.isFinite) : NaN
+    if (tieneCop && (esCompra || esVenta) && !Number.isFinite(trm)) trm = esEur ? await obtenerTrmEuroDolarapp(item.fecha) : await obtenerTrmOficial(item.fecha)
+    const valorTrm = Number.isFinite(trm) ? monto * trm : NaN
+    const diferenciaCambio = Number.isFinite(montoEquivalente) && Number.isFinite(valorTrm)
+      ? esVenta ? montoEquivalente - valorTrm : valorTrm - montoEquivalente
+      : NaN
+    const idBase = `${item.fecha}|${monto}|${moneda}|${regla.tipo}|${regla.descripcion}|${item.orden ?? ''}|${montoEquivalente ?? ''}`
+    const externalId = item.external_id || `dolarapp-${crypto.createHash('sha256').update(idBase).digest('hex')}`
+    const r = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, trm, monto_equivalente, valor_trm, diferencia_cambio, external_id, source_file, import_job_id, created_by)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
+      [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, String(regla.descripcion).trim(), regla.tipo, monto, moneda,
+        Number.isFinite(trm) ? trm : null, Number.isFinite(montoEquivalente) ? montoEquivalente : null,
+        Number.isFinite(valorTrm) ? valorTrm : null, Number.isFinite(diferenciaCambio) ? diferenciaCambio : null,
+        externalId, job.storage_path, job.id, job.created_by])
+    if (r.rowCount) creados++; else duplicados++
+  }
+  return { creados, duplicados }
+}
+
 async function procesarWallet(client, job, datos) {
   let creados = 0; let duplicados = 0
   const wallet = (await client.query('select empresa_id, proveedor_id from wallets where id = $1 and deleted_at is null', [job.wallet_id])).rows[0]
   if (!wallet) throw new Error('Wallet destino no encontrada.')
+  if (esDolarapp(job)) return procesarWalletDolarapp(client, job, datos, wallet)
   for (const item of asArray(datos)) {
     const montoBruto = Number(item.monto)
     const monto = Math.abs(montoBruto)
