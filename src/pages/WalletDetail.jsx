@@ -272,6 +272,7 @@ export default function WalletDetail() {
                 { key: 'moneda', label: 'Moneda' },
                 ...(esDolarapp ? [
                   { key: 'trm', label: 'TRM' },
+                  { key: 'monto_equivalente', label: 'M. de compra' },
                   { key: 'valor_trm', label: 'valorTrm' },
                   { key: 'diferencia_cambio', label: 'Diferencia cambio' },
                 ] : []),
@@ -537,6 +538,7 @@ export default function WalletDetail() {
                           <th className="text-right px-4 py-3 font-medium">Monto</th>
                            {esDolarapp && <>
                              <th className="text-right px-4 py-3 font-medium">TRM</th>
+                             <th className="text-right px-4 py-3 font-medium">M. de compra</th>
                              <th className="text-right px-4 py-3 font-medium">valorTrm</th>
                              <th className="text-right px-4 py-3 font-medium">Diferencia cambio</th>
                            </>}
@@ -572,6 +574,7 @@ export default function WalletDetail() {
                             </td>
                             {esDolarapp && <>
                               <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.trm ?? '—'}</td>
+                              <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.monto_equivalente != null ? formatearMonto(m.monto_equivalente, 'COP') : '—'}</td>
                               <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.valor_trm != null ? formatearMonto(m.valor_trm, 'COP') : '—'}</td>
                               <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.diferencia_cambio != null ? formatearMonto(m.diferencia_cambio, 'COP') : '—'}</td>
                             </>}
