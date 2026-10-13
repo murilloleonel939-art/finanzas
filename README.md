@@ -97,6 +97,7 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 
 - Proveedores de wallet de tipo cripto, fiat o ambos.
 - Wallets por proveedor, dirección y moneda.
+- El selector de moneda principal sincroniza el saldo inicial de la primera fila, permitiendo crear correctamente wallets en EUR y otras divisas.
 - Saldos por moneda y recálculo de saldos.
 - Movimientos de wallet con deduplicación e importación.
 - Importación de extractos desde PDF, CSV, XLS y XLSX con reglas por proveedor; los proveedores sin reglas propias usan la extracción genérica.
