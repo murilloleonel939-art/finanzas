@@ -315,6 +315,7 @@ export function analizarWallet(movimientos = [], saldosFinales = [], esDelPeriod
         egresos: 0,
         saldoFinal: redondear(previo),
         interesesGanados: 0,
+        comisiones: 0,
         total: 0,
       })
     }
@@ -336,6 +337,7 @@ export function analizarWallet(movimientos = [], saldosFinales = [], esDelPeriod
       if (esInteres(m.descripcion, proveedorNombre)) acc.interesesGanados += monto
     } else {
       acc.egresos += monto
+      if (/\bfee\b|comisi[oó]n|commission/i.test(String(m.descripcion || ''))) acc.comisiones += monto
     }
     acc.total += 1
     acc.saldoFinal = nuevo
@@ -353,6 +355,7 @@ export function analizarWallet(movimientos = [], saldosFinales = [], esDelPeriod
         egresos: redondear(a.egresos),
         neto: redondear(a.ingresos - a.egresos),
         interesesGanados: redondear(a.interesesGanados),
+        comisiones: redondear(a.comisiones),
       }))
       .sort((a, b) => a.moneda.localeCompare(b.moneda)),
     apertura: [...apertura.entries()]

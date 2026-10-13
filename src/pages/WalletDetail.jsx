@@ -408,6 +408,12 @@ export default function WalletDetail() {
                     moneda={m.moneda}
                     tono="positivo"
                   />
+                  <Fila
+                    etiqueta="Comisiones"
+                    valor={m.comisiones}
+                    moneda={m.moneda}
+                    tono="negativo"
+                  />
                 </div>
 
                 <div className="flex items-baseline justify-between border-t mt-3 pt-3">
