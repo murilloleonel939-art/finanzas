@@ -466,12 +466,12 @@ async function procesarWallet(client, job, datos) {
     const diferenciaCambio = esOperacionMonedaCCop && Number.isFinite(montoEquivalente) && Number.isFinite(valorTrm)
       ? esVentaMonedaCCop ? montoEquivalente - valorTrm : valorTrm - montoEquivalente
       : NaN
-    const r = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, trm, monto_equivalente, valor_trm, diferencia_cambio, external_id, source_file, import_job_id, created_by)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
+    const r = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, trm, monto_equivalente, valor_trm, diferencia_cambio, external_id, source_file, import_job_id, created_by, orden)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
       [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, String(regla.descripcion).trim(), (esCompraUsdCCop || esCompraEurCCop) ? 'ingreso' : regla.tipo, montoPrincipal, moneda,
         Number.isFinite(trm) ? trm : null, Number.isFinite(montoEquivalente) ? montoEquivalente : null,
         Number.isFinite(valorTrm) ? valorTrm : null, Number.isFinite(diferenciaCambio) ? diferenciaCambio : null,
-        item.external_id || null, job.storage_path, job.id, job.created_by])
+        item.external_id || null, job.storage_path, job.id, job.created_by, Number.isInteger(Number(item.orden)) ? Number(item.orden) * 2 : null])
     if (r.rowCount) creados++; else duplicados++
     const esRetiroPaypalCop = esPaypal(job)
       && regla.tipo === 'egreso'
@@ -486,9 +486,9 @@ async function procesarWallet(client, job, datos) {
     const fee = esRetiroPaypalCop ? Math.abs(Number.isFinite(feeDirecto) ? feeDirecto : feeCalculado) : 0
     if (fee > 0) {
       const feeId = item.external_id ? `${item.external_id}-fee` : null
-      const feeResult = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, external_id, source_file, import_job_id, created_by)
-        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
-        [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, `Fee - ${String(regla.descripcion).trim()}`, 'egreso', fee, moneda, feeId, job.storage_path, job.id, job.created_by])
+      const feeResult = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, external_id, source_file, import_job_id, created_by, orden)
+        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
+        [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, `Fee - ${String(regla.descripcion).trim()}`, 'egreso', fee, moneda, feeId, job.storage_path, job.id, job.created_by, Number.isInteger(Number(item.orden)) ? Number(item.orden) * 2 + 1 : null])
       if (feeResult.rowCount) creados++; else duplicados++
     }
   }
