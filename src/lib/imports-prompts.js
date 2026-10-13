@@ -18,7 +18,8 @@ export const PROVIDER_RULES = {
 - General Currency Conversion con Currency COP: es un ingreso; usa únicamente el valor de la columna Gross.
 - User Initiated Withdrawal con Currency COP: es un egreso; usa únicamente el valor de la columna Gross. Si la columna Fee tiene un valor distinto de cero, devuelve además el campo fee con ese importe para crear un movimiento separado de comisión.
 - Nunca uses la columna Net como monto principal. Devuelve Gross en el campo monto, como número positivo, y usa tipo ingreso o egreso para indicar la dirección.
-- La salida debe incluir gross y, cuando exista, fee; nunca uses net para calcular el monto.
+- La salida debe incluir gross, net y fee exactamente con los valores de sus columnas. En User Initiated Withdrawal COP, fee es obligatorio aunque sea 0; nunca omitas esa columna. Si fee es distinto de cero, debe viajar en el campo fee para crear un movimiento separado.
+- Nunca uses net como monto principal. net solo sirve como dato de comprobación de gross y fee.
 - Conserva la descripción literal y no clasifiques estas filas con reglas genéricas.`,
   },
   coindepo: {
