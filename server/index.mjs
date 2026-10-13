@@ -836,9 +836,9 @@ app.get('/api/wallets/:walletId/movimientos', requireAuth, async (req, res) => {
   const wallet = await query('select empresa_id from wallets where id = $1 and deleted_at is null', [req.params.walletId])
   if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, wallet.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
-  const result = await query(`select m.id, m.fecha, m.descripcion, m.tipo, m.monto, m.tipo_moneda, m.trm, m.monto_equivalente, m.valor_trm, m.diferencia_cambio, m.orden, p.nombre_proveedor as proveedor_nombre, m.external_id, m.created_at
+  const result = await query(`select m.id, m.fecha, m.descripcion, m.tipo, m.monto, m.tipo_moneda, m.trm, m.monto_equivalente, m.valor_trm, m.diferencia_cambio, p.nombre_proveedor as proveedor_nombre, m.external_id, m.created_at
     from movimientos_wallet m join wallet_providers p on p.id = m.proveedor_id and p.deleted_at is null
-    where m.wallet_id = $1 and m.deleted_at is null order by case when lower(p.nombre_proveedor) = 'dolarapp' then m.orden end desc nulls last, case when lower(p.nombre_proveedor) = 'dolarapp' then m.fecha end desc, case when lower(p.nombre_proveedor) = 'dolarapp' then m.created_at end desc, m.fecha desc, m.created_at desc`, [req.params.walletId])
+    where m.wallet_id = $1 and m.deleted_at is null order by m.fecha desc, m.created_at desc`, [req.params.walletId])
   res.json({ movimientos: result.rows })
 })
 
