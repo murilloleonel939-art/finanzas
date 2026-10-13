@@ -423,18 +423,21 @@ async function procesarWalletDolarapp(client, job, datos, wallet) {
     const textoEquivalente = `${item.moneda_equivalente || item.monedaLocalEquivalente || item.moneda_local_equivalente || ''} ${item.descripcion || ''}`
     const tieneCop = normalizarTextoClave(textoEquivalente).includes('cop')
     const monedaDeclarada = String(item.moneda || item.moneda_principal || '').trim().toUpperCase()
-    const moneda = monedaDeclarada === 'EURC' || (!monedaDeclarada && esEur) ? 'EUR' : ['USD', 'USDT', 'USDC'].includes(monedaDeclarada) || (!monedaDeclarada && !esEur) ? 'USDC' : monedaDeclarada
+    const moneda = monedaDeclarada === 'EURC' || monedaDeclarada === 'EUR' || (!monedaDeclarada && esEur) ? 'EUR' : ['USD', 'USDT', 'USDC'].includes(monedaDeclarada) || (!monedaDeclarada && !esEur) ? 'USDC' : monedaDeclarada
+    const esOperacionEurCopSinTipo = moneda === 'EUR' && Number.isFinite(parseMontoImportado(item.monto_equivalente ?? item.monto_local_equivalente ?? item.montoLocalEquivalente))
+    const esOperacionCompra = esCompra || (!esVenta && esOperacionEurCopSinTipo && regla.tipo === 'ingreso')
+    const esOperacionVenta = esVenta || (!esCompra && esOperacionEurCopSinTipo && regla.tipo === 'egreso')
     const montoDesdeDescripcion = String(item.descripcion || '').match(/[+-]\s*[\d.,]+\s+cop\s+[+-]\s*([$\d.,]+)/i)?.[1]
-    const montoEquivalente = esCompra || esVenta
+    const montoEquivalente = esOperacionCompra || esOperacionVenta
       ? [item.monto_equivalente, item.monto_local_equivalente, item.montoLocalEquivalente, item.equivalente, item.valor_equivalente, montoDesdeDescripcion].map(parseMontoImportado).find(Number.isFinite)
       : NaN
-    let trm = esCompra || esVenta ? [item.trm, item.valor_trm, item.trm_dia, item.trm_del_dia].map(parseMontoImportado).find(Number.isFinite) : NaN
-    if ((esCompra || esVenta) && (tieneCop || Number.isFinite(montoEquivalente)) && !Number.isFinite(trm)) {
+    let trm = esOperacionCompra || esOperacionVenta ? [item.trm, item.valor_trm, item.trm_dia, item.trm_del_dia].map(parseMontoImportado).find(Number.isFinite) : NaN
+    if ((esOperacionCompra || esOperacionVenta) && (tieneCop || Number.isFinite(montoEquivalente)) && !Number.isFinite(trm)) {
       trm = esEur ? await obtenerTrmEuroDolarapp(item.fecha) : await obtenerTrmOficial(item.fecha)
     }
     const valorTrm = Number.isFinite(trm) ? monto * trm : NaN
     const diferenciaCambio = Number.isFinite(montoEquivalente) && Number.isFinite(valorTrm)
-      ? esVenta ? montoEquivalente - valorTrm : valorTrm - montoEquivalente
+      ? esOperacionVenta ? montoEquivalente - valorTrm : valorTrm - montoEquivalente
       : NaN
     const idBase = `${item.fecha}|${monto}|${moneda}|${regla.tipo}|${regla.descripcion}|${item.orden ?? ''}|${montoEquivalente ?? ''}|${item.trm ?? ''}`
     // En DolarApp, el identificador recibido del extractor puede repetirse en
