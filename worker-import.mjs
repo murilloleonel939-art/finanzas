@@ -98,10 +98,13 @@ async function obtenerTrmOficial(fecha) {
 }
 function normalizarMovimientoDolarapp(item) {
   const descripcionOriginal = String(item?.descripcion || '').trim()
-  const tipoOriginal = String(item?.tipo || '').trim()
-  const descripcion = descripcionOriginal || tipoOriginal
-  const etiqueta = normalizarTextoClave(`${tipoOriginal} ${descripcionOriginal}`)
-  if (etiqueta.includes('compra usdc')) return { tipo: 'ingreso', descripcion }
+  const tipoOperacion = String(item?.tipo_original || item?.tipo_movimiento || item?.tipo_operacion || item?.operacion || item?.tipo || '').trim()
+  const etiqueta = normalizarTextoClave(`${tipoOperacion} ${descripcionOriginal}`)
+  const esCompraUsdC = etiqueta.includes('compra usdc')
+  const descripcion = esCompraUsdC
+    ? [descripcionOriginal, tipoOperacion].filter(Boolean).filter((valor, indice, valores) => valores.findIndex((otro) => normalizarTextoClave(otro) === normalizarTextoClave(valor)) === indice).join(' - ')
+    : descripcionOriginal || tipoOperacion
+  if (esCompraUsdC) return { tipo: 'ingreso', descripcion }
   return { tipo: item?.tipo, descripcion }
 }
 function normalizarMovimientoPaypal(item) {
@@ -410,8 +413,8 @@ async function procesarWallet(client, job, datos) {
     if (!item.fecha || !Number.isFinite(montoPrincipal) || montoPrincipal <= 0 || !regla?.descripcion || !['ingreso', 'egreso'].includes(regla.tipo)) continue
     const dolarapp = esDolarapp(job)
     const moneda = dolarapp ? 'USDC' : String(item.moneda || 'USD').trim().toUpperCase()
-    const descripcionClave = normalizarTextoClave(`${item.tipo || ''} ${item.descripcion || ''}`)
-    const monedaEquivalenteTexto = `${item.moneda_equivalente || item.monedaLocalEquivalente || ''} ${item.descripcion || ''}`
+    const descripcionClave = normalizarTextoClave(`${item.tipo_original || ''} ${item.tipo_movimiento || ''} ${item.tipo_operacion || ''} ${item.operacion || ''} ${item.tipo || ''} ${item.descripcion || ''} ${regla.descripcion || ''}`)
+    const monedaEquivalenteTexto = `${item.moneda_equivalente || item.monedaLocalEquivalente || item.moneda_local_equivalente || ''} ${item.descripcion || ''} ${regla.descripcion || ''}`
     const monedaEquivalente = normalizarTextoClave(monedaEquivalenteTexto)
     const esCompraUsdCCop = dolarapp && descripcionClave.includes('compra usdc') && monedaEquivalente.includes('cop')
     const montoDesdeDescripcion = String(item.descripcion || '').match(/\+\s*[\d.,]+\s+cop\s+\+\s*([$\d.,]+)/i)?.[1]
