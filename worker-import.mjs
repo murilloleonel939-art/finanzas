@@ -79,6 +79,22 @@ function esDolarapp(job) {
   return normalizarTextoClave(job?.proveedor) === 'dolarapp'
 }
 const trmCache = new Map()
+async function obtenerTrmEuro(fecha) {
+  const clave = String(fecha || '').slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(clave)) return NaN
+  const cacheKey = `eur:${clave}`
+  if (trmCache.has(cacheKey)) return trmCache.get(cacheKey)
+  try {
+    const response = await fetch(`https://api.frankfurter.app/${clave}?from=EUR&to=COP`)
+    if (!response.ok) throw new Error(`EUR/COP HTTP ${response.status}`)
+    const valor = parseMontoImportado((await response.json())?.rates?.COP)
+    trmCache.set(cacheKey, valor)
+    return valor
+  } catch (err) {
+    log(`No se pudo consultar EUR/COP para ${clave}: ${err.message}`, 'warn')
+    return NaN
+  }
+}
 async function obtenerTrmOficial(fecha) {
   const clave = String(fecha || '').slice(0, 10)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(clave)) return NaN
@@ -101,12 +117,14 @@ function normalizarMovimientoDolarapp(item) {
   const tipoOperacion = String(item?.tipo_original || item?.tipo_movimiento || item?.tipo_operacion || item?.operacion || item?.tipo || '').trim()
   const etiqueta = normalizarTextoClave(`${tipoOperacion} ${descripcionOriginal}`)
   const monedaEquivalente = String(item?.moneda_equivalente || item?.monedaLocalEquivalente || item?.moneda_local_equivalente || '').trim().toUpperCase()
-  const esOperacionUsdCCop = (etiqueta.includes('compra usdc') || etiqueta.includes('venta usdc')) && monedaEquivalente === 'COP'
-  const descripcion = esOperacionUsdCCop
+  const esCompra = etiqueta.includes('compra usdc') || etiqueta.includes('compra eurc')
+  const esVenta = etiqueta.includes('venta usdc') || etiqueta.includes('venta eurc')
+  const esOperacionMonedaCCop = (esCompra || esVenta) && monedaEquivalente === 'COP'
+  const descripcion = esOperacionMonedaCCop
     ? [descripcionOriginal, tipoOperacion].filter(Boolean).filter((valor, indice, valores) => valores.findIndex((otro) => normalizarTextoClave(otro) === normalizarTextoClave(valor)) === indice).join(' - ')
     : descripcionOriginal || tipoOperacion
-  if (etiqueta.includes('compra usdc')) return { tipo: 'ingreso', descripcion }
-  if (esOperacionUsdCCop) return { tipo: item?.tipo || 'egreso', descripcion }
+  if (esCompra) return { tipo: 'ingreso', descripcion }
+  if (esVenta) return { tipo: 'egreso', descripcion }
   return { tipo: item?.tipo, descripcion }
 }
 function normalizarMovimientoPaypal(item) {
@@ -355,7 +373,7 @@ async function extraerDatos(filePath, job, contexto) {
     filas.sort((a, b) => Number(a.orden ?? 0) - Number(b.orden ?? 0))
   }
   const items = job.target === 'broker' ? [...acumulado.movimientos, ...acumulado.activos] : esDale ? acumulado.movimientos : acumulado
-  for (const item of items) if (!item.external_id && item.fecha) item.external_id = await derivarExternalId(item)
+  for (const item of items) if (!item.external_id && item.fecha) item.external_id = await derivarExternalId(item, { incluirOrden: job.target === 'wallet' && esDolarapp(job) })
   return acumulado
 }
 
@@ -401,7 +419,8 @@ async function procesarWallet(client, job, datos) {
   const wallet = (await client.query('select empresa_id, proveedor_id from wallets where id = $1 and deleted_at is null', [job.wallet_id])).rows[0]
   if (!wallet) throw new Error('Wallet destino no encontrada.')
   for (const item of asArray(datos)) {
-    const montoBruto = Number(item.monto)
+    const dolarapp = esDolarapp(job)
+    const montoBruto = dolarapp ? parseMontoImportado(item.monto) : Number(item.monto)
     const monto = Math.abs(montoBruto)
     const regla = esCoindepo(job)
       ? normalizarMovimientoCoindepo(item, montoBruto)
@@ -413,34 +432,39 @@ async function procesarWallet(client, job, datos) {
     const grossImportado = esPaypal(job) ? parseMontoImportado(item.gross) : NaN
     const montoPrincipal = esPaypal(job) && Number.isFinite(grossImportado) ? Math.abs(grossImportado) : monto
     if (!item.fecha || !Number.isFinite(montoPrincipal) || montoPrincipal <= 0 || !regla?.descripcion || !['ingreso', 'egreso'].includes(regla.tipo)) continue
-    const dolarapp = esDolarapp(job)
-    const monedaImportada = String(item.moneda || item.moneda_principal || 'USD').trim().toUpperCase()
+    const monedaDetectadaDolarapp = normalizarTextoClave(`${item.tipo_original || ''} ${item.tipo_movimiento || ''} ${item.descripcion || ''}`).includes('eurc') ? 'EUR' : 'USDC'
+    const monedaImportada = String(item.moneda || item.moneda_principal || (dolarapp ? monedaDetectadaDolarapp : 'USD')).trim().toUpperCase()
     const moneda = dolarapp && ['USDT', 'USDC'].includes(monedaImportada) ? 'USDC' : monedaImportada
     const descripcionClave = normalizarTextoClave(`${item.tipo_original || ''} ${item.tipo_movimiento || ''} ${item.tipo_operacion || ''} ${item.operacion || ''} ${item.tipo || ''} ${item.descripcion || ''} ${regla.descripcion || ''}`)
     const monedaEquivalenteTexto = `${item.moneda_equivalente || item.monedaLocalEquivalente || item.moneda_local_equivalente || ''} ${item.descripcion || ''} ${regla.descripcion || ''}`
     const monedaEquivalente = normalizarTextoClave(monedaEquivalenteTexto)
     const esVentaUsdCCop = dolarapp && descripcionClave.includes('venta usdc') && monedaEquivalente.includes('cop')
-  const esCompraUsdCCop = dolarapp && descripcionClave.includes('compra usdc') && monedaEquivalente.includes('cop')
-  const esOperacionUsdCCop = esCompraUsdCCop || esVentaUsdCCop
+    const esCompraUsdCCop = dolarapp && descripcionClave.includes('compra usdc') && monedaEquivalente.includes('cop')
+    const esVentaEurCCop = dolarapp && descripcionClave.includes('venta eurc') && monedaEquivalente.includes('cop')
+    const esCompraEurCCop = dolarapp && descripcionClave.includes('compra eurc') && monedaEquivalente.includes('cop')
+    const esOperacionUsdCCop = esCompraUsdCCop || esVentaUsdCCop
+    const esOperacionEurCCop = esCompraEurCCop || esVentaEurCCop
+    const esOperacionMonedaCCop = esOperacionUsdCCop || esOperacionEurCCop
+    const esVentaMonedaCCop = esVentaUsdCCop || esVentaEurCCop
     const montoDesdeDescripcion = String(item.descripcion || '').match(/[+-]\s*[\d.,]+\s+cop\s+[+-]\s*([$\d.,]+)/i)?.[1]
-    const montoEquivalente = esOperacionUsdCCop
+    const montoEquivalente = esOperacionMonedaCCop
       ? [item.monto_equivalente, item.monto_local_equivalente, item.montoLocalEquivalente, item.equivalente, item.valor_equivalente, montoDesdeDescripcion]
         .map(parseMontoImportado)
         .find(Number.isFinite)
       : NaN
-    let trm = esOperacionUsdCCop
+    let trm = esOperacionMonedaCCop
       ? [item.trm, item.valor_trm, item.trm_dia, item.trm_del_dia]
         .map(parseMontoImportado)
         .find(Number.isFinite)
       : NaN
-    if (esOperacionUsdCCop && !Number.isFinite(trm)) trm = await obtenerTrmOficial(item.fecha)
-    const valorTrm = esOperacionUsdCCop && Number.isFinite(trm) ? montoPrincipal * trm : NaN
-    const diferenciaCambio = esOperacionUsdCCop && Number.isFinite(montoEquivalente) && Number.isFinite(valorTrm)
-      ? esVentaUsdCCop ? montoEquivalente - valorTrm : valorTrm - montoEquivalente
+    if (esOperacionMonedaCCop && !Number.isFinite(trm)) trm = esOperacionEurCCop ? await obtenerTrmEuro(item.fecha) : await obtenerTrmOficial(item.fecha)
+    const valorTrm = esOperacionMonedaCCop && Number.isFinite(trm) ? montoPrincipal * trm : NaN
+    const diferenciaCambio = esOperacionMonedaCCop && Number.isFinite(montoEquivalente) && Number.isFinite(valorTrm)
+      ? esVentaMonedaCCop ? montoEquivalente - valorTrm : valorTrm - montoEquivalente
       : NaN
-    const r = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, trm, monto_equivalente, valor_trm, diferencia_cambio, external_id, source_file, import_job_id, created_by)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
-      [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, String(regla.descripcion).trim(), esCompraUsdCCop ? 'ingreso' : regla.tipo, montoPrincipal, moneda,
+    const r = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, orden, tipo_moneda, trm, monto_equivalente, valor_trm, diferencia_cambio, external_id, source_file, import_job_id, created_by)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
+      [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, String(regla.descripcion).trim(), (esCompraUsdCCop || esCompraEurCCop) ? 'ingreso' : regla.tipo, montoPrincipal, dolarapp ? Number(item.orden ?? null) : null, moneda,
         Number.isFinite(trm) ? trm : null, Number.isFinite(montoEquivalente) ? montoEquivalente : null,
         Number.isFinite(valorTrm) ? valorTrm : null, Number.isFinite(diferenciaCambio) ? diferenciaCambio : null,
         item.external_id || null, job.storage_path, job.id, job.created_by])

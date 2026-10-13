@@ -29,6 +29,7 @@ await query('create index if not exists comisionistas_fiducias_empresa_idx on co
 await query('alter table movimientos_broker add column if not exists import_job_id uuid')
 await query('alter table activos_broker add column if not exists import_job_id uuid')
 await query('alter table activos_broker add column if not exists valor_compra_unitario numeric(20,8)')
+await query('alter table movimientos_wallet add column if not exists orden integer')
 await query('alter table movimientos_wallet add column if not exists import_job_id uuid')
 await query('alter table movimientos_wallet add column if not exists trm numeric(20,8)')
 await query('alter table movimientos_wallet add column if not exists monto_equivalente numeric(20,8)')

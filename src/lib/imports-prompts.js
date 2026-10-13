@@ -12,8 +12,8 @@ export const PROVIDER_RULES = {
     displayName: 'DolarApp',
     description: 'Wallet de dólares y conversiones COP',
     instruction: `Este es un extracto de DolarApp. Estas reglas son exclusivas de DolarApp:
-- Cuando la columna Tipo diga exactamente "Compra USDc", clasifica el movimiento como ingreso. Cuando diga "Venta USDc" y la moneda equivalente sea COP, aplica la misma lógica de análisis, pero clasifícalo como egreso/débito. Trata USDT y USDC como la misma moneda: guarda la moneda como USDC.
-- Para "Compra USDc" o "Venta USDc" cuya moneda equivalente sea COP, usa como monto principal el monto de USDC, guarda la moneda equivalente en moneda_equivalente y conserva el valor de la columna "Monto Local Equivalente" en monto_equivalente. No confundas monto_equivalente COP con el monto USDC.
+- Cuando la columna Tipo diga exactamente "Compra USDc" o "Compra EURc", clasifica el movimiento como ingreso. Cuando diga "Venta USDc" o "Venta EURc" y la moneda equivalente sea COP, clasifícalo como egreso/débito. Trata USDT y USDC como la misma moneda: guarda la moneda como USDC y conserva EURc como EUR.
+- Para "Compra USDc", "Venta USDc", "Compra EURc" o "Venta EURc" cuya moneda equivalente sea COP, usa como monto principal el monto de la moneda de la operación, guarda la moneda equivalente en moneda_equivalente y conserva el valor de "Monto Local Equivalente" en monto_equivalente. No confundas monto_equivalente COP con el monto de la moneda operada.
 - Extrae la columna "TRM" del día en trm si aparece en el documento. La columna "Monto Local Equivalente" es el valor COP de la operación y debe guardarse en monto_equivalente, aunque en la descripción aparezca junto a un nombre o una dirección. Devuelve también valor_trm y diferencia_cambio cuando moneda_equivalente sea COP. valor_trm = monto USDC multiplicado por trm; para Compra USDc, diferencia_cambio = valor_trm menos monto_equivalente; para Venta USDc, diferencia_cambio = monto_equivalente menos valor_trm.
 - En cada fila devuelve explícitamente monto, moneda, moneda_equivalente, monto_equivalente, trm, valor_trm y diferencia_cambio aunque alguno sea null. No inventes el equivalente COP.
 - Si la TRM no aparece en el documento, devuelve trm como null para que el sistema la consulte por la fecha de la operación.
@@ -396,9 +396,11 @@ export function validarRespuestaExtraccion(response, opciones = {}) {
  * @param {Object} movimiento - { fecha, monto, tipo, descripcion, ... }
  * @returns {string} Hash SHA-256 en hex
  */
-export async function derivarExternalId(movimiento) {
+export async function derivarExternalId(movimiento, opciones = {}) {
   const { fecha, monto, tipo, descripcion } = movimiento;
-  const key = `${fecha}|${monto}|${tipo}|${descripcion}`;
+  const partes = [fecha, monto, tipo, descripcion];
+  if (opciones.incluirOrden) partes.push(movimiento.orden, movimiento.moneda || movimiento.tipo_moneda, movimiento.tipo_original || movimiento.tipo_movimiento, movimiento.moneda_equivalente, movimiento.monto_equivalente);
+  const key = partes.map((valor) => String(valor ?? '')).join('|');
   
   // Usar SubtleCrypto si está disponible (browser/Node 15+)
   if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.subtle) {

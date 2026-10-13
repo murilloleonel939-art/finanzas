@@ -206,6 +206,7 @@ create table if not exists movimientos_wallet (
   descripcion text not null,
   tipo text not null check (tipo in ('ingreso', 'egreso')),
   monto numeric(20,8) not null check (monto > 0),
+  orden integer,
   tipo_moneda text not null default 'USD',
   trm numeric(20,8),
   monto_equivalente numeric(20,8),
