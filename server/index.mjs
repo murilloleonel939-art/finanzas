@@ -689,6 +689,7 @@ app.get('/api/wallet-providers/:proveedorId', requireAuth, async (req, res) => {
 const walletSelect = `w.id, w.empresa_id, w.proveedor_id, p.nombre_proveedor as proveedor_nombre, w.tipo,
   w.nombre_wallet, w.direccion, w.tipo_moneda,
   coalesce((select count(*) from wallet_saldos s where s.wallet_id = w.id), 0)::int as monedas_distintas,
+  coalesce((select string_agg(s.moneda, ', ' order by s.moneda) from wallet_saldos s where s.wallet_id = w.id), '') as monedas,
   coalesce((select sum(s.monto) from wallet_saldos s where s.wallet_id = w.id), 0) as saldo_total`
 
 app.get('/api/empresas/:empresaId/wallets', requireAuth, async (req, res) => {

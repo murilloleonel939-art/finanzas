@@ -186,7 +186,7 @@ export default function WalletsPage() {
                               <p className="font-medium text-sm truncate">{w.nombre_wallet}</p>
                               <p className="text-xs text-muted-foreground truncate">
                                 {w.monedas_distintas > 0
-                                  ? `${w.monedas_distintas} moneda(s) · ${w.tipo_moneda}`
+                                  ? `${w.monedas || w.tipo_moneda}`
                                   : `Sin saldos · ${w.tipo_moneda}`}
                                 {w.direccion ? ` · ${w.direccion}` : ''}
                               </p>

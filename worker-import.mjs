@@ -414,7 +414,8 @@ async function procesarWallet(client, job, datos) {
     const montoPrincipal = esPaypal(job) && Number.isFinite(grossImportado) ? Math.abs(grossImportado) : monto
     if (!item.fecha || !Number.isFinite(montoPrincipal) || montoPrincipal <= 0 || !regla?.descripcion || !['ingreso', 'egreso'].includes(regla.tipo)) continue
     const dolarapp = esDolarapp(job)
-    const moneda = dolarapp ? 'USDC' : String(item.moneda || 'USD').trim().toUpperCase()
+    const monedaImportada = String(item.moneda || item.moneda_principal || 'USD').trim().toUpperCase()
+    const moneda = dolarapp && ['USDT', 'USDC'].includes(monedaImportada) ? 'USDC' : monedaImportada
     const descripcionClave = normalizarTextoClave(`${item.tipo_original || ''} ${item.tipo_movimiento || ''} ${item.tipo_operacion || ''} ${item.operacion || ''} ${item.tipo || ''} ${item.descripcion || ''} ${regla.descripcion || ''}`)
     const monedaEquivalenteTexto = `${item.moneda_equivalente || item.monedaLocalEquivalente || item.moneda_local_equivalente || ''} ${item.descripcion || ''} ${regla.descripcion || ''}`
     const monedaEquivalente = normalizarTextoClave(monedaEquivalenteTexto)

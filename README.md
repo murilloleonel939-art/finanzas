@@ -97,6 +97,8 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 
 - Proveedores de wallet de tipo cripto, fiat o ambos.
 - Wallets por proveedor, dirección y moneda.
+- Las wallets DolarApp pueden contener dos o más monedas; cada movimiento conserva la moneda y la regla que indique el extracto importado.
+- En DolarApp, el extracto define las monedas disponibles y sus reglas de interpretación; la wallet no fuerza USD ni una moneda única.
 - El selector de moneda principal sincroniza el saldo inicial de la primera fila, permitiendo crear correctamente wallets en EUR y otras divisas.
 - Saldos por moneda y recálculo de saldos.
 - Movimientos de wallet con deduplicación e importación.
