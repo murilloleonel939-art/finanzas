@@ -43,6 +43,7 @@ export function ImportarWalletModal({
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState('')
   const [estado, setEstado] = useState('')
+  const [resultado, setResultado] = useState(null)
   const fileInputRef = useRef(null)
 
   const handleArchivoChange = (e) => {
@@ -96,11 +97,9 @@ export function ImportarWalletModal({
         setEstado(job.estado)
 
         if (job.estado === 'hecho') {
+          setResultado({ creados: job.movimientos_creados ?? 0, omitidos: job.duplicados_omitidos ?? 0 })
           setCargando(false)
-          setTimeout(() => {
-            onSuccess?.()
-            handleCerrar()
-          }, 2000)
+          onSuccess?.()
           return
         }
 
@@ -127,6 +126,7 @@ export function ImportarWalletModal({
 
   const handleCerrar = () => {
     setArchivo(null)
+    setResultado(null)
     setProveedor(walletProveedor || '')
     setPeriodo('')
     setError('')
@@ -217,7 +217,7 @@ export function ImportarWalletModal({
               <div>
                 <p className="font-medium">Importación completada</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Los movimientos se crearon y los saldos se recalcularon.
+                  Se crearon {resultado?.creados ?? 0} movimientos y se omitieron {resultado?.omitidos ?? 0} filas duplicadas o inválidas. Los saldos se recalcularon.
                 </p>
               </div>
             </div>
