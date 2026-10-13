@@ -102,6 +102,7 @@ export default function WalletDetail() {
   const [pestana, setPestana] = useState('movimientos')
   const [mes, setMes] = useState(MES_TODOS)
   const [pagina, setPagina] = useState(0)
+  const [descripcionesAbiertas, setDescripcionesAbiertas] = useState(() => new Set())
   const [aBorrar, setABorrar] = useState(null)
   const [descuadres, setDescuadres] = useState([])
   const [importarAbierto, setImportarAbierto] = useState(false)
@@ -568,7 +569,7 @@ export default function WalletDetail() {
                              <th className="text-right px-4 py-3 font-medium">valorTrm</th>
                              <th className="text-right px-4 py-3 font-medium">Diferencia cambio</th>
                            </>}
-                          <th className="text-right px-4 py-3 font-medium">Saldo</th>
+                          
                           <th className="w-10" />
                         </tr>
                       </thead>
@@ -578,7 +579,18 @@ export default function WalletDetail() {
                             <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                               {String(m.fecha).slice(0, 10)}
                             </td>
-                            <td className="px-4 py-3">{m.descripcion}</td>
+                            <td className="px-4 py-3">{(() => {
+                                 const descripcion = String(m.descripcion || '')
+                                 const abierta = descripcionesAbiertas.has(m.id)
+                                 const larga = descripcion.length > 52
+                                 const visible = abierta || !larga ? descripcion : `${descripcion.slice(0, 52).trimEnd()}…`
+                                 return (
+                                   <div className="flex items-start gap-1.5 max-w-[280px]">
+                                     <span className={abierta ? 'break-words' : 'truncate'} title={abierta ? undefined : descripcion}>{visible}</span>
+                                     {larga && <button type="button" className="shrink-0 text-xs font-semibold text-primary hover:underline" onClick={() => setDescripcionesAbiertas((actuales) => { const siguiente = new Set(actuales); if (siguiente.has(m.id)) siguiente.delete(m.id); else siguiente.add(m.id); return siguiente })} aria-label={abierta ? 'Contraer descripción' : 'Mostrar descripción completa'}>{abierta ? '−' : '+'}</button>}
+                                   </div>
+                                 )
+                               })()}</td>
                             <td className="px-4 py-3">
                               <span
                                 className={`text-xs font-medium px-2 py-1 rounded whitespace-nowrap ${
