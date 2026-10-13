@@ -16,8 +16,9 @@ export const PROVIDER_RULES = {
 - Website Payment: toda descripción que empiece por "Website Payment" es un egreso; usa únicamente el valor de la columna Gross.
 - General Currency Conversion con Currency USD: es un egreso; usa únicamente el valor de la columna Gross.
 - General Currency Conversion con Currency COP: es un ingreso; usa únicamente el valor de la columna Gross.
-- User Initiated Withdrawal con Currency COP: es un egreso; usa únicamente el valor de la columna Gross. Si la columna Fee tiene valor, consérvalo en el campo fee del movimiento.
+- User Initiated Withdrawal con Currency COP: es un egreso; usa únicamente el valor de la columna Gross. Si la columna Fee tiene un valor distinto de cero, devuelve además el campo fee con ese importe para crear un movimiento separado de comisión.
 - Nunca uses la columna Net como monto principal. Devuelve Gross en el campo monto, como número positivo, y usa tipo ingreso o egreso para indicar la dirección.
+- La salida debe incluir gross y, cuando exista, fee; nunca uses net para calcular el monto.
 - Conserva la descripción literal y no clasifiques estas filas con reglas genéricas.`,
   },
   coindepo: {

@@ -374,15 +374,38 @@ async function procesarWallet(client, job, datos) {
       : esPaypal(job)
         ? normalizarMovimientoPaypal(item)
         : { tipo: item.tipo, descripcion: item.descripcion }
-    const montoPrincipal = esPaypal(job) && Number.isFinite(Number(item.gross)) ? Math.abs(Number(item.gross)) : monto
+    const grossImportado = esPaypal(job) ? parseMontoImportado(item.gross) : NaN
+    const montoPrincipal = esPaypal(job) && Number.isFinite(grossImportado) ? Math.abs(grossImportado) : monto
     if (!item.fecha || !Number.isFinite(montoPrincipal) || montoPrincipal <= 0 || !regla?.descripcion || !['ingreso', 'egreso'].includes(regla.tipo)) continue
     const moneda = String(item.moneda || 'USD').trim().toUpperCase()
     const r = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, external_id, source_file, import_job_id, created_by)
       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
       [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, String(regla.descripcion).trim(), regla.tipo, montoPrincipal, moneda, item.external_id || null, job.storage_path, job.id, job.created_by])
     if (r.rowCount) creados++; else duplicados++
+    const fee = esPaypal(job)
+      && regla.tipo === 'egreso'
+      && normalizarTextoClave(item?.descripcion).startsWith('user initiated withdrawal')
+      && String(item?.moneda || '').trim().toUpperCase() === 'COP'
+      ? Math.abs(parseMontoImportado(item.fee))
+      : 0
+    if (fee > 0) {
+      const feeId = item.external_id ? `${item.external_id}-fee` : null
+      const feeResult = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, external_id, source_file, import_job_id, created_by)
+        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
+        [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, `Fee - ${String(regla.descripcion).trim()}`, 'egreso', fee, moneda, feeId, job.storage_path, job.id, job.created_by])
+      if (feeResult.rowCount) creados++; else duplicados++
+    }
   }
   return { creados, duplicados }
+}
+
+async function recalcularSaldoWalletImportada(client, walletId) {
+  const result = await client.query(`select tipo_moneda, sum(case when tipo = 'ingreso' then monto else -monto end) as monto
+    from movimientos_wallet where wallet_id = $1 and deleted_at is null group by tipo_moneda`, [walletId])
+  await client.query('delete from wallet_saldos where wallet_id = $1', [walletId])
+  for (const row of result.rows) {
+    await client.query('insert into wallet_saldos (wallet_id, moneda, monto) values ($1, $2, $3)', [walletId, String(row.tipo_moneda).trim().toUpperCase(), Number(row.monto)])
+  }
 }
 
 async function procesarBroker(client, job, datos) {
@@ -455,6 +478,7 @@ async function procesarJob(job) {
     client = await pool.connect()
     await client.query('begin')
     const result = current.target === 'cuenta' ? await procesarCuenta(client, current, datos) : current.target === 'wallet' ? await procesarWallet(client, current, datos) : await procesarBroker(client, current, datos)
+    if (current.target === 'wallet') await recalcularSaldoWalletImportada(client, current.wallet_id)
     await client.query(`update import_jobs set estado = 'hecho', movimientos_creados = $2, activos_creados = $3, duplicados_omitidos = $4, finished_at = now(), updated_at = now() where id = $1`, [current.id, result.creados ?? 0, result.activos ?? 0, result.duplicados ?? 0])
     await client.query('commit'); log(`Job ${current.id} completado`)
   } catch (error) {
