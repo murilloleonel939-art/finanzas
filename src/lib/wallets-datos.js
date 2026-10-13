@@ -167,6 +167,15 @@ export function borrarMovimientoWallet(empresaId, walletId, movimientoId) {
   return api(`/api/empresas/${empresaId}/wallets/${walletId}/movimientos/${movimientoId}`, { method: 'DELETE' })
 }
 
+export async function obtenerUltimaImportacionWallet(empresaId, walletId) {
+  const { importacion } = await api(`/api/empresas/${empresaId}/wallets/${walletId}/ultima-importacion`)
+  return importacion ?? null
+}
+
+export function borrarUltimaImportacionWallet(empresaId, walletId) {
+  return api(`/api/empresas/${empresaId}/wallets/${walletId}/ultima-importacion`, { method: 'DELETE' })
+}
+
 /**
  * Recalcula los saldos de una wallet a partir de TODOS sus movimientos.
  *

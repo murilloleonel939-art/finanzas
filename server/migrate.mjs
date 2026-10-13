@@ -29,7 +29,9 @@ await query('create index if not exists comisionistas_fiducias_empresa_idx on co
 await query('alter table movimientos_broker add column if not exists import_job_id uuid')
 await query('alter table activos_broker add column if not exists import_job_id uuid')
 await query('alter table activos_broker add column if not exists valor_compra_unitario numeric(20,8)')
+await query('alter table movimientos_wallet add column if not exists import_job_id uuid')
 await query('update activos_broker set valor_compra_unitario = valor_unitario where valor_compra_unitario is null')
+await query('create index if not exists mov_wallet_import_job_idx on movimientos_wallet (import_job_id) where import_job_id is not null and deleted_at is null')
 await query('create index if not exists mov_broker_import_job_idx on movimientos_broker (import_job_id) where import_job_id is not null and deleted_at is null')
 await query('create index if not exists activos_broker_import_job_idx on activos_broker (import_job_id) where import_job_id is not null and deleted_at is null')
 

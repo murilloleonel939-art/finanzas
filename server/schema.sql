@@ -209,6 +209,7 @@ create table if not exists movimientos_wallet (
   tipo_moneda text not null default 'USD',
   external_id text,
   source_file text,
+  import_job_id uuid,
   created_by uuid references usuarios(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

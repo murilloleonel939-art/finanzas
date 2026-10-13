@@ -313,9 +313,9 @@ async function procesarWallet(client, job, datos) {
   for (const item of asArray(datos)) {
     const monto = Number(item.monto)
     if (!item.fecha || !Number.isFinite(monto) || monto <= 0 || !item.descripcion || !['ingreso', 'egreso'].includes(item.tipo)) continue
-    const r = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, external_id, source_file, created_by)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
-      [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, String(item.descripcion).trim(), item.tipo, monto, item.moneda || 'USD', item.external_id || null, job.storage_path, job.created_by])
+    const r = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, external_id, source_file, import_job_id, created_by)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
+      [job.empresa_id, wallet.proveedor_id, job.wallet_id, item.fecha, String(item.descripcion).trim(), item.tipo, monto, item.moneda || 'USD', item.external_id || null, job.storage_path, job.id, job.created_by])
     if (r.rowCount) creados++; else duplicados++
   }
   return { creados, duplicados }

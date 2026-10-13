@@ -8,6 +8,8 @@ import {
   listarSaldos,
   borrarMovimientoWallet,
   analizarWallet,
+  obtenerUltimaImportacionWallet,
+  borrarUltimaImportacionWallet,
 } from '@/lib/wallets-datos'
 import { esProveedorEarn, esMovimientoEarn } from '@/lib/earnConfig'
 import { getMesesDisponibles, filtrarPorMes, formatMes, MES_TODOS } from '@/components/shared/MonthFilter'
@@ -70,6 +72,7 @@ export default function WalletDetail() {
   const [aBorrar, setABorrar] = useState(null)
   const [descuadres, setDescuadres] = useState([])
   const [importarAbierto, setImportarAbierto] = useState(false)
+  const [confirmarBorradoImport, setConfirmarBorradoImport] = useState(false)
 
   const { data: wallet, isLoading: cargandoWallet, error: errorWallet } = useQuery({
     queryKey: ['wallet', walletId],
@@ -84,6 +87,11 @@ export default function WalletDetail() {
   const { data: saldos = [] } = useQuery({
     queryKey: ['saldos-wallet', walletId],
     queryFn: () => listarSaldos(walletId),
+  })
+
+  const { data: ultimaImportacion } = useQuery({
+    queryKey: ['ultima-importacion-wallet', walletId],
+    queryFn: () => obtenerUltimaImportacionWallet(empresaId, walletId),
   })
 
   const todoEarn = esProveedorEarn(wallet?.proveedor_nombre)
@@ -133,8 +141,17 @@ export default function WalletDetail() {
   function alImportar() {
     queryClient.invalidateQueries({ queryKey: ['movimientos-wallet', walletId] })
     queryClient.invalidateQueries({ queryKey: ['saldos-wallet', walletId] })
+    queryClient.invalidateQueries({ queryKey: ['ultima-importacion-wallet', walletId] })
     queryClient.invalidateQueries({ queryKey: ['wallets-empresa', empresaId] })
   }
+
+  const { mutate: eliminarImportacion, isPending: borrandoImportacion } = useMutation({
+    mutationFn: () => borrarUltimaImportacionWallet(empresaId, walletId),
+    onSuccess: () => {
+      setConfirmarBorradoImport(false)
+      alImportar()
+    },
+  })
 
   const totalPaginas = Math.ceil(movimientosFiltrados.length / POR_PAGINA)
   const paginaSegura = Math.min(pagina, Math.max(0, totalPaginas - 1))
@@ -194,6 +211,26 @@ export default function WalletDetail() {
               {wallet.proveedor_nombre} • moneda principal {wallet.tipo_moneda}
               {wallet.direccion ? ` • ${wallet.direccion}` : ''}
             </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {ultimaImportacion && (
+              <Button
+                variant="outline"
+                onClick={() => setConfirmarBorradoImport(true)}
+                className="gap-2 text-destructive hover:text-destructive"
+              >
+                <Trash2 className="w-4 h-4" />
+                Borrar última importación
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              onClick={() => setImportarAbierto(true)}
+              className="gap-2"
+            >
+              <Upload className="w-4 h-4" />
+              Importar extracto
+            </Button>
           </div>
         </div>
 
@@ -510,6 +547,16 @@ export default function WalletDetail() {
         walletProveedor={wallet.proveedor_nombre}
         walletNombre={wallet.nombre_wallet}
         onSuccess={alImportar}
+      />
+
+      <ConfirmDialog
+        open={confirmarBorradoImport}
+        onOpenChange={(abierto) => !abierto && setConfirmarBorradoImport(false)}
+        title="¿Borrar la última importación?"
+        description={`Se eliminarán ${ultimaImportacion?.movimientos_vivos ?? 0} movimiento(s) creados por el último archivo importado. Los movimientos manuales y de otros archivos se conservarán.`}
+        onConfirm={() => eliminarImportacion()}
+        isLoading={borrandoImportacion}
+        actionText="Borrar importación"
       />
 
       <ConfirmDialog

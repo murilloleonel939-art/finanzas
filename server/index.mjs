@@ -747,6 +747,53 @@ app.delete('/api/empresas/:empresaId/wallets/:walletId', requireAuth, async (req
   res.status(204).end()
 })
 
+app.get('/api/empresas/:empresaId/wallets/:walletId/ultima-importacion', requireAuth, async (req, res) => {
+  const { empresaId, walletId } = req.params
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const wallet = await query('select id from wallets where id = $1 and empresa_id = $2 and deleted_at is null', [walletId, empresaId])
+  if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
+  const result = await query(`
+    select j.id, j.storage_path, j.estado, j.movimientos_creados, j.duplicados_omitidos, j.created_at, j.finished_at,
+      (select count(*)::integer from movimientos_wallet m where m.import_job_id = j.id and m.deleted_at is null) as movimientos_vivos
+    from import_jobs j
+    where j.wallet_id = $1 and j.empresa_id = $2 and j.target = 'wallet' and j.estado = 'hecho'
+      and exists (select 1 from movimientos_wallet m where m.import_job_id = j.id and m.deleted_at is null)
+    order by j.finished_at desc nulls last, j.created_at desc
+    limit 1`, [walletId, empresaId])
+  res.json({ importacion: result.rows[0] || null })
+})
+
+app.delete('/api/empresas/:empresaId/wallets/:walletId/ultima-importacion', requireAuth, async (req, res) => {
+  const { empresaId, walletId } = req.params
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const wallet = await client.query('select id from wallets where id = $1 and empresa_id = $2 and deleted_at is null for update', [walletId, empresaId])
+    if (!wallet.rowCount) { await client.query('rollback'); return error(res, 404, 'Wallet no encontrada.') }
+    const job = await client.query(`
+      select j.id from import_jobs j
+      where j.wallet_id = $1 and j.empresa_id = $2 and j.target = 'wallet' and j.estado = 'hecho'
+        and exists (select 1 from movimientos_wallet m where m.import_job_id = j.id and m.deleted_at is null)
+      order by j.finished_at desc nulls last, j.created_at desc
+      limit 1 for update`, [walletId, empresaId])
+    if (!job.rowCount) { await client.query('rollback'); return error(res, 404, 'No hay una importación reciente para borrar.') }
+    const deleted = await client.query('update movimientos_wallet set deleted_at = now() where import_job_id = $1 and deleted_at is null', [job.rows[0].id])
+    const descuadres = await recalcularWallet(walletId, client)
+    if (descuadres.length) {
+      await client.query('rollback')
+      return error(res, 409, `El borrado dejaría un saldo negativo en ${descuadres.map((d) => d.moneda).join(', ')}.`)
+    }
+    await client.query('commit')
+    res.json({ movimientos_eliminados: deleted.rowCount })
+  } catch (err) {
+    await client.query('rollback')
+    throw err
+  } finally {
+    client.release()
+  }
+})
+
 app.get('/api/wallets/:walletId/saldos', requireAuth, async (req, res) => {
   const wallet = await query('select empresa_id from wallets where id = $1 and deleted_at is null', [req.params.walletId])
   if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
