@@ -616,9 +616,6 @@ export default function WalletDetail() {
                               <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.valor_trm != null ? formatearPesos(m.valor_trm) : '—'}</td>
                               <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.diferencia_cambio != null ? formatearPesos(m.diferencia_cambio) : '—'}</td>
                             </>}
-                            <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">
-                              {formatearMonto(m.saldo_resultante, m.tipo_moneda)}
-                            </td>
                             <td className="px-2 py-3">
                               <button
                                 onClick={() => setABorrar(m)}
