@@ -125,7 +125,11 @@ function normalizarMovimientoDolarapp(item) {
     ? [descripcionOriginal, tipoOperacion].filter(Boolean).filter((valor, indice, valores) => valores.findIndex((otro) => normalizarTextoClave(otro) === normalizarTextoClave(valor)) === indice).join(' - ')
     : descripcionOriginal || tipoOperacion
   if (etiqueta.includes('compra usdc') || etiqueta.includes('compra eurc')) return { tipo: 'ingreso', descripcion }
-  if (esOperacionMonedaCCop) return { tipo: item?.tipo || 'egreso', descripcion }
+  if (etiqueta.includes('venta usdc') || etiqueta.includes('venta eurc')) return { tipo: 'egreso', descripcion }
+  if (esOperacionMonedaCCop) return { tipo: 'egreso', descripcion }
+  const tipoNormalizado = normalizarTextoClave(item?.tipo)
+  if (tipoNormalizado.includes('ingreso') || tipoNormalizado.includes('deposit') || tipoNormalizado.includes('abono')) return { tipo: 'ingreso', descripcion }
+  if (tipoNormalizado.includes('egreso') || tipoNormalizado.includes('retiro') || tipoNormalizado.includes('debito') || tipoNormalizado.includes('withdraw')) return { tipo: 'egreso', descripcion }
   return { tipo: item?.tipo, descripcion }
 }
 function normalizarMovimientoPaypal(item) {
@@ -416,7 +420,7 @@ async function procesarCuenta(client, job, datos) {
 }
 
 async function procesarWallet(client, job, datos) {
-  let creados = 0; let duplicados = 0
+  let creados = 0; let duplicados = 0; let omitidos = 0
   const wallet = (await client.query('select empresa_id, proveedor_id from wallets where id = $1 and deleted_at is null', [job.wallet_id])).rows[0]
   if (!wallet) throw new Error('Wallet destino no encontrada.')
   for (const item of asArray(datos)) {
@@ -431,12 +435,12 @@ async function procesarWallet(client, job, datos) {
           : { tipo: item.tipo, descripcion: item.descripcion }
     const grossImportado = esPaypal(job) ? parseMontoImportado(item.gross) : NaN
     const montoPrincipal = esPaypal(job) && Number.isFinite(grossImportado) ? Math.abs(grossImportado) : monto
-    if (!item.fecha || !Number.isFinite(montoPrincipal) || montoPrincipal <= 0 || !regla?.descripcion || !['ingreso', 'egreso'].includes(regla.tipo)) continue
+    if (!item.fecha || !Number.isFinite(montoPrincipal) || montoPrincipal <= 0 || !regla?.descripcion || !['ingreso', 'egreso'].includes(regla.tipo)) { omitidos++; continue }
     const dolarapp = esDolarapp(job)
     const textoMonedaDolarapp = normalizarTextoClave(`${item.tipo_original || ''} ${item.tipo_movimiento || ''} ${item.descripcion || ''}`)
     const monedaDetectadaDolarapp = textoMonedaDolarapp.includes('eurc') ? 'EURC' : textoMonedaDolarapp.includes('usdc') || textoMonedaDolarapp.includes('usdt') ? 'USDC' : ''
-    const monedaImportada = String(item.moneda || item.moneda_principal || (dolarapp ? monedaDetectadaDolarapp : 'USD')).trim().toUpperCase()
-    if (!monedaImportada) continue
+    const monedaImportada = String(item.moneda || item.moneda_principal || monedaDetectadaDolarapp || (dolarapp ? 'USDC' : 'USD')).trim().toUpperCase()
+    if (!monedaImportada) { omitidos++; continue }
     const moneda = dolarapp && ['USDT', 'USDC'].includes(monedaImportada)
       ? 'USDC'
       : monedaImportada
@@ -495,7 +499,7 @@ async function procesarWallet(client, job, datos) {
       if (feeResult.rowCount) creados++; else duplicados++
     }
   }
-  return { creados, duplicados }
+  return { creados, duplicados, omitidos }
 }
 
 async function recalcularSaldoWalletImportada(client, walletId) {
@@ -581,7 +585,7 @@ async function procesarJob(job) {
     await client.query('begin')
     const result = current.target === 'cuenta' ? await procesarCuenta(client, current, datos) : current.target === 'wallet' ? await procesarWallet(client, current, datos) : await procesarBroker(client, current, datos)
     if (current.target === 'wallet') await recalcularSaldoWalletImportada(client, current.wallet_id)
-    await client.query(`update import_jobs set estado = 'hecho', movimientos_creados = $2, activos_creados = $3, duplicados_omitidos = $4, finished_at = now(), updated_at = now() where id = $1`, [current.id, result.creados ?? 0, result.activos ?? 0, result.duplicados ?? 0])
+    await client.query(`update import_jobs set estado = 'hecho', movimientos_creados = $2, activos_creados = $3, duplicados_omitidos = $4, finished_at = now(), updated_at = now() where id = $1`, [current.id, result.creados ?? 0, result.activos ?? 0, (result.duplicados ?? 0) + (result.omitidos ?? 0)])
     await client.query('commit'); log(`Job ${current.id} completado`)
   } catch (error) {
     if (client) await client.query('rollback').catch(() => {})

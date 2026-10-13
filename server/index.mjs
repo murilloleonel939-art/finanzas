@@ -838,7 +838,7 @@ app.get('/api/wallets/:walletId/movimientos', requireAuth, async (req, res) => {
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, wallet.rows[0].empresa_id)) return error(res, 403, 'No tienes acceso a esta empresa.')
   const result = await query(`select m.id, m.fecha, m.descripcion, m.tipo, m.monto, m.tipo_moneda, m.trm, m.monto_equivalente, m.valor_trm, m.diferencia_cambio, m.orden, p.nombre_proveedor as proveedor_nombre, m.external_id, m.created_at
     from movimientos_wallet m join wallet_providers p on p.id = m.proveedor_id and p.deleted_at is null
-    where m.wallet_id = $1 and m.deleted_at is null order by m.orden asc nulls last, m.fecha asc, m.created_at asc`, [req.params.walletId])
+    where m.wallet_id = $1 and m.deleted_at is null order by m.orden desc nulls last, m.fecha desc, m.created_at desc`, [req.params.walletId])
   res.json({ movimientos: result.rows })
 })
 
