@@ -97,6 +97,16 @@ export default function CrearWallet() {
 
   const actualizarFila = (indice, campo, valor) => {
     setSaldos((prev) => prev.map((s, i) => (i === indice ? { ...s, [campo]: valor } : s)))
+    if (indice === 0 && campo === 'moneda') setTipoMoneda(valor)
+  }
+
+  const cambiarTipoMoneda = (valor) => {
+    setTipoMoneda(valor)
+    setSaldos((prev) => prev.map((s, indice) => (
+      indice === 0 && (!String(s.monto).trim() || s.moneda === MONEDA_DEFECTO.wallet)
+        ? { ...s, moneda: valor }
+        : s
+    )))
   }
 
   const monedas = proveedor?.tipo === 'fiat' ? MONEDAS_FIAT : [...MONEDAS_CRIPTO, ...MONEDAS_FIAT]
@@ -181,7 +191,7 @@ export default function CrearWallet() {
                 La divisa con la que se lee esta wallet en los listados. Los movimientos
                 llevan la suya propia, fila a fila: esta no la impone.
               </p>
-              <Select value={tipoMoneda} onValueChange={setTipoMoneda}>
+              <Select value={tipoMoneda} onValueChange={cambiarTipoMoneda}>
                 <SelectTrigger id="tipo-moneda">
                   <SelectValue />
                 </SelectTrigger>
