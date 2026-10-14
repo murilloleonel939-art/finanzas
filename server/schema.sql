@@ -325,7 +325,7 @@ create table if not exists import_jobs (
   updated_at timestamptz not null default now(),
   constraint import_jobs_destino_coherente check (
     (target = 'cuenta' and cuenta_id is not null and wallet_id is null and broker_id is null)
-    or (target = 'wallet' and wallet_id is not null and cuenta_id is null and broker_id is null)
+    or (target in ('wallet', 'binance_p2p') and wallet_id is not null and cuenta_id is null and broker_id is null)
     or (target = 'broker' and broker_id is not null and cuenta_id is null and wallet_id is null)
   )
 );

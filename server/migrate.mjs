@@ -54,6 +54,8 @@ await query('create index if not exists binance_p2p_wallet_fecha_idx on binance_
 await query('create index if not exists binance_p2p_empresa_fecha_idx on binance_p2p_ordenes (empresa_id, fecha desc)')
 await query("alter table import_jobs drop constraint if exists import_jobs_target_check")
 await query("alter table import_jobs add constraint import_jobs_target_check check (target in ('cuenta', 'wallet', 'broker', 'binance_p2p'))")
+await query('alter table import_jobs drop constraint if exists import_jobs_destino_coherente')
+await query("alter table import_jobs add constraint import_jobs_destino_coherente check ((target = 'cuenta' and cuenta_id is not null and wallet_id is null and broker_id is null) or (target in ('wallet', 'binance_p2p') and wallet_id is not null and cuenta_id is null and broker_id is null) or (target = 'broker' and broker_id is not null and cuenta_id is null and wallet_id is null))")
 await query('create index if not exists mov_broker_import_job_idx on movimientos_broker (import_job_id) where import_job_id is not null and deleted_at is null')
 await query('create index if not exists activos_broker_import_job_idx on activos_broker (import_job_id) where import_job_id is not null and deleted_at is null')
 
