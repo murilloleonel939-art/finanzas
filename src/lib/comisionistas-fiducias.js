@@ -33,6 +33,11 @@ export async function listarCuentasComisionistasFiducias(empresaId) {
   return cuentas
 }
 
+export async function obtenerCuentaComisionistaFiducia(empresaId, cuentaId) {
+  const { cuenta } = await api(`/api/empresas/${empresaId}/comisionistas-fiducias/cuentas/${cuentaId}`)
+  return cuenta
+}
+
 export function crearCuentaComisionistaFiducia(empresaId, datos) {
   return apiJson(`/api/empresas/${empresaId}/comisionistas-fiducias/cuentas`, 'POST', datos)
 }

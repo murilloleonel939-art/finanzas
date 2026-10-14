@@ -168,6 +168,9 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - Visualización jerárquica en el menú lateral: fiducia y sus cuentas, con opción para crear una cuenta.
 - Borrado lógico individual de cuentas y borrado de la fiducia con sus cuentas asociadas.
 - Prevención de duplicados activos por empresa, país y nombre.
+- Las cuentas de **Fiduciaria Bancolombia** tienen detalle propio con pestaña **Activo**.
+- El detalle importa exclusivamente extractos PDF Bancolombia y extrae tipo de fondo, saldo anterior, rendimientos netos, nuevo saldo y rentabilidad del periodo.
+- Las demás fiducias no aceptan este importador.
 
 ## Arquitectura
 

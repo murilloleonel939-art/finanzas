@@ -113,6 +113,26 @@ create table if not exists cuentas_comisionistas_fiducias (
 create unique index if not exists cuentas_comisionistas_fiducias_unique_active_idx on cuentas_comisionistas_fiducias (comisionista_fiducia_id, nombre_cuenta) where deleted_at is null;
 create index if not exists cuentas_comisionistas_fiducias_entidad_idx on cuentas_comisionistas_fiducias (comisionista_fiducia_id) where deleted_at is null;
 
+create table if not exists activos_comisionistas_fiducias (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  cuenta_id uuid not null references cuentas_comisionistas_fiducias(id) on delete cascade,
+  tipo_fiducia text not null,
+  saldo_anterior numeric(20, 2),
+  rendimientos_netos numeric(20, 2),
+  nuevo_saldo numeric(20, 2),
+  rentabilidad_periodo numeric(12, 6),
+  periodo text,
+  source_file text,
+  import_job_id uuid,
+  created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+create unique index if not exists activos_comisionistas_fiducias_cuenta_periodo_idx on activos_comisionistas_fiducias (cuenta_id, periodo) where deleted_at is null;
+create index if not exists activos_comisionistas_fiducias_empresa_idx on activos_comisionistas_fiducias (empresa_id) where deleted_at is null;
+
 create table if not exists movimientos_broker (
   id uuid primary key default gen_random_uuid(),
   empresa_id uuid not null references empresas(id) on delete cascade,
@@ -319,9 +339,10 @@ create table if not exists import_jobs (
   id uuid primary key default gen_random_uuid(),
   empresa_id uuid not null references empresas(id) on delete cascade,
   cuenta_id uuid references cuentas(id) on delete cascade,
+  fiducia_id uuid references cuentas_comisionistas_fiducias(id) on delete cascade,
   wallet_id uuid references wallets(id) on delete cascade,
   broker_id uuid references brokers(id) on delete cascade,
-  target text not null check (target in ('cuenta', 'wallet', 'broker', 'binance_p2p')),
+  target text not null check (target in ('cuenta', 'fiducia', 'wallet', 'broker', 'binance_p2p')),
   storage_path text not null,
   proveedor text,
   periodo text,
@@ -337,9 +358,10 @@ create table if not exists import_jobs (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint import_jobs_destino_coherente check (
-    (target = 'cuenta' and cuenta_id is not null and wallet_id is null and broker_id is null)
-    or (target in ('wallet', 'binance_p2p') and wallet_id is not null and cuenta_id is null and broker_id is null)
-    or (target = 'broker' and broker_id is not null and cuenta_id is null and wallet_id is null)
+    (target = 'cuenta' and cuenta_id is not null and fiducia_id is null and wallet_id is null and broker_id is null)
+    or (target = 'fiducia' and fiducia_id is not null and cuenta_id is null and wallet_id is null and broker_id is null)
+    or (target in ('wallet', 'binance_p2p') and wallet_id is not null and cuenta_id is null and fiducia_id is null and broker_id is null)
+    or (target = 'broker' and broker_id is not null and cuenta_id is null and fiducia_id is null and wallet_id is null)
   )
 );
 create index if not exists import_jobs_empresa_idx on import_jobs (empresa_id, created_at desc);

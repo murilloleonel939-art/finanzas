@@ -186,7 +186,7 @@ export default function EmpresaLayout() {
                             {!esBrokers && elementoAbierto && (
                               <div className="ml-4 space-y-1">
                                 {hijos.map((hijo) => (
-                                  <button key={hijo.id} type="button" onClick={() => navigate(esBancos ? `/empresa/${empresaId}/cuentas/${hijo.id}` : esWallets ? `/empresa/${empresaId}/wallets/proveedor/${elemento.id}/wallet/${hijo.id}` : `/empresa/${empresaId}/comisionistas-fiducias`)} className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-gray-500 hover:bg-gray-100">
+                                  <button key={hijo.id} type="button" onClick={() => navigate(esBancos ? `/empresa/${empresaId}/cuentas/${hijo.id}` : esWallets ? `/empresa/${empresaId}/wallets/proveedor/${elemento.id}/wallet/${hijo.id}` : `/empresa/${empresaId}/comisionistas-fiducias/cuentas/${hijo.id}`)} className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-gray-500 hover:bg-gray-100">
                                     {esBancos || esComisionistas ? <CreditCard className="h-3 w-3" /> : <Wallet className="h-3 w-3" />}<span className="truncate">{esBancos ? hijo.numero_cuenta : esWallets ? hijo.nombre_wallet : hijo.nombre_cuenta}</span>
                                   </button>
                                 ))}

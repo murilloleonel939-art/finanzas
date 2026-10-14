@@ -227,6 +227,29 @@ function fechaP2p(valor) {
   return match ? { fecha: match[1], hora: `${match[1]} ${match[2]}` } : null
 }
 
+async function extraerActivoFiduciariaBancolombia(filePath) {
+  const { stdout } = await execFileAsync(process.env.PDFTOTEXT_BIN || 'pdftotext', ['-layout', filePath, '-'])
+  const texto = String(stdout || '').normalize('NFC').replace(/\\([0-9]{3})/g, (_, codigo) => String.fromCharCode(parseInt(codigo, 8))).replace(/\s+/g, ' ').replace(/\s{2,}/g, ' ').trim()
+  const exigir = (expresion, etiqueta) => {
+    const encontrado = texto.match(expresion)
+    if (!encontrado) throw new Error(`El extracto no contiene ${etiqueta}.`)
+    return encontrado
+  }
+  exigir(/FONDO\s+DE\s+INVERSI[ÓO]N\s+COLECTIV\s*A\s+ABIER\s*T?\s*O/i, 'el tipo de fondo Fiducuenta')
+  exigir(/FIDUCUENTA\s+FIDUCIARIA\s+BANCOLOMBIA/i, 'el encabezado de Fiduciaria Bancolombia')
+  const monto = (valor) => parseMontoImportado(String(valor).replace(/%/g, ''))
+  const trasEtiqueta = (expresion, etiqueta) => {
+    const encontrado = exigir(expresion, etiqueta)
+    const resto = texto.slice(encontrado.index + encontrado[0].length)
+    const bloque = resto.match(/VALOR\s+EN\s+PESOS([\s\S]*?)(?:VALOR\s+EN\s+UNIDADES|NUEVO\s+SALDO|$)/i)?.[1] || resto
+    const valor = monto(bloque.match(/[-$\s]*([0-9][0-9.,]*)/)?.[1])
+    if (!Number.isFinite(valor)) throw new Error(`No se pudo leer ${etiqueta}.`)
+    return valor
+  }
+  const rentabilidad = exigir(/Rentabilidad\s+Periodo\s*:\s*([-+]?\d[\d.,]*)\s*%/i, 'la Rentabilidad Periodo')
+  return { tipo_fiducia: 'FIDUCUENTA', saldo_anterior: trasEtiqueta(/SALDO\s+ANTERIOR/i, 'el saldo anterior'), rendimientos_netos: trasEtiqueta(/REND\.\s+NET\s*OS/i, 'los rendimientos netos'), nuevo_saldo: trasEtiqueta(/NUEVO\s+SALDO/i, 'el nuevo saldo'), rentabilidad_periodo: monto(rentabilidad[1]) }
+}
+
 function extraerOrdenesBinanceP2p(filePath) {
   const workbook = XLSX.readFile(filePath, { cellDates: false })
   const hoja = workbook.Sheets[workbook.SheetNames[0]]
@@ -446,6 +469,7 @@ async function extraerLote(texto, prompt, esBroker, esDale, indice, total) {
 }
 
 async function extraerDatos(filePath, job, contexto) {
+  if (job.target === 'fiducia') return extraerActivoFiduciariaBancolombia(filePath)
   if (job.target === 'binance_p2p') return extraerOrdenesBinanceP2p(filePath)
   if (job.target === 'wallet' && esBinance(job)) {
     const movimientosBinance = await extraerDatosBinance(filePath, job)
@@ -498,8 +522,8 @@ async function extraerDatos(filePath, job, contexto) {
 }
 
 async function contextoDestino(client, job) {
-  const table = job.target === 'cuenta' ? 'cuentas' : job.target === 'broker' ? 'brokers' : 'wallets'
-  const id = job.target === 'binance_p2p' ? job.wallet_id : job[`${job.target}_id`]
+  const table = job.target === 'cuenta' ? 'cuentas' : job.target === 'fiducia' ? 'cuentas_comisionistas_fiducias' : job.target === 'broker' ? 'brokers' : 'wallets'
+  const id = job.target === 'binance_p2p' ? job.wallet_id : job.target === 'fiducia' ? job.fiducia_id : job[`${job.target}_id`]
   const result = table === 'cuentas'
     ? await client.query(`select c.*, b.nombre_banco as banco from cuentas c join bancos b on b.id = c.banco_id and b.deleted_at is null where c.id = $1 and c.empresa_id = $2 and c.deleted_at is null`, [id, job.empresa_id])
     : await client.query(`select * from ${table} where id = $1 and empresa_id = $2 and deleted_at is null`, [id, job.empresa_id])
@@ -538,6 +562,16 @@ async function procesarBinanceP2p(client, job, datos) {
     if (result.rowCount) creados++; else duplicados++
   }
   return { creados, duplicados }
+}
+
+async function procesarFiducia(client, job, datos) {
+  const entidad = await client.query(`select f.nombre from cuentas_comisionistas_fiducias c join comisionistas_fiducias f on f.id = c.comisionista_fiducia_id and f.deleted_at is null where c.id = $1 and c.empresa_id = $2 and c.deleted_at is null`, [job.fiducia_id, job.empresa_id])
+  if (String(entidad.rows[0]?.nombre || '').trim().toLowerCase() !== 'fiduciaria bancolombia') throw new Error('La importación está disponible únicamente para Fiduciaria Bancolombia.')
+  const periodo = job.periodo || new Date().toISOString().slice(0, 7)
+  await client.query('update activos_comisionistas_fiducias set deleted_at = now(), updated_at = now() where cuenta_id = $1 and periodo = $2 and deleted_at is null', [job.fiducia_id, periodo])
+  await client.query(`insert into activos_comisionistas_fiducias (empresa_id, cuenta_id, tipo_fiducia, saldo_anterior, rendimientos_netos, nuevo_saldo, rentabilidad_periodo, periodo, source_file, import_job_id, created_by)
+    values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, [job.empresa_id, job.fiducia_id, datos.tipo_fiducia, datos.saldo_anterior, datos.rendimientos_netos, datos.nuevo_saldo, datos.rentabilidad_periodo, periodo, job.storage_path, job.id, job.created_by])
+  return { creados: 0, activos: 1, duplicados: 0 }
 }
 
 async function procesarCuenta(client, job, datos) {
@@ -778,7 +812,9 @@ async function procesarJob(job) {
     await client.query('begin')
     const result = current.target === 'cuenta'
       ? await procesarCuenta(client, current, datos)
-      : current.target === 'wallet'
+      : current.target === 'fiducia'
+        ? await procesarFiducia(client, current, datos)
+        : current.target === 'wallet'
         ? await procesarWallet(client, current, datos)
         : current.target === 'binance_p2p'
           ? await procesarBinanceP2p(client, current, datos)
@@ -800,4 +836,5 @@ async function vuelta() {
 }
 async function main() { log(`Worker de importación local iniciado (intervalo ${POLL_INTERVAL}ms)`); await vuelta(); if (!UNA_VEZ) setInterval(() => vuelta().catch((e) => log(e.message, 'error')), POLL_INTERVAL) }
 process.on('SIGTERM', async () => { await pool.end(); process.exit(0) }); process.on('SIGINT', async () => { await pool.end(); process.exit(0) })
-main().catch(async (error) => { log(`Fallo fatal: ${error.message}`, 'error'); await pool.end(); process.exit(1) })
+if (process.env.WORKER_IMPORT_TEST !== '1') main().catch(async (error) => { log(`Fallo fatal: ${error.message}`, 'error'); await pool.end(); process.exit(1) })
+export { extraerActivoFiduciariaBancolombia }

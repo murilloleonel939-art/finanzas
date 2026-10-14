@@ -33,9 +33,9 @@ export default function CrearCuentaComisionistaFiducia() {
         nombre_cuenta: nombreCuenta.trim(),
       })
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['cuentas-comisionistas-fiducias', empresaId] })
-      navigate(`/empresa/${empresaId}/comisionistas-fiducias`)
+      navigate(`/empresa/${empresaId}/comisionistas-fiducias/cuentas/${data.cuenta.id}`)
     },
     onError: (err) => setError(err.message),
   })
