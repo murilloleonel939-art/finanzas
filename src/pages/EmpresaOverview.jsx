@@ -1,7 +1,7 @@
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { obtenerEmpresa, obtenerResumenEmpresa } from '@/lib/empresas-usuario'
-import { formatearMonto } from '@/lib/monedas'
+import { formatearMonto, MONEDAS_FIAT } from '@/lib/monedas'
 import { Card } from '@/components/ui/card'
 import { Building2, TrendingUp, Wallet, BriefcaseBusiness, Landmark, PieChart, Loader2 } from 'lucide-react'
 
@@ -27,6 +27,14 @@ export default function EmpresaOverview() {
   ]
   const obtenerMonto = (categoria, moneda) => porCategoria.find((item) => item.categoria === categoria && item.moneda === moneda)?.monto || 0
   const obtenerRendimiento = (moneda) => rendimientos.find((item) => item.moneda === moneda)?.monto || 0
+  const monedasBase = ['COP', 'USD']
+  const monedasFiatConSaldo = [
+    ...monedasBase,
+    ...MONEDAS_FIAT
+      .map(({ codigo }) => codigo)
+      .filter((moneda) => !monedasBase.includes(moneda)
+        && Number(resumen.totales?.find((item) => item.moneda === moneda)?.monto || 0) > 0),
+  ]
 
   return (
     <div className="flex-1 p-6 md:p-8 overflow-y-auto">
@@ -36,8 +44,8 @@ export default function EmpresaOverview() {
           <p className="text-sm text-muted-foreground">Resumen financiero • {empresa?.pais || 'N/A'}</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {['COP', 'USD'].map((moneda) => {
+        <div className={`grid grid-cols-1 ${monedasFiatConSaldo.length > 1 ? 'md:grid-cols-2' : ''} gap-4 mb-6`}>
+          {monedasFiatConSaldo.map((moneda) => {
             const total = resumen.totales?.find((item) => item.moneda === moneda)?.monto || 0
             return <Card key={moneda} className="p-5 border-l-4" style={{ borderLeftColor: obtenerColorMoneda(moneda) }}>
               <p className="text-sm text-muted-foreground">Patrimonio total en {moneda}</p>
@@ -51,7 +59,7 @@ export default function EmpresaOverview() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           {categorias.map(({ id, label, icon: Icon, color }) => <Card key={id} className="p-4 border-t-4" style={{ borderTopColor: color }}>
             <div className="flex items-center gap-2 mb-3"><Icon className="h-5 w-5" style={{ color }} /><span className="font-medium">{label}</span></div>
-            {['COP', 'USD'].map((moneda) => {
+            {monedasFiatConSaldo.map((moneda) => {
               const monto = obtenerMonto(id, moneda)
               const totalMoneda = resumen.totales?.find((item) => item.moneda === moneda)?.monto || 0
               const porcentaje = totalMoneda > 0 ? Math.min(100, Math.max(0, (monto / totalMoneda) * 100)) : 0
@@ -64,8 +72,8 @@ export default function EmpresaOverview() {
         </div>
 
         <div className="flex items-center gap-2 mb-3"><TrendingUp className="h-5 w-5 text-emerald-600" /><h2 className="text-lg font-semibold">Rendimientos e intereses acumulados</h2></div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {['COP', 'USD'].map((moneda) => <Card key={moneda} className="p-4"><p className="text-sm text-muted-foreground">Rendimientos en {moneda}</p><p className="text-2xl font-bold text-emerald-600 mt-1">{formatearMonto(obtenerRendimiento(moneda), moneda)}</p></Card>)}
+        <div className={`grid grid-cols-1 ${monedasFiatConSaldo.length > 1 ? 'md:grid-cols-2' : ''} gap-4 mb-6`}>
+          {monedasFiatConSaldo.map((moneda) => <Card key={moneda} className="p-4"><p className="text-sm text-muted-foreground">Rendimientos en {moneda}</p><p className="text-2xl font-bold text-emerald-600 mt-1">{formatearMonto(obtenerRendimiento(moneda), moneda)}</p></Card>)}
         </div>
 
         {resumen.totales?.length === 0 && <Card className="p-8 text-center"><TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-3" /><p className="text-muted-foreground">No hay datos financieros registrados.</p></Card>}
