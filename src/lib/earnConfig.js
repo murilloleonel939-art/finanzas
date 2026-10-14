@@ -305,7 +305,7 @@ export function activosEarnPorMoneda(movimientos = [], nombreProveedor = '') {
       invertido: Number(a.invertido.toFixed(8)),
       rendimiento: Number(a.rendimiento.toFixed(8)),
       redimido: Number(a.redimido.toFixed(8)),
-      saldo: Number((a.invertido - a.redimido).toFixed(8)),
+      saldo: Number((esBinance ? Math.max(0, a.invertido - a.redimido) : a.invertido - a.redimido).toFixed(8)),
     }))
     .sort((a, b) => a.moneda.localeCompare(b.moneda))
 }
