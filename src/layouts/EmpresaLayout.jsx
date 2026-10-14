@@ -5,7 +5,7 @@ import { obtenerEmpresa, obtenerRamas, suscribirseAModulos } from '@/lib/empresa
 import { listarBancos, listarCuentas } from '@/lib/bancos'
 import { listarBrokers } from '@/lib/brokers-datos'
 import { listarProveedores, listarWallets } from '@/lib/wallets-datos'
-import { listarComisionistasFiducias } from '@/lib/comisionistas-fiducias'
+import { listarComisionistasFiducias, listarCuentasComisionistasFiducias } from '@/lib/comisionistas-fiducias'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { ChevronDown, ChevronRight, Building2, Landmark, CreditCard, Plus, TrendingUp, Wallet, BriefcaseBusiness, Bot, PiggyBank } from 'lucide-react'
@@ -72,6 +72,15 @@ export default function EmpresaLayout() {
     queryFn: () => listarComisionistasFiducias(empresaId),
     enabled: !!empresaId && !!user,
   })
+  const { data: cuentasComisionistasFiducias = [] } = useQuery({
+    queryKey: ['cuentas-comisionistas-fiducias', empresaId],
+    queryFn: () => listarCuentasComisionistasFiducias(empresaId),
+    enabled: !!empresaId && !!user,
+  })
+  const cuentasPorComisionistaFiducia = comisionistasFiducias.reduce((resultado, entidad) => {
+    resultado[entidad.id] = cuentasComisionistasFiducias.filter((cuenta) => cuenta.comisionista_fiducia_id === entidad.id)
+    return resultado
+  }, {})
   const walletsPorProveedor = proveedores.reduce((resultado, proveedor) => {
     resultado[proveedor.id] = wallets.filter((wallet) => wallet.proveedor_id === proveedor.id)
     return resultado
@@ -151,7 +160,7 @@ export default function EmpresaLayout() {
                     <button type="button" onClick={() => navigate(rama.ruta)} className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-sm text-gray-700">
                       {icono}<span className="font-medium">{rama.nombre}</span>
                     </button>
-                    {elementos.length > 0 && !esComisionistas ? (
+                    {elementos.length > 0 ? (
                       <button type="button" aria-label={`Expandir ${rama.nombre}`} onClick={() => setBancosAbiertos((actual) => ({ ...actual, [rama.id]: !actual[rama.id] }))} className="mr-1 rounded p-1 hover:bg-gray-200">
                         {abierto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       </button>
@@ -161,7 +170,7 @@ export default function EmpresaLayout() {
                   {abierto && (
                     <div className="ml-3 space-y-1 border-l border-gray-200 pl-2">
                       {elementos.map((elemento) => {
-                        const hijos = esBancos ? (cuentasPorBanco[elemento.id] ?? []) : esWallets ? (walletsPorProveedor[elemento.id] ?? []) : []
+                        const hijos = esBancos ? (cuentasPorBanco[elemento.id] ?? []) : esWallets ? (walletsPorProveedor[elemento.id] ?? []) : esComisionistas ? (cuentasPorComisionistaFiducia[elemento.id] ?? []) : []
                         const elementoAbierto = bancosAbiertos[elemento.id]
                         const nombre = esBancos ? elemento.nombre_banco : esBrokers ? elemento.nombre_broker : esWallets ? elemento.nombre_proveedor : elemento.nombre
                         return (
@@ -174,15 +183,15 @@ export default function EmpresaLayout() {
                               {esWallets ? <Wallet className="h-3.5 w-3.5" /> : esBancos ? <Landmark className="h-3.5 w-3.5" /> : null}
                               <span className="truncate">{nombre}</span>
                             </button>
-                            {!esBrokers && !esComisionistas && elementoAbierto && (
+                            {!esBrokers && elementoAbierto && (
                               <div className="ml-4 space-y-1">
                                 {hijos.map((hijo) => (
-                                  <button key={hijo.id} type="button" onClick={() => navigate(esBancos ? `/empresa/${empresaId}/cuentas/${hijo.id}` : `/empresa/${empresaId}/wallets/proveedor/${elemento.id}/wallet/${hijo.id}`)} className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-gray-500 hover:bg-gray-100">
-                                    {esBancos ? <CreditCard className="h-3 w-3" /> : <Wallet className="h-3 w-3" />}<span className="truncate">{esBancos ? hijo.numero_cuenta : hijo.nombre_wallet}</span>
+                                  <button key={hijo.id} type="button" onClick={() => navigate(esBancos ? `/empresa/${empresaId}/cuentas/${hijo.id}` : esWallets ? `/empresa/${empresaId}/wallets/proveedor/${elemento.id}/wallet/${hijo.id}` : `/empresa/${empresaId}/comisionistas-fiducias`)} className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-gray-500 hover:bg-gray-100">
+                                    {esBancos || esComisionistas ? <CreditCard className="h-3 w-3" /> : <Wallet className="h-3 w-3" />}<span className="truncate">{esBancos ? hijo.numero_cuenta : esWallets ? hijo.nombre_wallet : hijo.nombre_cuenta}</span>
                                   </button>
                                 ))}
-                                <button type="button" onClick={() => navigate(esBancos ? `/empresa/${empresaId}/cuentas/crear?banco=${elemento.id}` : `/empresa/${empresaId}/wallets/proveedor/${elemento.id}/crear-wallet`)} className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-blue-600 hover:bg-blue-50">
-                                  <Plus className="h-3 w-3" /> {esBancos ? 'Crear cuenta' : 'Crear wallet'}
+                                <button type="button" onClick={() => navigate(esBancos ? `/empresa/${empresaId}/cuentas/crear?banco=${elemento.id}` : esWallets ? `/empresa/${empresaId}/wallets/proveedor/${elemento.id}/crear-wallet` : `/empresa/${empresaId}/comisionistas-fiducias/crear-cuenta?fiducia=${elemento.id}`)} className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-blue-600 hover:bg-blue-50">
+                                  <Plus className="h-3 w-3" /> {esBancos || esComisionistas ? 'Crear cuenta' : 'Crear wallet'}
                                 </button>
                               </div>
                             )}
