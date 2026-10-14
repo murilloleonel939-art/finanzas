@@ -167,24 +167,21 @@ export default function WalletDetail() {
 
   const periodo = mes === MES_TODOS ? 'acumulado' : formatMes(mes)
 
-  // P2P se mantiene fuera de movimientos_wallet y wallet_saldos. Sus comisiones
-  // se muestran como información adicional por activo, sin alterar el total ni
-  // los saldos calculados desde el extracto de la wallet.
+  // P2P se mantiene fuera de movimientos_wallet y wallet_saldos. Las comisiones
+  // solo complementan activos que ya provienen del extracto: no crean activos,
+  // no alteran el Total y no forman parte de Intereses ganados.
   const activosBinance = useMemo(() => {
     if (!esBinance) return analisis.porMoneda
-    const porMoneda = new Map(analisis.porMoneda.map((activo) => [activo.moneda, { ...activo, comisionesP2p: 0 }]))
+    const comisionesPorMoneda = new Map()
     for (const orden of ordenesP2p) {
       const moneda = String(orden.activo || '').trim().toUpperCase()
-      if (!moneda) continue
-      if (!porMoneda.has(moneda)) {
-        porMoneda.set(moneda, { moneda, neto: 0, interesesGanados: 0, comisiones: 0, comisionesP2p: 0 })
-      }
       const comision = Number(orden.tarifa_creador || 0) + Number(orden.comision_tomador || 0)
-      if (Number.isFinite(comision)) porMoneda.get(moneda).comisionesP2p += comision
+      if (moneda && Number.isFinite(comision)) comisionesPorMoneda.set(moneda, (comisionesPorMoneda.get(moneda) || 0) + comision)
     }
-    return [...porMoneda.values()]
-      .map((activo) => ({ ...activo, comisionesP2p: Number(activo.comisionesP2p.toFixed(8)) }))
-      .sort((a, b) => a.moneda.localeCompare(b.moneda))
+    return analisis.porMoneda.map((activo) => ({
+      ...activo,
+      comisionesP2p: Number((comisionesPorMoneda.get(activo.moneda) || 0).toFixed(8)),
+    }))
   }, [analisis.porMoneda, ordenesP2p, esBinance])
 
   // Resumen acumulado del crédito desde los movimientos de Coindepo. Los montos
@@ -575,7 +572,7 @@ export default function WalletDetail() {
                   <div className="space-y-2">
                     <Fila etiqueta="Total" valor={m.neto} moneda={m.moneda} />
                     <Fila etiqueta="Intereses ganados" valor={m.interesesGanados} moneda={m.moneda} tono="positivo" />
-                    <Fila etiqueta="Comisiones P2P" valor={m.comisionesP2p} moneda={m.moneda} tono="positivo" />
+                    <Fila etiqueta="Comisiones P2P (informativo)" valor={m.comisionesP2p} moneda={m.moneda} />
                   </div>
                 </Card>
               ))
