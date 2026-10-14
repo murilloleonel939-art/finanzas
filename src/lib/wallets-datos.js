@@ -317,6 +317,8 @@ export function analizarWallet(movimientos = [], saldosFinales = [], esDelPeriod
         saldoFinal: redondear(previo),
         interesesGanados: 0,
         comisiones: 0,
+        diferenciaCambioPositiva: 0,
+        diferenciaCambioNegativa: 0,
         total: 0,
       })
     }
@@ -340,6 +342,11 @@ export function analizarWallet(movimientos = [], saldosFinales = [], esDelPeriod
       acc.egresos += monto
       if (/\bfee\b|comisi[oó]n|commission/i.test(String(m.descripcion || ''))) acc.comisiones += monto
     }
+    const diferenciaCambio = Number(m.diferencia_cambio)
+    if (Number.isFinite(diferenciaCambio)) {
+      if (diferenciaCambio > 0) acc.diferenciaCambioPositiva += diferenciaCambio
+      if (diferenciaCambio < 0) acc.diferenciaCambioNegativa += Math.abs(diferenciaCambio)
+    }
     acc.total += 1
     acc.saldoFinal = nuevo
 
@@ -357,6 +364,8 @@ export function analizarWallet(movimientos = [], saldosFinales = [], esDelPeriod
         neto: redondear(a.ingresos - a.egresos),
         interesesGanados: redondear(a.interesesGanados),
         comisiones: redondear(a.comisiones),
+        diferenciaCambioPositiva: redondear(a.diferenciaCambioPositiva),
+        diferenciaCambioNegativa: redondear(a.diferenciaCambioNegativa),
       }))
       .sort((a, b) => a.moneda.localeCompare(b.moneda)),
     apertura: [...apertura.entries()]
