@@ -423,8 +423,9 @@ export default function WalletDetail() {
           </Card>
         )}
 
-        {/* Tarjetas por moneda (D4: nada consolidado) */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        {!esBinance && (
+          /* Tarjetas por moneda (D4: nada consolidado) */
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
           {analisis.porMoneda.length === 0 ? (
             <Card className="p-6 col-span-full text-center">
               <WalletIcon className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
@@ -485,7 +486,8 @@ export default function WalletDetail() {
               </Card>
             ))
           )}
-        </div>
+          </div>
+        )}
 
         {/* Pestañas SOLO en la variante B */}
         {mostrarEarn && !todoEarn && (
