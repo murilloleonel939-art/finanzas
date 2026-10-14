@@ -274,6 +274,7 @@ export function saldosPorMoneda(movimientos = []) {
  *                        (p. ej. el mes elegido en el MonthFilter)
  */
 export function analizarWallet(movimientos = [], saldosFinales = [], esDelPeriodo = () => true, proveedorNombre = '') {
+  const esBinance = String(proveedorNombre).trim().toLowerCase() === 'binance'
   const final = new Map()
   for (const s of saldosFinales) {
     final.set(String(s.moneda).toUpperCase(), Number(s.monto ?? 0))
@@ -376,7 +377,7 @@ export function analizarWallet(movimientos = [], saldosFinales = [], esDelPeriod
         ...a,
         ingresos: redondear(a.ingresos),
         egresos: redondear(a.egresos),
-        neto: redondear(a.ingresos - a.egresos),
+        neto: redondear(esBinance ? Math.max(0, a.ingresos - a.egresos) : a.ingresos - a.egresos),
         interesesGanados: redondear(a.interesesGanados),
         comisiones: redondear(a.comisiones),
         diferenciaCambioPositiva: redondear(a.diferenciaCambioPositiva),
