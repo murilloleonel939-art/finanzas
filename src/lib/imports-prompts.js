@@ -29,6 +29,7 @@ export const PROVIDER_RULES = {
 - Si Transaccion contiene "Recarga", clasifica el movimiento como ingreso.
 - Si Transaccion contiene "Compra" o "Transferencia", clasifica el movimiento como egreso.
 - La moneda operativa de Plenti es USDT aunque el extracto la relacione con USD. Devuelve moneda como USDT cuando el PDF muestre USD o USDT.
+- Si el PDF muestra un valor equivalente o de compra en COP, devuélvelo en monto_equivalente y moneda_equivalente como COP. Si muestra TRM, devuélvela en trm. Devuelve valor_trm y diferencia_cambio como null si no aparecen calculados en el PDF; el sistema los calculará.
 - Conserva el orden exacto de las filas del PDF usando el campo orden empezando en 0 dentro del lote.
 - Conserva la transacción literal en transaccion y en descripcion incluye el texto literal suficiente de la fila para identificar el movimiento.
 - No apliques reglas de DolarApp, PayPal, Coindepo ni reglas genéricas si contradicen estas reglas.`,
