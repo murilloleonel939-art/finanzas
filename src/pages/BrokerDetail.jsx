@@ -17,7 +17,7 @@ import {
   obtenerUltimaImportacion,
   borrarUltimaImportacion,
 } from '@/lib/brokers-datos'
-import { getMesesDisponibles, filtrarPorMes, formatMes, MES_TODOS } from '@/components/shared/MonthFilter'
+import { getAnosDisponibles, getMesesDisponibles, filtrarPorAno, filtrarPorMes, formatMes, MES_TODOS, YearFilter } from '@/components/shared/MonthFilter'
 import MonthFilter from '@/components/shared/MonthFilter'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -106,6 +106,7 @@ export default function BrokerDetail() {
   const queryClient = useQueryClient()
 
   const [pestana, setPestana] = useState('movimientos')
+  const [ano, setAno] = useState('')
   const [mes, setMes] = useState(MES_TODOS)
   const [pagina, setPagina] = useState(0)
   const [aBorrar, setABorrar] = useState(null) // { tipo, fila }
@@ -151,10 +152,13 @@ export default function BrokerDetail() {
     queryFn: () => obtenerUltimaImportacion(empresaId, brokerId),
   })
 
-  const meses = useMemo(() => getMesesDisponibles(movimientos), [movimientos])
+  const anos = useMemo(() => getAnosDisponibles(movimientos), [movimientos])
+  const anoActivo = ano || anos[0] || ''
+  const movimientosDelAno = useMemo(() => filtrarPorAno(movimientos, anoActivo), [movimientos, anoActivo])
+  const meses = useMemo(() => getMesesDisponibles(movimientosDelAno), [movimientosDelAno])
   const movimientosFiltrados = useMemo(
-    () => filtrarPorMes(movimientos, mes),
-    [movimientos, mes]
+    () => filtrarPorMes(movimientosDelAno, mes),
+    [movimientosDelAno, mes]
   )
 
   const totalPaginas = Math.max(1, Math.ceil(movimientosFiltrados.length / POR_PAGINA))
@@ -167,7 +171,7 @@ export default function BrokerDetail() {
   // Quotex usa los movimientos como una cuenta de saldo: ingresos suman y egresos restan.
   const saldoQuotex = useMemo(() => {
     if (!quotex) return { porMovimiento: new Map(), actual: 0 }
-    const ordenados = [...movimientos].sort((a, b) => {
+    const ordenados = [...movimientosDelAno].sort((a, b) => {
       const fechaA = new Date(a.fecha).getTime()
       const fechaB = new Date(b.fecha).getTime()
       return fechaA - fechaB || Number(a.id || 0) - Number(b.id || 0)
@@ -179,7 +183,7 @@ export default function BrokerDetail() {
       porMovimiento.set(movimiento.id, saldo)
     }
     return { porMovimiento, actual: saldo }
-  }, [movimientos, quotex])
+  }, [movimientosDelAno, quotex])
 
   // Caja y cartera del período elegido: es lo que responde «cuánto tengo»
   // mirando el mes seleccionado.
@@ -193,8 +197,8 @@ export default function BrokerDetail() {
   // contra las compras de un solo mes daría una ganancia falsa (y enorme) en
   // cuanto el usuario filtra por mes.
   const rendimiento = useMemo(
-    () => calcularTotalesBroker(movimientos, activos),
-    [movimientos, activos]
+    () => calcularTotalesBroker(movimientosDelAno, activos),
+    [movimientosDelAno, activos]
   )
 
   const rendimientoPorMoneda = useMemo(
@@ -207,7 +211,7 @@ export default function BrokerDetail() {
     const porMoneda = new Map([[String(broker?.moneda || 'N/A').toUpperCase(), {
       moneda: String(broker?.moneda || 'N/A').toUpperCase(), ganancias: 0, perdidas: 0, retiros: 0, depositos: 0,
     }]])
-    for (const movimiento of movimientos) {
+    for (const movimiento of movimientosDelAno) {
       const categoria = clasificarMovimientoQuotex(movimiento)
       if (!categoria) continue
       const moneda = String(movimiento.broker_moneda || broker?.moneda || 'N/A').toUpperCase()
@@ -215,7 +219,7 @@ export default function BrokerDetail() {
       porMoneda.get(moneda)[categoria] += Number(movimiento.monto || 0)
     }
     return [...porMoneda.values()].sort((a, b) => a.moneda.localeCompare(b.moneda))
-  }, [broker, movimientos, quotex])
+  }, [broker, movimientosDelAno, quotex])
 
   const refrescarImportacion = () => {
     queryClient.invalidateQueries({ queryKey: ['movimientos-broker', brokerId] })
@@ -513,7 +517,8 @@ export default function BrokerDetail() {
                 Movimientos clasificados por descripción del extracto de Quotex.
               </div>
             )}
-            <div className="mb-4">
+            <div className="mb-4 flex flex-wrap gap-3">
+              <YearFilter anos={anos} value={anoActivo} onChange={(v) => { setAno(v); setMes(MES_TODOS); setPagina(0) }} />
               <MonthFilter
                 meses={meses}
                 value={mes}

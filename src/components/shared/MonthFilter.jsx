@@ -72,6 +72,20 @@ export function getMesesDisponibles(movimientos = []) {
 }
 
 /** Etiqueta legible: '2026-10' → 'Octubre 2026'. */
+export function getAnosDisponibles(movimientos = []) {
+  const anos = new Set()
+  for (const m of movimientos) {
+    const match = /^(\d{4})-\d{2}/.exec(String(m?.fecha ?? ''))
+    if (match) anos.add(match[1])
+  }
+  return [...anos].sort((a, b) => b.localeCompare(a))
+}
+
+export function filtrarPorAno(movimientos = [], ano) {
+  if (!ano) return movimientos
+  return movimientos.filter((m) => String(m?.fecha ?? '').startsWith(`${ano}-`))
+}
+
 export function formatMes(ym) {
   if (!ym) return ''
   const match = /^(\d{4})-(\d{2})$/.exec(String(ym))
@@ -91,6 +105,22 @@ export function formatMes(ym) {
 export function filtrarPorMes(movimientos = [], mes = MES_TODOS) {
   if (!mes || mes === MES_TODOS) return movimientos
   return movimientos.filter((m) => claveMes(m?.fecha) === mes)
+}
+
+export function YearFilter({ anos = [], value, onChange, className, id = 'year-filter' }) {
+  return (
+    <div className={cn('flex flex-col gap-1.5', className)}>
+      <Label htmlFor={id}>Año</Label>
+      <Select value={value || undefined} onValueChange={onChange}>
+        <SelectTrigger id={id} className="w-full sm:w-36">
+          <SelectValue placeholder="Año" />
+        </SelectTrigger>
+        <SelectContent>
+          {anos.map((ano) => <SelectItem key={ano} value={ano}>{ano}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
+  )
 }
 
 export default function MonthFilter({

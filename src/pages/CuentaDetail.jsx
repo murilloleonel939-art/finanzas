@@ -12,7 +12,7 @@ import {
   resumenPeriodo,
   actualizarClavePdf,
 } from '@/lib/cuentas'
-import { getMesesDisponibles, filtrarPorMes, formatMes, MES_TODOS } from '@/components/shared/MonthFilter'
+import { getAnosDisponibles, getMesesDisponibles, filtrarPorAno, filtrarPorMes, formatMes, MES_TODOS, YearFilter } from '@/components/shared/MonthFilter'
 import MonthFilter from '@/components/shared/MonthFilter'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -48,6 +48,7 @@ export default function CuentaDetail() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
+  const [ano, setAno] = useState('')
   const [mes, setMes] = useState(MES_TODOS)
   const [pagina, setPagina] = useState(0)
   const [movimientoABorrar, setMovimientoABorrar] = useState(null)
@@ -68,7 +69,10 @@ export default function CuentaDetail() {
     queryFn: () => listarMovimientos(cuentaId),
   })
 
-  const meses = useMemo(() => getMesesDisponibles(movimientos), [movimientos])
+  const anos = useMemo(() => getAnosDisponibles(movimientos), [movimientos])
+  const anoActivo = ano || anos[0] || ''
+  const movimientosDelAno = useMemo(() => filtrarPorAno(movimientos, anoActivo), [movimientos, anoActivo])
+  const meses = useMemo(() => getMesesDisponibles(movimientosDelAno), [movimientosDelAno])
 
   // Al cambiar de mes se vuelve a la primera página: si no, quedarse en la
   // página 5 de un mes de 3 movimientos mostraría una tabla vacía.
@@ -77,7 +81,7 @@ export default function CuentaDetail() {
     setPagina(0)
   }
 
-  const filtrados = useMemo(() => filtrarPorMes(movimientos, mes), [movimientos, mes])
+  const filtrados = useMemo(() => filtrarPorMes(movimientosDelAno, mes), [movimientosDelAno, mes])
 
   const conSaldo = useMemo(
     () => conSaldoResultante(filtrados, cuenta?.monto ?? 0),
@@ -297,7 +301,8 @@ export default function CuentaDetail() {
         </Card>
 
         {/* Filtro de mes */}
-        <div className="mb-6">
+        <div className="mb-6 flex flex-wrap gap-3">
+          <YearFilter anos={anos} value={anoActivo} onChange={(v) => { setAno(v); setMes(MES_TODOS); setPagina(0) }} />
           <MonthFilter
             meses={meses}
             value={mes}

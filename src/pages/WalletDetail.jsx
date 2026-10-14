@@ -13,7 +13,7 @@ import {
   borrarDatosWallet,
 } from '@/lib/wallets-datos'
 import { esProveedorEarn, esMovimientoEarn } from '@/lib/earnConfig'
-import { getMesesDisponibles, filtrarPorMes, formatMes, MES_TODOS } from '@/components/shared/MonthFilter'
+import { getAnosDisponibles, getMesesDisponibles, filtrarPorAno, filtrarPorMes, formatMes, MES_TODOS, YearFilter } from '@/components/shared/MonthFilter'
 import MonthFilter from '@/components/shared/MonthFilter'
 import WalletEarn from '@/components/wallets/WalletEarn'
 import ImportarWalletModal from '@/components/ImportarWalletModal'
@@ -100,6 +100,7 @@ export default function WalletDetail() {
   const queryClient = useQueryClient()
 
   const [pestana, setPestana] = useState('movimientos')
+  const [ano, setAno] = useState('')
   const [mes, setMes] = useState(MES_TODOS)
   const [pagina, setPagina] = useState(0)
   const [descripcionesAbiertas, setDescripcionesAbiertas] = useState(() => new Set())
@@ -137,18 +138,21 @@ export default function WalletDetail() {
   const mostrarDiferencialCambio = esDolarapp || esPlenti
   const mostrarEarn = !esPaypal
 
-  const meses = useMemo(() => getMesesDisponibles(movimientos), [movimientos])
+  const anos = useMemo(() => getAnosDisponibles(movimientos), [movimientos])
+  const anoActivo = ano || anos[0] || ''
+  const movimientosDelAno = useMemo(() => filtrarPorAno(movimientos, anoActivo), [movimientos, anoActivo])
+  const meses = useMemo(() => getMesesDisponibles(movimientosDelAno), [movimientosDelAno])
 
   // Un solo recorrido para las tarjetas y para el saldo de cada fila. Se le
   // pasa el predicado del mes en curso en vez de filtrar antes, porque el saldo
   // inicial hay que calcularlo sobre TODOS los movimientos, no sobre el mes.
   const analisis = useMemo(
     () =>
-      analizarWallet(movimientos, saldos, (m) => {
+      analizarWallet(movimientosDelAno, saldos, (m) => {
         if (mes === MES_TODOS) return true
         return String(m.fecha ?? '').startsWith(mes)
       }, wallet?.proveedor_nombre),
-    [movimientos, saldos, mes, wallet?.proveedor_nombre]
+    [movimientosDelAno, saldos, mes, wallet?.proveedor_nombre]
   )
 
   const periodo = mes === MES_TODOS ? 'acumulado' : formatMes(mes)
@@ -198,8 +202,8 @@ export default function WalletDetail() {
   })
 
   const movimientosFiltrados = useMemo(
-    () => filtrarPorMes(movimientos, mes),
-    [movimientos, mes]
+    () => filtrarPorMes(movimientosDelAno, mes),
+    [movimientosDelAno, mes]
   )
 
   // Tras importar hay que refrescar movimientos y saldos: el worker inserta las
@@ -564,7 +568,8 @@ export default function WalletDetail() {
         {/* ---- Movimientos (variante A siempre, variante B en su pestaña) ---- */}
         {(todoEarn || pestana === 'movimientos') && (
           <>
-            <div className="mb-4">
+            <div className="mb-4 flex flex-wrap gap-3">
+              <YearFilter anos={anos} value={anoActivo} onChange={(v) => { setAno(v); setMes(MES_TODOS); setPagina(0) }} />
               <MonthFilter
                 meses={meses}
                 value={mes}
