@@ -93,6 +93,11 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - Permite guardar varias metas personalizadas, cargarlas cuando sea necesario y continuar alimentando su progreso.
 - Las metas y el progreso se guardan localmente en el navegador, separados por empresa.
 
+### Resumen financiero de empresa
+
+- El resumen muestra las monedas fiat disponibles con saldo total positivo, incluyendo COP, USD y cualquier otra divisa fiat registrada.
+- Las monedas se presentan separadas, sin conversiones entre divisas, en patrimonio, concentración del dinero y rendimientos.
+
 ### Wallets y Earn
 
 - Proveedores de wallet de tipo cripto, fiat o ambos.
