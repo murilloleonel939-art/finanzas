@@ -224,9 +224,19 @@ app.get('/api/empresas/:empresaId/resumen', requireAuth, async (req, res) => {
       select moneda, coalesce(sum(monto), 0) as monto from (
         select moneda, monto from caja union all select moneda, monto from cartera
       ) valores group by moneda`, [req.params.empresaId]),
-    query(`select s.moneda, coalesce(sum(s.monto), 0) as monto
-      from wallet_saldos s join wallets w on w.id = s.wallet_id and w.deleted_at is null
-      where w.empresa_id = $1 group by s.moneda`, [req.params.empresaId]),
+    query(`select case
+          when lower(p.nombre_proveedor) = 'plenti' and upper(s.moneda) = 'USDT' then 'USD'
+          else s.moneda
+        end as moneda,
+        coalesce(sum(s.monto), 0) as monto
+      from wallet_saldos s
+      join wallets w on w.id = s.wallet_id and w.deleted_at is null
+      join wallet_providers p on p.id = w.proveedor_id and p.deleted_at is null
+      where w.empresa_id = $1
+      group by case
+        when lower(p.nombre_proveedor) = 'plenti' and upper(s.moneda) = 'USDT' then 'USD'
+        else s.moneda
+      end`, [req.params.empresaId]),
     query(`select moneda, coalesce(sum(monto), 0) as monto from (
         select c.tipo_moneda as moneda, m.monto
         from movimientos m join cuentas c on c.id = m.cuenta_id

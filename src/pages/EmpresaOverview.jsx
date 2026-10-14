@@ -77,7 +77,7 @@ export default function EmpresaOverview() {
         </div>
 
         {resumen.totales?.length === 0 && <Card className="p-8 text-center"><TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-3" /><p className="text-muted-foreground">No hay datos financieros registrados.</p></Card>}
-        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md"><p className="text-xs text-blue-900"><strong>Nota:</strong> Los valores se muestran separados por moneda, sin conversión entre divisas.</p></div>
+        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md"><p className="text-xs text-blue-900"><strong>Nota:</strong> Los valores se muestran separados por moneda, sin conversión entre divisas. En Plenti, USDT se resume como USD por ser stablecoin equivalente al dólar.</p></div>
       </div>
     </div>
   )
