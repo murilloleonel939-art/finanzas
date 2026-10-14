@@ -217,6 +217,36 @@ function numeroQuotex(valor) {
   return parseMontoImportado(texto)
 }
 
+function normalizarEncabezadoP2p(valor) {
+  return String(valor ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+}
+
+function fechaP2p(valor) {
+  const texto = String(valor ?? '').trim()
+  const match = /^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})$/.exec(texto)
+  return match ? { fecha: match[1], hora: `${match[1]} ${match[2]}` } : null
+}
+
+function extraerOrdenesBinanceP2p(filePath) {
+  const workbook = XLSX.readFile(filePath, { cellDates: false })
+  const hoja = workbook.Sheets[workbook.SheetNames[0]]
+  if (!hoja) return null
+  const filas = XLSX.utils.sheet_to_json(hoja, { header: 1, defval: '', raw: false })
+  const indiceEncabezado = filas.findIndex((fila) => fila.some((celda) => normalizarEncabezadoP2p(celda) === 'numero de pedido'))
+  if (indiceEncabezado < 0) throw new Error('El archivo no contiene el encabezado de historial P2P de Binance.')
+  const encabezados = filas[indiceEncabezado].map(normalizarEncabezadoP2p)
+  const columna = (nombre) => encabezados.indexOf(nombre)
+  const requeridas = ['numero de pedido', 'tipo de orden', 'activo', 'tipo de fiat', 'precio total', 'cantidad', 'estado', 'hora de creacion']
+  if (requeridas.some((nombre) => columna(nombre) < 0)) throw new Error('El archivo P2P no contiene todas las columnas requeridas.')
+  return filas.slice(indiceEncabezado + 1).map((fila) => ({
+    numero_pedido: fila[columna('numero de pedido')], tipo_orden: fila[columna('tipo de orden')], activo: fila[columna('activo')],
+    tipo_fiat: fila[columna('tipo de fiat')], precio_total: fila[columna('precio total')], precio: fila[columna('precio')],
+    cantidad: fila[columna('cantidad')], tipo_cambio: fila[columna('tipo de cambio')], tarifa_creador: fila[columna('tarifa de creador')],
+    comision_tomador: fila[columna('comision de tomador')], contraparte: fila[columna('contraparte')], estado: fila[columna('estado')],
+    hora_creacion: fila[columna('hora de creacion')],
+  })).filter((fila) => String(fila.numero_pedido || '').trim())
+}
+
 function fechaQuotex(valor) {
   if (valor instanceof Date && !Number.isNaN(valor.getTime())) return valor.toISOString().slice(0, 10)
   const texto = String(valor ?? '').trim()
@@ -416,6 +446,7 @@ async function extraerLote(texto, prompt, esBroker, esDale, indice, total) {
 }
 
 async function extraerDatos(filePath, job, contexto) {
+  if (job.target === 'binance_p2p') return extraerOrdenesBinanceP2p(filePath)
   if (job.target === 'wallet' && esBinance(job)) {
     const movimientosBinance = await extraerDatosBinance(filePath, job)
     if (movimientosBinance) return movimientosBinance
@@ -467,13 +498,46 @@ async function extraerDatos(filePath, job, contexto) {
 }
 
 async function contextoDestino(client, job) {
-  const table = job.target === 'cuenta' ? 'cuentas' : job.target === 'wallet' ? 'wallets' : 'brokers'
-  const id = job[`${job.target}_id`]
+  const table = job.target === 'cuenta' ? 'cuentas' : job.target === 'broker' ? 'brokers' : 'wallets'
+  const id = job.target === 'binance_p2p' ? job.wallet_id : job[`${job.target}_id`]
   const result = table === 'cuentas'
     ? await client.query(`select c.*, b.nombre_banco as banco from cuentas c join bancos b on b.id = c.banco_id and b.deleted_at is null where c.id = $1 and c.empresa_id = $2 and c.deleted_at is null`, [id, job.empresa_id])
     : await client.query(`select * from ${table} where id = $1 and empresa_id = $2 and deleted_at is null`, [id, job.empresa_id])
   if (!result.rowCount) throw new Error('Destino de importación no encontrado.')
   return result.rows[0]
+}
+
+async function procesarBinanceP2p(client, job, datos) {
+  const wallet = await client.query(`select p.nombre_proveedor from wallets w join wallet_providers p on p.id = w.proveedor_id and p.deleted_at is null
+    where w.id = $1 and w.empresa_id = $2 and w.deleted_at is null`, [job.wallet_id, job.empresa_id])
+  if (String(wallet.rows[0]?.nombre_proveedor || '').trim().toLowerCase() !== 'binance') throw new Error('La importación P2P requiere una wallet de Binance.')
+  let creados = 0; let duplicados = 0
+  for (const item of asArray(datos)) {
+    if (normalizarTextoClave(item.estado) !== 'completed') continue
+    const fecha = fechaP2p(item.hora_creacion)
+    const precioTotal = parseMontoImportado(item.precio_total)
+    const precio = parseMontoImportado(item.precio)
+    const cantidad = parseMontoImportado(item.cantidad)
+    if (!fecha || !Number.isFinite(precioTotal) || !Number.isFinite(cantidad) || precioTotal < 0 || cantidad <= 0) continue
+    const fiat = String(item.tipo_fiat || '').trim().toUpperCase()
+    const tipoCambio = parseMontoImportado(item.tipo_cambio)
+    const tarifaCreador = parseMontoImportado(item.tarifa_creador)
+    const comisionTomador = parseMontoImportado(item.comision_tomador)
+    const trm = fiat === 'COP' ? await obtenerTrmOficial(fecha.fecha) : NaN
+    const valorTrm = Number.isFinite(trm) ? cantidad * trm : NaN
+    const diferenciaCambio = Number.isFinite(valorTrm) ? valorTrm - precioTotal : NaN
+    const result = await client.query(`insert into binance_p2p_ordenes (empresa_id, wallet_id, numero_pedido, fecha, hora_creacion, tipo_orden, activo, tipo_fiat,
+      precio_total, precio, cantidad, tipo_cambio, tarifa_creador, comision_tomador, contraparte, estado, trm, valor_trm, diferencia_cambio, source_file, import_job_id, created_by)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'Completed',$16,$17,$18,$19,$20,$21)
+      on conflict (wallet_id, numero_pedido) do nothing returning id`, [
+      job.empresa_id, job.wallet_id, String(item.numero_pedido).trim(), fecha.fecha, fecha.hora, String(item.tipo_orden || '').trim(), String(item.activo || '').trim().toUpperCase(), fiat,
+      precioTotal, Number.isFinite(precio) ? precio : null, cantidad, Number.isFinite(tipoCambio) ? tipoCambio : null, Number.isFinite(tarifaCreador) ? tarifaCreador : null,
+      Number.isFinite(comisionTomador) ? comisionTomador : null, String(item.contraparte || '').trim() || null, Number.isFinite(trm) ? trm : null,
+      Number.isFinite(valorTrm) ? valorTrm : null, Number.isFinite(diferenciaCambio) ? diferenciaCambio : null, job.storage_path, job.id, job.created_by,
+    ])
+    if (result.rowCount) creados++; else duplicados++
+  }
+  return { creados, duplicados }
 }
 
 async function procesarCuenta(client, job, datos) {
@@ -712,7 +776,13 @@ async function procesarJob(job) {
     const datos = await extraerDatos(filePath, current, contexto)
     client = await pool.connect()
     await client.query('begin')
-    const result = current.target === 'cuenta' ? await procesarCuenta(client, current, datos) : current.target === 'wallet' ? await procesarWallet(client, current, datos) : await procesarBroker(client, current, datos)
+    const result = current.target === 'cuenta'
+      ? await procesarCuenta(client, current, datos)
+      : current.target === 'wallet'
+        ? await procesarWallet(client, current, datos)
+        : current.target === 'binance_p2p'
+          ? await procesarBinanceP2p(client, current, datos)
+          : await procesarBroker(client, current, datos)
     if (current.target === 'wallet') await recalcularSaldoWalletImportada(client, current.wallet_id)
     await client.query(`update import_jobs set estado = 'hecho', movimientos_creados = $2, activos_creados = $3, duplicados_omitidos = $4, finished_at = now(), updated_at = now() where id = $1`, [current.id, result.creados ?? 0, result.activos ?? 0, result.duplicados ?? 0])
     await client.query('commit'); log(`Job ${current.id} completado`)

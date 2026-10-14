@@ -842,6 +842,16 @@ app.get('/api/wallets/:walletId/saldos', requireAuth, async (req, res) => {
   res.json({ saldos: result.rows })
 })
 
+app.get('/api/wallets/:walletId/p2p-binance', requireAuth, async (req, res) => {
+  const wallet = await query(`select w.empresa_id, p.nombre_proveedor from wallets w join wallet_providers p on p.id = w.proveedor_id and p.deleted_at is null where w.id = $1 and w.deleted_at is null`, [req.params.walletId])
+  if (!wallet.rowCount || !await requireCompanyAccess(req.auth.sub, req.auth.role, wallet.rows[0].empresa_id)) return error(res, 404, 'Wallet no encontrada.')
+  if (String(wallet.rows[0].nombre_proveedor).trim().toLowerCase() !== 'binance') return error(res, 400, 'El historial P2P es exclusivo de Binance.')
+  const result = await query(`select id, numero_pedido, fecha, tipo_orden, activo, tipo_fiat, precio_total, precio, cantidad, tipo_cambio,
+    tarifa_creador, comision_tomador, contraparte, estado, trm, valor_trm, diferencia_cambio
+    from binance_p2p_ordenes where wallet_id = $1 order by fecha desc, hora_creacion desc`, [req.params.walletId])
+  res.json({ ordenes: result.rows })
+})
+
 app.get('/api/wallets/:walletId/movimientos', requireAuth, async (req, res) => {
   const wallet = await query('select empresa_id from wallets where id = $1 and deleted_at is null', [req.params.walletId])
   if (!wallet.rowCount) return error(res, 404, 'Wallet no encontrada.')
@@ -964,13 +974,17 @@ app.post('/api/empresas/:empresaId/import-jobs', requireAuth, async (req, res) =
   const archivo = req.body.archivo
   const archivoNombre = String(req.body.archivo_nombre || 'extracto.pdf').toLowerCase()
   const extension = path.extname(archivoNombre).replace('.', '')
-  if (!['cuenta', 'wallet', 'broker'].includes(target) || !destinoId || typeof archivo !== 'string') return error(res, 400, 'Datos de importación inválidos.')
+  if (!['cuenta', 'wallet', 'broker', 'binance_p2p'].includes(target) || !destinoId || typeof archivo !== 'string') return error(res, 400, 'Datos de importación inválidos.')
   if (!['pdf', 'csv', 'xls', 'xlsx'].includes(extension)) return error(res, 400, 'El archivo debe ser PDF, CSV o Excel.')
-  const table = target === 'cuenta' ? 'cuentas' : target === 'wallet' ? 'wallets' : 'brokers'
-  const destination = await query(`select id, empresa_id${target === 'broker' ? ', nombre_broker' : ''} from ${table} where id = $1 and empresa_id = $2 and deleted_at is null`, [destinoId, empresaId])
+  const table = target === 'cuenta' ? 'cuentas' : target === 'broker' ? 'brokers' : 'wallets'
+  const destination = await query(`select id, empresa_id${target === 'broker' ? ', nombre_broker' : target === 'binance_p2p' ? ', proveedor_id' : ''} from ${table} where id = $1 and empresa_id = $2 and deleted_at is null`, [destinoId, empresaId])
   if (!destination.rowCount) return error(res, 404, 'Destino no encontrado.')
   if (target === 'broker' && !['interactive brokers', 'quotex'].includes(destination.rows[0].nombre_broker.trim().toLowerCase())) {
     return error(res, 400, 'La importación de extractos está disponible únicamente para Interactive Brokers y Quotex.')
+  }
+  if (target === 'binance_p2p') {
+    const provider = await query('select nombre_proveedor from wallet_providers where id = $1 and deleted_at is null', [destination.rows[0].proveedor_id])
+    if (String(provider.rows[0]?.nombre_proveedor || '').trim().toLowerCase() !== 'binance') return error(res, 400, 'La importación P2P está disponible únicamente para wallets de Binance.')
   }
   const raw = archivo.replace(/^data:[^;]+;base64,/, '')
   const content = Buffer.from(raw, 'base64')
@@ -985,8 +999,9 @@ app.post('/api/empresas/:empresaId/import-jobs', requireAuth, async (req, res) =
   const storagePath = path.relative(storageRoot, absolutePath)
   await writeFile(absolutePath, content, { flag: 'wx' })
   const periodo = /^\d{4}-\d{2}$/.test(String(req.body.periodo || '')) ? String(req.body.periodo) : null
-  const columns = target === 'cuenta' ? '(empresa_id, cuenta_id, target, storage_path, proveedor, periodo, created_by)' : target === 'wallet' ? '(empresa_id, wallet_id, target, storage_path, proveedor, periodo, created_by)' : '(empresa_id, broker_id, target, storage_path, proveedor, periodo, created_by)'
-  const values = target === 'cuenta' ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, periodo, req.auth.sub] : target === 'wallet' ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, periodo, req.auth.sub] : [empresaId, destinoId, target, storagePath, null, periodo, req.auth.sub]
+  const usaWallet = target === 'wallet' || target === 'binance_p2p'
+  const columns = target === 'cuenta' ? '(empresa_id, cuenta_id, target, storage_path, proveedor, periodo, created_by)' : usaWallet ? '(empresa_id, wallet_id, target, storage_path, proveedor, periodo, created_by)' : '(empresa_id, broker_id, target, storage_path, proveedor, periodo, created_by)'
+  const values = target === 'cuenta' ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, periodo, req.auth.sub] : usaWallet ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, periodo, req.auth.sub] : [empresaId, destinoId, target, storagePath, null, periodo, req.auth.sub]
   const inserted = await query(`insert into import_jobs ${columns} values ($1, $2, $3, $4, $5, $6, $7) returning *`, values)
   res.status(201).json({ job: inserted.rows[0] })
 })

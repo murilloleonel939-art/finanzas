@@ -13,9 +13,12 @@ import {
   borrarDatosWallet,
 } from '@/lib/wallets-datos'
 import { esProveedorEarn, esMovimientoEarn } from '@/lib/earnConfig'
+import { listarOrdenesP2pBinance } from '@/lib/binance-p2p-datos'
 import { getAnosDisponibles, getMesesDisponibles, filtrarPorAno, filtrarPorMes, formatMes, MES_TODOS, YearFilter } from '@/components/shared/MonthFilter'
 import MonthFilter from '@/components/shared/MonthFilter'
 import WalletEarn from '@/components/wallets/WalletEarn'
+import BinanceP2p from '@/components/wallets/BinanceP2p'
+import ImportarBinanceP2pModal from '@/components/ImportarBinanceP2pModal'
 import ImportarWalletModal from '@/components/ImportarWalletModal'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -107,6 +110,7 @@ export default function WalletDetail() {
   const [aBorrar, setABorrar] = useState(null)
   const [descuadres, setDescuadres] = useState([])
   const [importarAbierto, setImportarAbierto] = useState(false)
+  const [importarP2pAbierto, setImportarP2pAbierto] = useState(false)
   const [confirmarBorradoImport, setConfirmarBorradoImport] = useState(false)
   const [confirmarBorradoDatos, setConfirmarBorradoDatos] = useState(false)
 
@@ -123,6 +127,12 @@ export default function WalletDetail() {
   const { data: saldos = [] } = useQuery({
     queryKey: ['saldos-wallet', walletId],
     queryFn: () => listarSaldos(walletId),
+  })
+
+  const { data: ordenesP2p = [], isLoading: cargandoP2p } = useQuery({
+    queryKey: ['binance-p2p', walletId],
+    queryFn: () => listarOrdenesP2pBinance(walletId),
+    enabled: String(wallet?.proveedor_nombre || '').trim().toLowerCase() === 'binance',
   })
 
   const { data: ultimaImportacion } = useQuery({
@@ -214,6 +224,10 @@ export default function WalletDetail() {
     queryClient.invalidateQueries({ queryKey: ['saldos-wallet', walletId] })
     queryClient.invalidateQueries({ queryKey: ['ultima-importacion-wallet', walletId] })
     queryClient.invalidateQueries({ queryKey: ['wallets-empresa', empresaId] })
+  }
+
+  function alImportarP2p() {
+    queryClient.invalidateQueries({ queryKey: ['binance-p2p', walletId] })
   }
 
   const { mutate: eliminarImportacion, isPending: borrandoImportacion } = useMutation({
@@ -549,6 +563,10 @@ export default function WalletDetail() {
           </div>
         )}
 
+        {esBinance && pestana === 'p2p' && (
+          <BinanceP2p ordenes={ordenesP2p} cargando={cargandoP2p} onImportar={() => setImportarP2pAbierto(true)} />
+        )}
+
         {/* ---- Variante B, pestaña Earn ---- */}
         {mostrarEarn && !todoEarn && pestana === 'earn' && (
           <WalletEarn
@@ -735,6 +753,14 @@ export default function WalletDetail() {
         walletProveedor={wallet.proveedor_nombre}
         walletNombre={wallet.nombre_wallet}
         onSuccess={alImportar}
+      />
+
+      <ImportarBinanceP2pModal
+        isOpen={importarP2pAbierto}
+        onClose={() => setImportarP2pAbierto(false)}
+        empresaId={empresaId}
+        walletId={walletId}
+        onSuccess={alImportarP2p}
       />
 
       <ConfirmDialog

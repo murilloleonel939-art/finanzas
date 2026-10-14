@@ -40,6 +40,20 @@ await query('alter table movimientos_wallet add column if not exists diferencia_
 await query('drop table if exists wallet_creditos')
 await query('update activos_broker set valor_compra_unitario = valor_unitario where valor_compra_unitario is null')
 await query('create index if not exists mov_wallet_import_job_idx on movimientos_wallet (import_job_id) where import_job_id is not null and deleted_at is null')
+await query(`create table if not exists binance_p2p_ordenes (
+  id uuid primary key default gen_random_uuid(), empresa_id uuid not null references empresas(id) on delete cascade,
+  wallet_id uuid not null references wallets(id) on delete cascade, numero_pedido text not null,
+  fecha date not null, hora_creacion timestamp not null, tipo_orden text not null, activo text not null,
+  tipo_fiat text not null, precio_total numeric(20,8) not null, precio numeric(20,8), cantidad numeric(20,8) not null,
+  tipo_cambio numeric(20,8), tarifa_creador numeric(20,8), comision_tomador numeric(20,8), contraparte text,
+  estado text not null, trm numeric(20,8), valor_trm numeric(20,8), diferencia_cambio numeric(20,8),
+  source_file text, import_job_id uuid, created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(), updated_at timestamptz not null default now(), unique (wallet_id, numero_pedido)
+)`)
+await query('create index if not exists binance_p2p_wallet_fecha_idx on binance_p2p_ordenes (wallet_id, fecha desc)')
+await query('create index if not exists binance_p2p_empresa_fecha_idx on binance_p2p_ordenes (empresa_id, fecha desc)')
+await query("alter table import_jobs drop constraint if exists import_jobs_target_check")
+await query("alter table import_jobs add constraint import_jobs_target_check check (target in ('cuenta', 'wallet', 'broker', 'binance_p2p'))")
 await query('create index if not exists mov_broker_import_job_idx on movimientos_broker (import_job_id) where import_job_id is not null and deleted_at is null')
 await query('create index if not exists activos_broker_import_job_idx on activos_broker (import_job_id) where import_job_id is not null and deleted_at is null')
 

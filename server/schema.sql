@@ -224,6 +224,39 @@ create index if not exists mov_wallet_wallet_fecha_idx on movimientos_wallet (wa
 create index if not exists mov_wallet_empresa_fecha_idx on movimientos_wallet (empresa_id, fecha desc) where deleted_at is null;
 create index if not exists mov_wallet_proveedor_idx on movimientos_wallet (proveedor_id) where deleted_at is null;
 
+-- Historial C2C/P2P exclusivo de Binance. No participa en movimientos_wallet
+-- ni en wallet_saldos: una orden P2P es un registro de compra/venta separado.
+create table if not exists binance_p2p_ordenes (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  wallet_id uuid not null references wallets(id) on delete cascade,
+  numero_pedido text not null,
+  fecha date not null,
+  hora_creacion timestamp not null,
+  tipo_orden text not null,
+  activo text not null,
+  tipo_fiat text not null,
+  precio_total numeric(20,8) not null,
+  precio numeric(20,8),
+  cantidad numeric(20,8) not null,
+  tipo_cambio numeric(20,8),
+  tarifa_creador numeric(20,8),
+  comision_tomador numeric(20,8),
+  contraparte text,
+  estado text not null,
+  trm numeric(20,8),
+  valor_trm numeric(20,8),
+  diferencia_cambio numeric(20,8),
+  source_file text,
+  import_job_id uuid,
+  created_by uuid references usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (wallet_id, numero_pedido)
+);
+create index if not exists binance_p2p_wallet_fecha_idx on binance_p2p_ordenes (wallet_id, fecha desc);
+create index if not exists binance_p2p_empresa_fecha_idx on binance_p2p_ordenes (empresa_id, fecha desc);
+
 create table if not exists usuario_empresa (
   id uuid primary key default gen_random_uuid(),
   usuario_id uuid not null references usuarios(id) on delete cascade,
@@ -275,7 +308,7 @@ create table if not exists import_jobs (
   cuenta_id uuid references cuentas(id) on delete cascade,
   wallet_id uuid references wallets(id) on delete cascade,
   broker_id uuid references brokers(id) on delete cascade,
-  target text not null check (target in ('cuenta', 'wallet', 'broker')),
+  target text not null check (target in ('cuenta', 'wallet', 'broker', 'binance_p2p')),
   storage_path text not null,
   proveedor text,
   periodo text,

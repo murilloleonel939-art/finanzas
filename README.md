@@ -17,7 +17,7 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - Bancos por empresa y país.
 - Cuentas de ahorros y corriente, moneda y saldo inicial.
 - Movimientos manuales de ingresos y egresos.
-- Filtros por período, resumen de ingresos, egresos y saldo resultante.
+- Filtros por año y período mensual; el año más reciente se selecciona inicialmente y cada año conserva su historial sin mezclar cálculos.
 - Eliminación de movimientos individuales o de un mes completo.
 - Indicadores para IVA, 4x1000, retenciones, intereses y comisiones.
 - Exportación de información a CSV, Excel y PDF.
@@ -58,6 +58,7 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - Actualización manual y automática de precios mediante jobs y workers.
 - Pestañas de **Movimientos**, **Activos**, **Precios** y **Asesor** en el detalle de los brokers compatibles; `quotex` muestra exclusivamente **Movimientos**.
 - El **Asesor** funciona únicamente con los datos locales registrados y no se conecta con Interactive Brokers.
+- Los detalles de brokers separan movimientos y cálculos por año, manteniendo el historial de años anteriores disponible mediante el selector anual.
 
 ### Dashboard financiero de empresa
 
@@ -114,6 +115,9 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - En Plenti, solo las transacciones `Transferencia` llenan `TRM`, `M. de compra`, `valorTrm` y `Diferencia cambio`: consulta la TRM del día, toma `valor en pesos` del PDF como `M. de compra`, calcula `valorTrm = TRM * monto` y `Diferencia cambio = valorTrm - M. de compra`.
 - Regla específica de Binance: el historial usa columnas `Hora`, `Cuenta`, `Operación`, `Moneda`, `Cambiar` y `Comentario`; conserva el orden exacto del archivo. El valor de `Cambiar` se guarda sin conversiones ni cálculos adicionales, incluida su precisión (por ejemplo, `0.00000002`), y solo su signo define la dirección: positivo es ingreso y negativo es egreso. Para Binance no se registran ni resumen comisiones aunque la descripción incluya `fee`; todos los movimientos se tratan exclusivamente como entradas o salidas.
 - Operaciones observadas en el ejemplo Binance: `Simple Earn Flexible Interest`, `Simple Earn Flexible Subscription`, `Transfer Funds to Spot`, `Transfer Funds to Funding Wallet`, `Withdraw`, `P2P Trading`, `Merchant Acquiring`, `Merchant Payment`, `Card - Transaction`, `Binance Convert`, `Deposit`, `Flexible Loan` y movimientos de equities.
+- La importación Binance lee directamente todos los registros de Excel, CSV y tablas PDF compatibles, sin depender de extracción asistida para esas filas.
+- En el resumen **Earn** de Binance, el saldo por moneda es `suscripciones - redenciones` y nunca se presenta negativo: cuando el historial parcial deja más redenciones que suscripciones, se muestra `0` sin modificar los movimientos.
+- En **Activos** de Binance, el total por moneda tampoco se presenta negativo. Los residuos negativos producidos por historial parcial o transferencias internas entre Spot y Funding se muestran como `0`, conservando los importes originales de ingresos y egresos.
 - Monedas observadas en el ejemplo Binance: principalmente `USDT`, además de `SHELL`, `USDC`, `EQ_VZ`, `BTC`, `COS`, `TON`, `GRAM`, `FUN` y `DENT`.
 - El detalle de movimientos muestra esas columnas de diferencial cambiario para DolarApp y Plenti, y también las incluye en la exportación.
 - El importador reconoce también la fila literal completa, por ejemplo `Venta EURc - 4.99 COP - 18,001 ALE*** MUN***`, extrayendo el monto EUR y su equivalente COP.
@@ -130,6 +134,7 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - Los movimientos de préstamo (`Loan Withdrawal`, `Loan Repayment`) **nunca cuentan como intereses generados**: entra dinero que hay que devolver, no un rendimiento del capital. Por eso se excluyen explícitamente de «Intereses ganados» y de «Total recompensas».
 - La casilla **Crédito** se muestra únicamente en wallets del proveedor **Coindepo**. Se calcula por moneda usando los movimientos: suma `Loan Withdrawal` positivos como crédito otorgado, suma los `Loan Repayment` negativos como pagos y muestra **Intereses del crédito** como la diferencia absoluta entre pagos y crédito otorgado.
 - Configuración y consulta de activos Earn.
+- El detalle de wallets separa movimientos, activos y Earn por año; el filtro mensual se aplica dentro del año elegido.
 - Catálogo de monedas fiat y cripto con precisión específica por moneda.
 - No se realiza conversión automática entre divisas.
 
