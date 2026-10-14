@@ -341,11 +341,12 @@ export function analizarWallet(movimientos = [], saldosFinales = [], esDelPeriod
     const monto = Number(m.monto ?? 0)
     if (m.tipo === 'ingreso') {
       acc.ingresos += monto
-      if (esInteres(m.descripcion, proveedorNombre)) acc.interesesGanados += monto
     } else {
       acc.egresos += monto
       if (String(proveedorNombre).trim().toLowerCase() !== 'binance' && /\bfee\b|comisi[oó]n|commission/i.test(String(m.descripcion || ''))) acc.comisiones += monto
     }
+    if (esInteres(m.descripcion, proveedorNombre)) acc.interesesGanados += monto
+
     const diferenciaCambio = Number(m.diferencia_cambio)
     if (Number.isFinite(diferenciaCambio)) {
       if (diferenciaCambio > 0) {
