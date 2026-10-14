@@ -118,6 +118,9 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - La importación Binance lee directamente todos los registros de Excel, CSV y tablas PDF compatibles, sin depender de extracción asistida para esas filas.
 - En el resumen **Earn** de Binance, el saldo por moneda es `suscripciones - redenciones` y nunca se presenta negativo: cuando el historial parcial deja más redenciones que suscripciones, se muestra `0` sin modificar los movimientos.
 - En **Activos** de Binance, el total por moneda tampoco se presenta negativo. Los residuos negativos producidos por historial parcial o transferencias internas entre Spot y Funding se muestran como `0`, conservando los importes originales de ingresos y egresos.
+- **P2P de Binance** se importa por separado desde la pestaña **P2P** de una wallet Binance, usando el archivo Excel de historial C2C (`.xls` o `.xlsx`). Solo se guardan órdenes con estado `Completed` y los pedidos se deduplican por número de orden dentro de la wallet.
+- El historial P2P conserva fecha, tipo de orden, activo, tipo fiat, precio, cantidad, tipo de cambio, tarifa de creador, comisión de tomador y contraparte. Permite filtrar por año, período y tipo fiat, y consolida la diferencia de cambio positiva y negativa del filtro activo.
+- Las órdenes P2P permanecen aisladas de `movimientos_wallet` y `wallet_saldos`: no modifican movimientos, saldos, **Total** de activos ni **Intereses ganados**. En Activos, **Comisiones P2P (informativo)** solo complementa activos ya existentes y se presenta por moneda.
 - Monedas observadas en el ejemplo Binance: principalmente `USDT`, además de `SHELL`, `USDC`, `EQ_VZ`, `BTC`, `COS`, `TON`, `GRAM`, `FUN` y `DENT`.
 - El detalle de movimientos muestra esas columnas de diferencial cambiario para DolarApp y Plenti, y también las incluye en la exportación.
 - El importador reconoce también la fila literal completa, por ejemplo `Venta EURc - 4.99 COP - 18,001 ALE*** MUN***`, extrayendo el monto EUR y su equivalente COP.
@@ -277,6 +280,8 @@ Todos los recursos empresariales requieren autenticación JWT y acceso a la empr
 - `/api/empresas/:empresaId/wallet-providers`
 - `/api/empresas/:empresaId/wallets`
 - `/api/wallets/:walletId/movimientos`
+- `/api/wallets/:walletId/saldos`
+- `/api/wallets/:walletId/p2p-binance`
 - `/api/empresas/:empresaId/comisionistas-fiducias`
 - `/api/empresas/:empresaId/import-jobs`
 - `/api/empresas/:empresaId/precios-jobs`
