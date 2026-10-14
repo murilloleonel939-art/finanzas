@@ -11,8 +11,21 @@ import { obtenerCuentaComisionistaFiducia } from '@/lib/comisionistas-fiducias'
 import { crearImportJob, obtenerImportJob } from '@/lib/import-jobs'
 import { calcularHistoricoFiducia } from '@/lib/fiducia-historico'
 import { formatearMonto } from '@/lib/monedas'
+import CuentaFicDetail from './CuentaFicDetail'
+
+const ENTIDADES_FIC = new Set(['acciones y valores s.a.', 'trii'])
 
 export default function CuentaFiduciaDetail() {
+  const { empresaId, cuentaId } = useParams()
+  const { data: cuenta, isLoading, error: errorCuenta } = useQuery({ queryKey: ['cuenta-fiducia', empresaId, cuentaId], queryFn: () => obtenerCuentaComisionistaFiducia(empresaId, cuentaId) })
+  if (isLoading) return <div className="flex flex-1 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>
+  if (errorCuenta) return <div className="p-8 text-destructive">{errorCuenta.message}</div>
+  if (!cuenta) return <div className="p-8">Cuenta no encontrada.</div>
+  if (ENTIDADES_FIC.has(cuenta.comisionista_nombre?.trim().toLowerCase())) return <CuentaFicDetail cuenta={cuenta} />
+  return <CuentaBancolombiaDetail cuenta={cuenta} />
+}
+
+function CuentaBancolombiaDetail({ cuenta }) {
   const { empresaId, cuentaId } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -23,7 +36,6 @@ export default function CuentaFiduciaDetail() {
   const [tab, setTab] = useState('activo')
   const [anoElegido, setAnoElegido] = useState('')
   const [corteElegido, setCorteElegido] = useState('all')
-  const { data: cuenta, isLoading, error: errorCuenta } = useQuery({ queryKey: ['cuenta-fiducia', empresaId, cuentaId], queryFn: () => obtenerCuentaComisionistaFiducia(empresaId, cuentaId) })
 
   const importar = async (archivo) => {
     if (!archivo) return
@@ -53,9 +65,6 @@ export default function CuentaFiduciaDetail() {
     } catch (err) { setError(err.message); setSubiendo(false); setEstado('error') }
   }
 
-  if (isLoading) return <div className="flex flex-1 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>
-  if (errorCuenta) return <div className="p-8 text-destructive">{errorCuenta.message}</div>
-  if (!cuenta) return <div className="p-8">Cuenta no encontrada.</div>
   const monto = (value) => value == null ? '—' : formatearMonto(value, 'COP')
   const activos = cuenta.activos ?? []
   const anos = [...new Set(activos.map((activo) => activo.periodo?.match(/^(\d{4})-(0[1-9]|1[0-2])$/)?.[1]).filter(Boolean))].sort((a, b) => b.localeCompare(a))

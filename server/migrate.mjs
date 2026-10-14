@@ -32,6 +32,25 @@ await query(`create table if not exists cuentas_comisionistas_fiducias (
   updated_at timestamptz not null default now(),
   deleted_at timestamptz
 )`)
+await query('alter table cuentas_comisionistas_fiducias add column if not exists pdf_password_encrypted text')
+await query(`create table if not exists activos_accival (
+  id uuid primary key default gen_random_uuid(), empresa_id uuid not null references empresas(id) on delete cascade,
+  cuenta_id uuid not null references cuentas_comisionistas_fiducias(id) on delete cascade,
+  periodo text not null check (periodo ~ '^20[0-9]{2}-(0[1-9]|1[0-2])$'),
+  resumen jsonb not null, fondos jsonb not null, import_job_id uuid,
+  created_at timestamptz not null default now(), deleted_at timestamptz
+)`)
+await query('create unique index if not exists activos_accival_cuenta_periodo_idx on activos_accival (cuenta_id, periodo) where deleted_at is null')
+// Ampliar las restricciones existentes sin cambiar el destino del importador Bancolombia.
+await query('alter table import_jobs drop constraint if exists import_jobs_target_check')
+await query("alter table import_jobs add constraint import_jobs_target_check check (target in ('cuenta', 'fiducia', 'accival', 'wallet', 'broker', 'binance_p2p'))")
+await query('alter table import_jobs drop constraint if exists import_jobs_destino_coherente')
+await query(`alter table import_jobs add constraint import_jobs_destino_coherente check (
+  (target = 'cuenta' and cuenta_id is not null and fiducia_id is null and wallet_id is null and broker_id is null)
+  or (target in ('fiducia', 'accival') and fiducia_id is not null and cuenta_id is null and wallet_id is null and broker_id is null)
+  or (target in ('wallet', 'binance_p2p') and wallet_id is not null and cuenta_id is null and fiducia_id is null and broker_id is null)
+  or (target = 'broker' and broker_id is not null and cuenta_id is null and fiducia_id is null and wallet_id is null)
+)`)
 await query('create unique index if not exists cuentas_comisionistas_fiducias_unique_active_idx on cuentas_comisionistas_fiducias (comisionista_fiducia_id, nombre_cuenta) where deleted_at is null')
 await query('create index if not exists cuentas_comisionistas_fiducias_entidad_idx on cuentas_comisionistas_fiducias (comisionista_fiducia_id) where deleted_at is null')
 await query(`create table if not exists activos_comisionistas_fiducias (

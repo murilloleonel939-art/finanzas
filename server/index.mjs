@@ -562,7 +562,7 @@ app.get('/api/empresas/:empresaId/comisionistas-fiducias/cuentas', requireAuth, 
 app.get('/api/empresas/:empresaId/comisionistas-fiducias/cuentas/:cuentaId', requireAuth, async (req, res) => {
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
   const result = await query(`select c.id, c.empresa_id, c.comisionista_fiducia_id, c.nombre_cuenta, c.created_at,
-    f.nombre as comisionista_nombre, a.tipo_fiducia, a.saldo_anterior, a.rendimientos_netos, a.nuevo_saldo, a.rentabilidad_periodo, a.periodo as activo_periodo, a.source_file
+    f.nombre as comisionista_nombre, (c.pdf_password_encrypted is not null) as tiene_clave_pdf, a.tipo_fiducia, a.saldo_anterior, a.rendimientos_netos, a.nuevo_saldo, a.rentabilidad_periodo, a.periodo as activo_periodo, a.source_file
     from cuentas_comisionistas_fiducias c join comisionistas_fiducias f on f.id = c.comisionista_fiducia_id and f.deleted_at is null
     left join lateral (select * from activos_comisionistas_fiducias where cuenta_id = c.id and deleted_at is null order by periodo desc, created_at desc limit 1) a on true
     where c.id = $1 and c.empresa_id = $2 and c.deleted_at is null`, [req.params.cuentaId, req.params.empresaId])
@@ -570,7 +570,26 @@ app.get('/api/empresas/:empresaId/comisionistas-fiducias/cuentas/:cuentaId', req
   const activos = await query(`select id, tipo_fiducia, saldo_anterior, rendimientos_netos, nuevo_saldo, rentabilidad_periodo, periodo, created_at
     from activos_comisionistas_fiducias where cuenta_id = $1 and empresa_id = $2 and deleted_at is null
     order by periodo desc, created_at desc`, [req.params.cuentaId, req.params.empresaId])
-  res.json({ cuenta: { ...result.rows[0], activos: activos.rows } })
+  const entidadExtractoUnificado = ['acciones y valores s.a.', 'trii'].includes(String(result.rows[0].comisionista_nombre).trim().toLowerCase())
+  const activosAccival = entidadExtractoUnificado ? await query(`select id, periodo, resumen, fondos from activos_accival
+    where cuenta_id = $1 and empresa_id = $2 and deleted_at is null order by periodo desc`, [req.params.cuentaId, req.params.empresaId]) : null
+  res.json({ cuenta: { ...result.rows[0], activos: activos.rows, activos_accival: activosAccival?.rows ?? [] } })
+})
+
+app.put('/api/empresas/:empresaId/comisionistas-fiducias/cuentas/:cuentaId/pdf-password', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const account = await query(`select c.id from cuentas_comisionistas_fiducias c
+    join comisionistas_fiducias f on f.id = c.comisionista_fiducia_id and f.deleted_at is null
+    where c.id = $1 and c.empresa_id = $2 and c.deleted_at is null
+      and lower(trim(f.nombre)) in ('trii', 'acciones y valores s.a.')`, [req.params.cuentaId, req.params.empresaId])
+  if (!account.rowCount) return error(res, 404, 'Cuenta de Acciones y Valores o trii no encontrada.')
+  if (!Object.hasOwn(req.body, 'pdf_password') || (req.body.pdf_password !== null && typeof req.body.pdf_password !== 'string')) return error(res, 400, 'La clave del PDF no es válida.')
+  const password = req.body.pdf_password
+  if (password?.length > 512) return error(res, 400, 'La clave del PDF es demasiado larga.')
+  if (password !== null && !password.trim()) return error(res, 400, 'La clave del PDF no puede estar vacía; usa null para eliminarla.')
+  const encrypted = cifrarClavePdf(password)
+  await query('update cuentas_comisionistas_fiducias set pdf_password_encrypted = $3, updated_at = now() where id = $1 and empresa_id = $2 and deleted_at is null', [req.params.cuentaId, req.params.empresaId, encrypted])
+  res.json({ tiene_clave_pdf: Boolean(encrypted) })
 })
 
 app.post('/api/empresas/:empresaId/comisionistas-fiducias', requireAuth, async (req, res) => {
@@ -1057,15 +1076,20 @@ app.post('/api/empresas/:empresaId/import-jobs', requireAuth, async (req, res) =
   const archivo = req.body.archivo
   const archivoNombre = String(req.body.archivo_nombre || 'extracto.pdf').toLowerCase()
   const extension = path.extname(archivoNombre).replace('.', '')
-  if (!['cuenta', 'fiducia', 'wallet', 'broker', 'binance_p2p'].includes(target) || !destinoId || typeof archivo !== 'string') return error(res, 400, 'Datos de importación inválidos.')
+  if (!['cuenta', 'fiducia', 'accival', 'wallet', 'broker', 'binance_p2p'].includes(target) || !destinoId || typeof archivo !== 'string') return error(res, 400, 'Datos de importación inválidos.')
   if (!['pdf', 'csv', 'xls', 'xlsx'].includes(extension)) return error(res, 400, 'El archivo debe ser PDF, CSV o Excel.')
-  const table = target === 'cuenta' ? 'cuentas' : target === 'fiducia' ? 'cuentas_comisionistas_fiducias' : target === 'broker' ? 'brokers' : 'wallets'
-  const destination = await query(`select id, empresa_id${target === 'broker' ? ', nombre_broker' : target === 'binance_p2p' ? ', proveedor_id' : target === 'fiducia' ? ', comisionista_fiducia_id' : ''} from ${table} where id = $1 and empresa_id = $2 and deleted_at is null`, [destinoId, empresaId])
+  const table = target === 'cuenta' ? 'cuentas' : ['fiducia', 'accival'].includes(target) ? 'cuentas_comisionistas_fiducias' : target === 'broker' ? 'brokers' : 'wallets'
+  const destination = await query(`select id, empresa_id${target === 'broker' ? ', nombre_broker' : target === 'binance_p2p' ? ', proveedor_id' : ['fiducia', 'accival'].includes(target) ? ', comisionista_fiducia_id' : ''} from ${table} where id = $1 and empresa_id = $2 and deleted_at is null`, [destinoId, empresaId])
   if (!destination.rowCount) return error(res, 404, 'Destino no encontrado.')
   if (target === 'fiducia') {
     const entity = await query('select nombre from comisionistas_fiducias where id = $1 and empresa_id = $2 and deleted_at is null', [destination.rows[0].comisionista_fiducia_id, empresaId])
     if (String(entity.rows[0]?.nombre || '').trim().toLowerCase() !== 'fiduciaria bancolombia') return error(res, 400, 'La importación de extractos está disponible únicamente para cuentas de Fiduciaria Bancolombia.')
     if (extension !== 'pdf') return error(res, 400, 'Las cuentas de Fiduciaria Bancolombia requieren un extracto PDF.')
+  }
+  if (target === 'accival') {
+    const entity = await query('select nombre from comisionistas_fiducias where id = $1 and empresa_id = $2 and deleted_at is null', [destination.rows[0].comisionista_fiducia_id, empresaId])
+    if (!['acciones y valores s.a.', 'trii'].includes(String(entity.rows[0]?.nombre || '').trim().toLowerCase())) return error(res, 400, 'Este importador solo acepta cuentas de Acciones y Valores S.A. o trii.')
+    if (extension !== 'pdf') return error(res, 400, 'Se requiere un extracto PDF unificado de Acciones y Valores.')
   }
   if (target === 'broker' && !['interactive brokers', 'quotex'].includes(destination.rows[0].nombre_broker.trim().toLowerCase())) {
     return error(res, 400, 'La importación de extractos está disponible únicamente para Interactive Brokers y Quotex.')
@@ -1088,8 +1112,8 @@ app.post('/api/empresas/:empresaId/import-jobs', requireAuth, async (req, res) =
   await writeFile(absolutePath, content, { flag: 'wx' })
   const periodo = /^\d{4}-\d{2}$/.test(String(req.body.periodo || '')) ? String(req.body.periodo) : null
   const usaWallet = target === 'wallet' || target === 'binance_p2p'
-  const columns = target === 'cuenta' ? '(empresa_id, cuenta_id, target, storage_path, proveedor, periodo, created_by)' : target === 'fiducia' ? '(empresa_id, fiducia_id, target, storage_path, periodo, created_by)' : usaWallet ? '(empresa_id, wallet_id, target, storage_path, proveedor, periodo, created_by)' : '(empresa_id, broker_id, target, storage_path, proveedor, periodo, created_by)'
-  const values = target === 'cuenta' ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, periodo, req.auth.sub] : target === 'fiducia' ? [empresaId, destinoId, target, storagePath, periodo, req.auth.sub] : usaWallet ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, periodo, req.auth.sub] : [empresaId, destinoId, target, storagePath, null, periodo, req.auth.sub]
+  const columns = target === 'cuenta' ? '(empresa_id, cuenta_id, target, storage_path, proveedor, periodo, created_by)' : ['fiducia', 'accival'].includes(target) ? '(empresa_id, fiducia_id, target, storage_path, periodo, created_by)' : usaWallet ? '(empresa_id, wallet_id, target, storage_path, proveedor, periodo, created_by)' : '(empresa_id, broker_id, target, storage_path, proveedor, periodo, created_by)'
+  const values = target === 'cuenta' ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, periodo, req.auth.sub] : ['fiducia', 'accival'].includes(target) ? [empresaId, destinoId, target, storagePath, periodo, req.auth.sub] : usaWallet ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, periodo, req.auth.sub] : [empresaId, destinoId, target, storagePath, null, periodo, req.auth.sub]
   const placeholders = values.map((_, index) => `$${index + 1}`).join(', ')
   const inserted = await query(`insert into import_jobs ${columns} values (${placeholders}) returning *`, values)
   res.status(201).json({ job: inserted.rows[0] })

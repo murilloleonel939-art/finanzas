@@ -6,6 +6,7 @@ import XLSX from 'xlsx'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { query, pool } from './server/db.mjs'
+import { extraerExtractoAccival } from './src/lib/accival-extracto.js'
 import {
   generarPromptMovimientosCuenta,
   generarPromptMovimientosBroker,
@@ -419,6 +420,8 @@ async function lotesDelArchivo(filePath, pdfPassword = '') {
     } catch (error) {
       if (error.code === 'ENOENT') throw new Error('Falta pdftotext/pdfinfo en la imagen del worker.')
       if (/password|encrypted|incorrect password|not authorized/i.test(`${error.message} ${error.stderr || ''}`)) throw new Error('La clave del PDF no es correcta. Actualízala en la configuración de la cuenta.')
+      // execFile incluye argumentos (como -upw) en error.message: nunca registrar la clave.
+      if (pdfPassword) throw new Error('No se pudo leer el PDF protegido. Comprueba la clave guardada y el formato del archivo.')
       throw new Error(`No se pudo extraer texto del PDF: ${error.message}`)
     }
   }
@@ -483,6 +486,15 @@ async function extraerLote(texto, prompt, esBroker, esDale, indice, total) {
 }
 
 async function extraerDatos(filePath, job, contexto) {
+  if (job.target === 'accival') {
+    const entidad = await query(`select f.nombre from cuentas_comisionistas_fiducias c join comisionistas_fiducias f on f.id = c.comisionista_fiducia_id and f.deleted_at is null
+      where c.id = $1 and c.empresa_id = $2 and c.deleted_at is null`, [job.fiducia_id, job.empresa_id])
+    if (!['acciones y valores s.a.', 'trii'].includes(String(entidad.rows[0]?.nombre || '').trim().toLowerCase())) throw new Error('El importador de extractos unificados solo acepta Acciones y Valores S.A. o trii.')
+    const password = descifrarClavePdf(contexto.pdf_password_encrypted)
+    if (!password) throw new Error('Guarda primero la clave del extracto PDF en esta cuenta.')
+    const lotes = await lotesDelArchivo(filePath, password)
+    return extraerExtractoAccival(lotes)
+  }
   if (job.target === 'fiducia') return extraerActivoFiduciariaBancolombia(filePath)
   if (job.target === 'binance_p2p') return extraerOrdenesBinanceP2p(filePath)
   if (job.target === 'wallet' && esBinance(job)) {
@@ -536,8 +548,8 @@ async function extraerDatos(filePath, job, contexto) {
 }
 
 async function contextoDestino(client, job) {
-  const table = job.target === 'cuenta' ? 'cuentas' : job.target === 'fiducia' ? 'cuentas_comisionistas_fiducias' : job.target === 'broker' ? 'brokers' : 'wallets'
-  const id = job.target === 'binance_p2p' ? job.wallet_id : job.target === 'fiducia' ? job.fiducia_id : job[`${job.target}_id`]
+  const table = job.target === 'cuenta' ? 'cuentas' : ['fiducia', 'accival'].includes(job.target) ? 'cuentas_comisionistas_fiducias' : job.target === 'broker' ? 'brokers' : 'wallets'
+  const id = job.target === 'binance_p2p' ? job.wallet_id : ['fiducia', 'accival'].includes(job.target) ? job.fiducia_id : job[`${job.target}_id`]
   const result = table === 'cuentas'
     ? await client.query(`select c.*, b.nombre_banco as banco from cuentas c join bancos b on b.id = c.banco_id and b.deleted_at is null where c.id = $1 and c.empresa_id = $2 and c.deleted_at is null`, [id, job.empresa_id])
     : await client.query(`select * from ${table} where id = $1 and empresa_id = $2 and deleted_at is null`, [id, job.empresa_id])
@@ -576,6 +588,17 @@ async function procesarBinanceP2p(client, job, datos) {
     if (result.rowCount) creados++; else duplicados++
   }
   return { creados, duplicados }
+}
+
+async function procesarAccival(client, job, datos) {
+  const entidad = await client.query(`select f.nombre from cuentas_comisionistas_fiducias c join comisionistas_fiducias f on f.id = c.comisionista_fiducia_id and f.deleted_at is null
+    where c.id = $1 and c.empresa_id = $2 and c.deleted_at is null`, [job.fiducia_id, job.empresa_id])
+  if (!['acciones y valores s.a.', 'trii'].includes(String(entidad.rows[0]?.nombre || '').trim().toLowerCase())) throw new Error('El importador de extractos unificados solo acepta Acciones y Valores S.A. o trii.')
+  if (job.periodo && job.periodo !== datos.periodo) throw new Error('El periodo del archivo no coincide con el extracto.')
+  await client.query('update activos_accival set deleted_at = now() where cuenta_id = $1 and periodo = $2 and deleted_at is null', [job.fiducia_id, datos.periodo])
+  await client.query(`insert into activos_accival (empresa_id, cuenta_id, periodo, resumen, fondos, import_job_id)
+    values ($1,$2,$3,$4,$5,$6)`, [job.empresa_id, job.fiducia_id, datos.periodo, JSON.stringify(datos.resumen), JSON.stringify(datos.fondos), job.id])
+  return { creados: 0, activos: 1, duplicados: 0 }
 }
 
 async function procesarFiducia(client, job, datos) {
@@ -828,6 +851,8 @@ async function procesarJob(job) {
       ? await procesarCuenta(client, current, datos)
       : current.target === 'fiducia'
         ? await procesarFiducia(client, current, datos)
+        : current.target === 'accival'
+          ? await procesarAccival(client, current, datos)
         : current.target === 'wallet'
         ? await procesarWallet(client, current, datos)
         : current.target === 'binance_p2p'
