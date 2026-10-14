@@ -21,6 +21,19 @@ export const PROVIDER_RULES = {
 - Conserva la descripción y el tipo originales, y no uses reglas genéricas para estas filas.
 - Lee primero el período del extracto. Para fechas abreviadas como "Jul 23" o "23 Jul", usa el año del período que aparece en el PDF. Nunca uses 2024 por defecto ni copies el año de un ejemplo. Todas las filas del período de julio de 2026 deben devolver fechas como 2026-07-23.`,
   },
+  binance: {
+    displayName: 'Binance',
+    description: 'Historial de transacciones Binance',
+    instruction: `Este es un historial de transacciones de Binance. Estas reglas son exclusivas de Binance:
+- Usa las columnas literales del archivo: "Hora" como fecha/hora, "Cuenta", "Operación", "Moneda", "Cambiar" y "Comentario".
+- Conserva el orden exacto en que aparecen las filas del archivo/PDF usando el campo orden empezando en 0 dentro del lote. No ordenes por fecha ni agrupes operaciones.
+- El monto principal sale de la columna "Cambiar". Conserva su signo durante la extracción; el sistema guardará el monto absoluto y usará el signo para la dirección.
+- Si "Cambiar" es positivo, clasifica tipo como ingreso. Si "Cambiar" es negativo, clasifica tipo como egreso. Si es cero, omite la fila.
+- Devuelve moneda con el valor literal de la columna "Moneda" en mayúsculas.
+- Devuelve tipo_movimiento u operacion con el texto literal de la columna "Operación".
+- La descripcion debe incluir suficiente texto literal para identificar la fila, idealmente "Operación - Cuenta - Comentario" cuando Comentario exista.
+- No apliques reglas de DolarApp, Plenti, PayPal, Coindepo ni reglas genéricas si contradicen estas reglas.`,
+  },
   plenti: {
     displayName: 'Plenti',
     description: 'Wallet USDT relacionada con USD',
