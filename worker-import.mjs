@@ -81,6 +81,9 @@ function esDolarapp(job) {
 function esPlenti(job) {
   return normalizarTextoClave(job?.proveedor) === 'plenti'
 }
+function esBinance(job) {
+  return normalizarTextoClave(job?.proveedor) === 'binance'
+}
 const trmCache = new Map()
 async function obtenerTrmEuroDolarapp(fecha) {
   const clave = String(fecha || '').slice(0, 10)
@@ -262,6 +265,77 @@ function extraerOperacionesQuotex(filePath, moneda) {
   return { movimientos, activos: [] }
 }
 
+function normalizarEncabezadoBinance(valor) {
+  return normalizarTextoClave(valor).replace(/ /g, '')
+}
+
+function fechaBinance(valor) {
+  const texto = String(valor ?? '').trim()
+  const coincidencia = texto.match(/(\d{4}-\d{2}-\d{2})/)
+  return coincidencia?.[1] || ''
+}
+
+function movimientoBinance({ hora, cuenta, operacion, moneda, cambiar, comentario, orden }) {
+  const monto = parseMontoImportado(cambiar)
+  if (!fechaBinance(hora) || !operacion || !moneda || !Number.isFinite(monto) || monto === 0) return null
+  const partes = [operacion, cuenta, comentario].map((valor) => String(valor ?? '').trim()).filter(Boolean)
+  return {
+    fecha: fechaBinance(hora),
+    descripcion: partes.join(' - '),
+    tipo: monto > 0 ? 'ingreso' : 'egreso',
+    monto,
+    moneda: String(moneda).trim().toUpperCase(),
+    orden,
+  }
+}
+
+function extraerMovimientosBinanceArchivo(filePath) {
+  const extension = path.extname(filePath).toLowerCase()
+  if (!['.csv', '.xls', '.xlsx'].includes(extension)) return null
+  const workbook = XLSX.readFile(filePath, { cellDates: false })
+  const movimientos = []
+  let orden = 0
+  for (const nombre of workbook.SheetNames) {
+    const filas = XLSX.utils.sheet_to_json(workbook.Sheets[nombre], { header: 1, defval: '' })
+    const indiceEncabezado = filas.findIndex((fila) => fila.some((celda) => normalizarEncabezadoBinance(celda) === 'hora') && fila.some((celda) => normalizarEncabezadoBinance(celda) === 'operacion'))
+    if (indiceEncabezado < 0) continue
+    const encabezados = filas[indiceEncabezado].map(normalizarEncabezadoBinance)
+    const valor = (fila, clave) => fila[encabezados.indexOf(clave)]
+    for (const fila of filas.slice(indiceEncabezado + 1)) {
+      const movimiento = movimientoBinance({
+        hora: valor(fila, 'hora'), cuenta: valor(fila, 'cuenta'), operacion: valor(fila, 'operacion'),
+        moneda: valor(fila, 'moneda'), cambiar: valor(fila, 'cambiar'), comentario: valor(fila, 'comentario'), orden,
+      })
+      if (movimiento) movimientos.push(movimiento)
+      orden += 1
+    }
+  }
+  return movimientos
+}
+
+function extraerMovimientosBinancePdf(texto) {
+  const movimientos = []
+  const lineas = String(texto).split(/\r?\n/)
+  let orden = 0
+  for (const linea of lineas) {
+    const columnas = linea.trim().split(/\s{2,}/)
+    if (columnas.length < 5) continue
+    const [hora, cuenta, operacion, moneda, cambiar, ...comentario] = columnas
+    const movimiento = movimientoBinance({ hora, cuenta, operacion, moneda, cambiar, comentario: comentario.join(' '), orden })
+    if (movimiento) movimientos.push(movimiento)
+    orden += 1
+  }
+  return movimientos
+}
+
+async function extraerDatosBinance(filePath, job) {
+  const directos = extraerMovimientosBinanceArchivo(filePath)
+  if (directos) return directos
+  if (path.extname(filePath).toLowerCase() !== '.pdf') return null
+  const texto = await execFileAsync(process.env.PDFTOTEXT_BIN || 'pdftotext', ['-layout', filePath, '-'], { maxBuffer: 32 * 1024 * 1024 })
+  return extraerMovimientosBinancePdf(texto.stdout)
+}
+
 async function lotesDelArchivo(filePath, pdfPassword = '') {
   const extension = path.extname(filePath).toLowerCase()
   if (extension === '.pdf') {
@@ -342,6 +416,10 @@ async function extraerLote(texto, prompt, esBroker, esDale, indice, total) {
 }
 
 async function extraerDatos(filePath, job, contexto) {
+  if (job.target === 'wallet' && esBinance(job)) {
+    const movimientosBinance = await extraerDatosBinance(filePath, job)
+    if (movimientosBinance) return movimientosBinance
+  }
   const nombreBanco = contexto.banco || contexto.nombre_banco || ''
   const nombreBroker = String(contexto.nombre_broker || '').trim().toLowerCase()
   if (job.target === 'broker' && nombreBroker === 'quotex') {
