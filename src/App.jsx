@@ -48,6 +48,7 @@ import CrearActivo from './pages/CrearActivo.jsx'
 // Comisionistas y fiducias
 import ComisionistasFiduciasPage from './pages/ComisionistasFiduciasPage.jsx'
 import CrearComisionistaFiducia from './pages/CrearComisionistaFiducia.jsx'
+import CrearCuentaComisionistaFiducia from './pages/CrearCuentaComisionistaFiducia.jsx'
 
 // Wallets + Earn
 import WalletsPage from './pages/WalletsPage.jsx'
@@ -125,6 +126,7 @@ export default function App() {
         {/* Comisionistas y fiducias */}
         <Route path="comisionistas-fiducias" element={<ComisionistasFiduciasPage />} />
         <Route path="comisionistas-fiducias/crear" element={<CrearComisionistaFiducia />} />
+        <Route path="comisionistas-fiducias/crear-cuenta" element={<CrearCuentaComisionistaFiducia />} />
 
         {/* Wallets + Earn */}
         <Route path="wallets" element={<WalletsPage />} />

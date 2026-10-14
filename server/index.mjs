@@ -543,6 +543,18 @@ app.get('/api/empresas/:empresaId/comisionistas-fiducias', requireAuth, async (r
   res.json({ comisionistas: result.rows })
 })
 
+app.get('/api/empresas/:empresaId/comisionistas-fiducias/cuentas', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const result = await query(
+    `select id, empresa_id, comisionista_fiducia_id, nombre_cuenta, created_at
+     from cuentas_comisionistas_fiducias
+     where empresa_id = $1 and deleted_at is null
+     order by nombre_cuenta`,
+    [req.params.empresaId]
+  )
+  res.json({ cuentas: result.rows })
+})
+
 app.post('/api/empresas/:empresaId/comisionistas-fiducias', requireAuth, async (req, res) => {
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
   const pais = req.body.pais?.trim().toUpperCase()
@@ -554,6 +566,29 @@ app.post('/api/empresas/:empresaId/comisionistas-fiducias', requireAuth, async (
     return res.status(201).json({ comisionista: created.rows[0] })
   } catch (err) {
     if (err.code === '23505') return error(res, 409, 'Ya existe esta entidad para el país seleccionado.')
+    throw err
+  }
+})
+
+app.post('/api/empresas/:empresaId/comisionistas-fiducias/cuentas', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const comisionistaFiduciaId = req.body.comisionista_fiducia_id
+  const nombreCuenta = req.body.nombre_cuenta?.trim()
+  if (!comisionistaFiduciaId || !nombreCuenta) return error(res, 400, 'La entidad y el nombre o número de cuenta son obligatorios.')
+  const entidad = await query(
+    'select id from comisionistas_fiducias where id = $1 and empresa_id = $2 and deleted_at is null',
+    [comisionistaFiduciaId, req.params.empresaId]
+  )
+  if (!entidad.rowCount) return error(res, 400, 'La entidad seleccionada no pertenece a esta empresa.')
+  try {
+    const created = await query(
+      `insert into cuentas_comisionistas_fiducias (empresa_id, comisionista_fiducia_id, nombre_cuenta, created_by)
+       values ($1, $2, $3, $4) returning id, empresa_id, comisionista_fiducia_id, nombre_cuenta`,
+      [req.params.empresaId, comisionistaFiduciaId, nombreCuenta, req.auth.sub]
+    )
+    return res.status(201).json({ cuenta: created.rows[0] })
+  } catch (err) {
+    if (err.code === '23505') return error(res, 409, 'Ya existe una cuenta con ese nombre o número para esta entidad.')
     throw err
   }
 })

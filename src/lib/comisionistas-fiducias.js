@@ -28,6 +28,15 @@ export function crearComisionistaFiducia(empresaId, { pais, nombre }) {
   return apiJson(`/api/empresas/${empresaId}/comisionistas-fiducias`, 'POST', { pais, nombre })
 }
 
+export async function listarCuentasComisionistasFiducias(empresaId) {
+  const { cuentas = [] } = await api(`/api/empresas/${empresaId}/comisionistas-fiducias/cuentas`)
+  return cuentas
+}
+
+export function crearCuentaComisionistaFiducia(empresaId, datos) {
+  return apiJson(`/api/empresas/${empresaId}/comisionistas-fiducias/cuentas`, 'POST', datos)
+}
+
 export function borrarComisionistaFiducia(empresaId, id) {
   return api(`/api/empresas/${empresaId}/comisionistas-fiducias/${id}`, { method: 'DELETE' })
 }
