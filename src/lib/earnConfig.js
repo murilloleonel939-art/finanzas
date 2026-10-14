@@ -106,6 +106,7 @@ export function esMovimientoEarn(movimiento, nombreProveedor) {
 // «interés» inflaba el total con movimientos que no son el pago de intereses,
 // especialmente en Coindepo, donde se pidió contar exclusivamente esa fila.
 export const REGEX_INTERES = /^interest payment(?:\s|$)/
+export const REGEX_INTERES_BINANCE = /^simple earn flexible interest(?:\s|$)/
 
 /**
  * Conceptos que **nunca** son intereses, aunque el extracto los describa con
@@ -137,6 +138,7 @@ export function esInteres(descripcion, nombreProveedor) {
   // Limitar por proveedor evita contar depósitos, premios u otras filas cuya
   // descripción contenga palabras ambiguas como «yield» o «ganancia».
   if (esProveedorEarn(nombreProveedor)) return REGEX_INTERES.test(norm)
+  if (claveProveedor(nombreProveedor) === 'binance') return REGEX_INTERES_BINANCE.test(norm)
   return /(interes|interest|rendimiento|ganancia|yield)/.test(norm)
 }
 
