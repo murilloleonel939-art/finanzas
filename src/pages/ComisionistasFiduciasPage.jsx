@@ -5,7 +5,7 @@ import { AlertCircle, Building2, Loader2, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import { borrarComisionistaFiducia, listarComisionistasFiducias, nombrePaisComisionista } from '@/lib/comisionistas-fiducias'
+import { borrarComisionistaFiducia, listarCuentasComisionistasFiducias, listarComisionistasFiducias, nombrePaisComisionista } from '@/lib/comisionistas-fiducias'
 
 export default function ComisionistasFiduciasPage() {
   const { empresaId } = useParams()
@@ -16,6 +16,15 @@ export default function ComisionistasFiduciasPage() {
     queryKey: ['comisionistas-fiducias', empresaId],
     queryFn: () => listarComisionistasFiducias(empresaId),
   })
+  const { data: cuentas = [] } = useQuery({
+    queryKey: ['cuentas-comisionistas-fiducias', empresaId],
+    queryFn: () => listarCuentasComisionistasFiducias(empresaId),
+  })
+  const cuentasPorEntidad = cuentas.reduce((resultado, cuenta) => {
+    resultado[cuenta.comisionista_fiducia_id] ??= []
+    resultado[cuenta.comisionista_fiducia_id].push(cuenta)
+    return resultado
+  }, {})
   const { mutate: borrar, isPending: borrando } = useMutation({
     mutationFn: (id) => borrarComisionistaFiducia(empresaId, id),
     onSuccess: () => {
@@ -41,7 +50,7 @@ export default function ComisionistasFiduciasPage() {
         ) : items.length === 0 ? (
           <Card className="p-8 text-center"><Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-3" /><p className="text-muted-foreground mb-4">No hay comisionistas o fiducias creados aún.</p><Button onClick={() => navigate(`/empresa/${empresaId}/comisionistas-fiducias/crear`)}><Plus className="w-4 h-4 mr-2" />Crear el primero</Button></Card>
         ) : (
-          <div className="space-y-3">{items.map((item) => <Card key={item.id} className="p-4"><div className="flex items-center justify-between"><div><h3 className="font-medium">{item.nombre}</h3><p className="text-xs text-muted-foreground">{nombrePaisComisionista(item.pais)}</p></div><div className="flex items-center gap-2"><Button variant="outline" size="sm" onClick={() => navigate(`/empresa/${empresaId}/comisionistas-fiducias/crear-cuenta?fiducia=${item.id}`)}><Plus className="mr-1 h-4 w-4" />Crear cuenta</Button><button type="button" className="p-2 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive" title="Borrar" onClick={() => setPorBorrar(item)}><Trash2 className="w-4 h-4" /></button></div></div></Card>)}</div>
+          <div className="space-y-3">{items.map((item) => <Card key={item.id} className="p-4"><div className="flex items-center justify-between"><div><h3 className="font-medium">{item.nombre}</h3><p className="text-xs text-muted-foreground">{nombrePaisComisionista(item.pais)}</p><div className="mt-2 space-y-1">{(cuentasPorEntidad[item.id] ?? []).map((cuenta) => <p key={cuenta.id} className="text-sm text-muted-foreground">Cuenta: {cuenta.nombre_cuenta}</p>)}</div></div><div className="flex items-center gap-2"><Button variant="outline" size="sm" onClick={() => navigate(`/empresa/${empresaId}/comisionistas-fiducias/crear-cuenta?fiducia=${item.id}`)}><Plus className="mr-1 h-4 w-4" />Crear cuenta</Button><button type="button" className="p-2 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive" title="Borrar" onClick={() => setPorBorrar(item)}><Trash2 className="w-4 h-4" /></button></div></div></Card>)}</div>
         )}
       </div>
       <ConfirmDialog open={!!porBorrar} onOpenChange={(open) => !open && setPorBorrar(null)} title={`¿Borrar ${porBorrar?.nombre}?`} description="Dejará de aparecer en el listado. Nada se borra físicamente de la base." actionText="Borrar" onConfirm={() => borrar(porBorrar.id)} isLoading={borrando} />
