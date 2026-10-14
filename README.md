@@ -110,6 +110,9 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - Importación de extractos desde PDF, CSV, XLS y XLSX con reglas por proveedor; los proveedores sin reglas propias usan la extracción genérica.
 - Regla específica de DolarApp: normaliza USDT y USDC como USDC, interpreta `Compra USDc` y `Compra EURc` como ingresos, y `Venta USDc` y `Venta EURc` como egresos/débitos.
 - Para operaciones DolarApp con moneda equivalente `COP`, conserva `TRM`, `M. de compra`, `valorTrm` y `Diferencia cambio` como datos de análisis separados del saldo de la wallet.
+- Regla específica de Plenti: la moneda se guarda como `USDT` aunque el extracto la relacione con `USD`; `Recarga` se importa como ingreso, y `Compra` y `Transferencia` como egresos.
+- En Plenti, solo las transacciones `Transferencia` llenan `TRM`, `M. de compra`, `valorTrm` y `Diferencia cambio`: consulta la TRM del día, toma `valor en pesos` del PDF como `M. de compra`, calcula `valorTrm = TRM * monto` y `Diferencia cambio = valorTrm - M. de compra`.
+- El detalle de movimientos muestra esas columnas de diferencial cambiario para DolarApp y Plenti, y también las incluye en la exportación.
 - El importador reconoce también la fila literal completa, por ejemplo `Venta EURc - 4.99 COP - 18,001 ALE*** MUN***`, extrayendo el monto EUR y su equivalente COP.
 - Para compras, la diferencia de cambio es `valorTrm - M. de compra`; para ventas, es `M. de compra - valorTrm`. En EURc, la TRM EUR/COP se obtiene combinando EUR/USD con la TRM oficial USD/COP del día.
 - Las transferencias P2P y otros movimientos EURc que no indiquen explícitamente compra o venta no reciben cálculo de diferencial cambiario.
