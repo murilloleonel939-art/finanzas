@@ -1087,7 +1087,8 @@ app.post('/api/empresas/:empresaId/import-jobs', requireAuth, async (req, res) =
   const usaWallet = target === 'wallet' || target === 'binance_p2p'
   const columns = target === 'cuenta' ? '(empresa_id, cuenta_id, target, storage_path, proveedor, periodo, created_by)' : target === 'fiducia' ? '(empresa_id, fiducia_id, target, storage_path, periodo, created_by)' : usaWallet ? '(empresa_id, wallet_id, target, storage_path, proveedor, periodo, created_by)' : '(empresa_id, broker_id, target, storage_path, proveedor, periodo, created_by)'
   const values = target === 'cuenta' ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, periodo, req.auth.sub] : target === 'fiducia' ? [empresaId, destinoId, target, storagePath, periodo, req.auth.sub] : usaWallet ? [empresaId, destinoId, target, storagePath, req.body.proveedor || null, periodo, req.auth.sub] : [empresaId, destinoId, target, storagePath, null, periodo, req.auth.sub]
-  const inserted = await query(`insert into import_jobs ${columns} values ($1, $2, $3, $4, $5, $6, $7) returning *`, values)
+  const placeholders = values.map((_, index) => `$${index + 1}`).join(', ')
+  const inserted = await query(`insert into import_jobs ${columns} values (${placeholders}) returning *`, values)
   res.status(201).json({ job: inserted.rows[0] })
 })
 
