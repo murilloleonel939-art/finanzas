@@ -493,14 +493,10 @@ export default function WalletDetail() {
         {mostrarEarn && !todoEarn && (
           <div className="flex gap-1 border-b mb-6">
             {[
+              ...(esBinance ? [{ id: 'activos', etiqueta: 'Activos' }] : []),
               { id: 'movimientos', etiqueta: 'Movimientos' },
               { id: 'earn', etiqueta: 'Earn' },
-              ...(esBinance
-                ? [
-                    { id: 'activos', etiqueta: 'Activos' },
-                    { id: 'p2p', etiqueta: 'P2P' },
-                  ]
-                : []),
+              ...(esBinance ? [{ id: 'p2p', etiqueta: 'P2P' }] : []),
             ].map((p) => (
               <button
                 key={p.id}
@@ -522,6 +518,30 @@ export default function WalletDetail() {
                 )}
               </button>
             ))}
+          </div>
+        )}
+
+        {esBinance && pestana === 'activos' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {analisis.porMoneda.length === 0 ? (
+              <Card className="p-6 col-span-full text-center">
+                <p className="text-muted-foreground">Sin activos registrados.</p>
+              </Card>
+            ) : (
+              analisis.porMoneda.map((m) => (
+                <Card key={m.moneda} className="p-4">
+                  <div className="flex items-baseline justify-between mb-3">
+                    <p className="text-sm font-semibold">{m.moneda}</p>
+                    <p className="text-xs text-muted-foreground">acumulado</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Fila etiqueta="Total" valor={m.neto} moneda={m.moneda} />
+                    <Fila etiqueta="Intereses ganados" valor={m.interesesGanados} moneda={m.moneda} tono="positivo" />
+                    <Fila etiqueta="Comisiones" valor={m.comisiones} moneda={m.moneda} />
+                  </div>
+                </Card>
+              ))
+            )}
           </div>
         )}
 
