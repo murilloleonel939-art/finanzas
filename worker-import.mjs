@@ -78,6 +78,9 @@ function esPaypal(job) {
 function esDolarapp(job) {
   return normalizarTextoClave(job?.proveedor) === 'dolarapp'
 }
+function esPlenti(job) {
+  return normalizarTextoClave(job?.proveedor) === 'plenti'
+}
 const trmCache = new Map()
 async function obtenerTrmEuroDolarapp(fecha) {
   const clave = String(fecha || '').slice(0, 10)
@@ -139,6 +142,14 @@ function normalizarMovimientoPaypal(item) {
   if (etiqueta.startsWith('user initiated withdrawal') && moneda === 'COP') {
     return { tipo: 'egreso', descripcion }
   }
+  return null
+}
+function normalizarMovimientoPlenti(item) {
+  const transaccion = String(item?.transaccion || item?.tipo_movimiento || item?.tipo_operacion || item?.tipo || '').trim()
+  const descripcion = String(item?.descripcion || '').trim()
+  const etiqueta = normalizarTextoClave(`${transaccion} ${descripcion}`)
+  if (etiqueta.includes('recarga')) return { tipo: 'ingreso', descripcion: descripcion || transaccion }
+  if (etiqueta.includes('compra') || etiqueta.includes('transferencia')) return { tipo: 'egreso', descripcion: descripcion || transaccion }
   return null
 }
 // Reglas EXCLUSIVAS de Coindepo. El signo decide la dirección en los eventos de
@@ -475,15 +486,19 @@ async function procesarWallet(client, job, datos) {
       ? normalizarMovimientoCoindepo(item, montoBruto)
       : esPaypal(job)
         ? normalizarMovimientoPaypal(item)
-        : esDolarapp(job)
-          ? normalizarMovimientoDolarapp(item)
-          : { tipo: item.tipo, descripcion: item.descripcion }
+        : esPlenti(job)
+          ? normalizarMovimientoPlenti(item)
+          : esDolarapp(job)
+            ? normalizarMovimientoDolarapp(item)
+            : { tipo: item.tipo, descripcion: item.descripcion }
     const grossImportado = esPaypal(job) ? parseMontoImportado(item.gross) : NaN
     const montoPrincipal = esPaypal(job) && Number.isFinite(grossImportado) ? Math.abs(grossImportado) : monto
     if (!item.fecha || !Number.isFinite(montoPrincipal) || montoPrincipal <= 0 || !regla?.descripcion || !['ingreso', 'egreso'].includes(regla.tipo)) continue
     const dolarapp = esDolarapp(job)
     const monedaImportada = String(item.moneda || item.moneda_principal || 'USD').trim().toUpperCase()
-    const moneda = dolarapp && ['USDT', 'USDC'].includes(monedaImportada) ? 'USDC' : monedaImportada
+    const moneda = esPlenti(job) && ['USD', 'USDT'].includes(monedaImportada)
+      ? 'USDT'
+      : dolarapp && ['USDT', 'USDC'].includes(monedaImportada) ? 'USDC' : monedaImportada
     const descripcionClave = normalizarTextoClave(`${item.tipo_original || ''} ${item.tipo_movimiento || ''} ${item.tipo_operacion || ''} ${item.operacion || ''} ${item.tipo || ''} ${item.descripcion || ''} ${regla.descripcion || ''}`)
     const monedaEquivalenteTexto = `${item.moneda_equivalente || item.monedaLocalEquivalente || item.moneda_local_equivalente || ''} ${item.descripcion || ''} ${regla.descripcion || ''}`
     const monedaEquivalente = normalizarTextoClave(monedaEquivalenteTexto)

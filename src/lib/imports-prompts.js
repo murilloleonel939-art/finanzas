@@ -21,6 +21,18 @@ export const PROVIDER_RULES = {
 - Conserva la descripción y el tipo originales, y no uses reglas genéricas para estas filas.
 - Lee primero el período del extracto. Para fechas abreviadas como "Jul 23" o "23 Jul", usa el año del período que aparece en el PDF. Nunca uses 2024 por defecto ni copies el año de un ejemplo. Todas las filas del período de julio de 2026 deben devolver fechas como 2026-07-23.`,
   },
+  plenti: {
+    displayName: 'Plenti',
+    description: 'Wallet USDT relacionada con USD',
+    instruction: `Este es un extracto de Plenti. Estas reglas son exclusivas de Plenti:
+- Usa la columna "Transaccion" o "Transacción" como señal principal del tipo de movimiento.
+- Si Transaccion contiene "Recarga", clasifica el movimiento como ingreso.
+- Si Transaccion contiene "Compra" o "Transferencia", clasifica el movimiento como egreso.
+- La moneda operativa de Plenti es USDT aunque el extracto la relacione con USD. Devuelve moneda como USDT cuando el PDF muestre USD o USDT.
+- Conserva el orden exacto de las filas del PDF usando el campo orden empezando en 0 dentro del lote.
+- Conserva la transacción literal en transaccion y en descripcion incluye el texto literal suficiente de la fila para identificar el movimiento.
+- No apliques reglas de DolarApp, PayPal, Coindepo ni reglas genéricas si contradicen estas reglas.`,
+  },
   paypal: {
     displayName: 'PayPal',
     description: 'Extractos de transacciones PayPal',
