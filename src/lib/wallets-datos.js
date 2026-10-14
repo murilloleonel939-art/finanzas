@@ -301,6 +301,10 @@ export function analizarWallet(movimientos = [], saldosFinales = [], esDelPeriod
   const apertura = new Map(saldo)
 
   const filas = []
+  const diferencialCambio = {
+    positiva: 0,
+    negativa: 0,
+  }
   const porMoneda = new Map()
 
   // `saldoInicial` es el saldo **al entrar en el período**, no el de apertura de
@@ -344,8 +348,14 @@ export function analizarWallet(movimientos = [], saldosFinales = [], esDelPeriod
     }
     const diferenciaCambio = Number(m.diferencia_cambio)
     if (Number.isFinite(diferenciaCambio)) {
-      if (diferenciaCambio > 0) acc.diferenciaCambioPositiva += diferenciaCambio
-      if (diferenciaCambio < 0) acc.diferenciaCambioNegativa += Math.abs(diferenciaCambio)
+      if (diferenciaCambio > 0) {
+        acc.diferenciaCambioPositiva += diferenciaCambio
+        diferencialCambio.positiva += diferenciaCambio
+      }
+      if (diferenciaCambio < 0) {
+        acc.diferenciaCambioNegativa += Math.abs(diferenciaCambio)
+        diferencialCambio.negativa += Math.abs(diferenciaCambio)
+      }
     }
     acc.total += 1
     acc.saldoFinal = nuevo
@@ -356,6 +366,10 @@ export function analizarWallet(movimientos = [], saldosFinales = [], esDelPeriod
   return {
     // El orden de salida es el de la entrada (descendente), como lo pinta la tabla.
     filas: filas.reverse(),
+    diferencialCambio: {
+      positiva: redondear(diferencialCambio.positiva),
+      negativa: redondear(diferencialCambio.negativa),
+    },
     porMoneda: [...porMoneda.values()]
       .map((a) => ({
         ...a,

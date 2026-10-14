@@ -407,24 +407,15 @@ export default function WalletDetail() {
         )}
 
         {/* Diferencial cambiario por moneda */}
-        {analisis.porMoneda.some((m) => m.diferenciaCambioPositiva > 0 || m.diferenciaCambioNegativa > 0) && (
+        {(analisis.diferencialCambio.positiva > 0 || analisis.diferencialCambio.negativa > 0) && (
           <Card className="p-4 mb-6">
             <div className="flex items-baseline justify-between mb-3">
               <p className="text-sm font-semibold">Diferencial cambiario</p>
               <p className="text-xs text-muted-foreground">{periodo}</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {analisis.porMoneda
-                .filter((m) => m.diferenciaCambioPositiva > 0 || m.diferenciaCambioNegativa > 0)
-                .map((m) => (
-                  <div key={m.moneda} className="rounded-md border p-3">
-                    <p className="text-xs font-semibold text-muted-foreground mb-2">{m.moneda}</p>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                      <Fila etiqueta="Diferencia de cambio positiva" valor={m.diferenciaCambioPositiva} moneda={m.moneda} tono="positivo" />
-                      <Fila etiqueta="Diferencia de cambio negativa" valor={m.diferenciaCambioNegativa} moneda={m.moneda} tono="negativo" />
-                    </div>
-                  </div>
-                ))}
+              <Fila etiqueta="Diferencia de cambio positiva" valor={analisis.diferencialCambio.positiva} moneda="COP" tono="positivo" />
+              <Fila etiqueta="Diferencia de cambio negativa" valor={analisis.diferencialCambio.negativa} moneda="COP" tono="negativo" />
             </div>
           </Card>
         )}
