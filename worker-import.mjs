@@ -85,9 +85,13 @@ async function obtenerTrmEuroDolarapp(fecha) {
   const cacheKey = `dolarapp-eur:${clave}`
   if (trmCache.has(cacheKey)) return trmCache.get(cacheKey)
   try {
-    const response = await fetch(`https://api.frankfurter.app/${clave}?from=EUR&to=COP`)
-    if (!response.ok) throw new Error(`EUR/COP HTTP ${response.status}`)
-    const valor = parseMontoImportado((await response.json())?.rates?.COP)
+    // Frankfurter publica EUR/USD, pero no EUR/COP. Convertimos usando la
+    // TRM oficial USD/COP del mismo día para obtener una tasa EUR/COP.
+    const response = await fetch(`https://api.frankfurter.app/${clave}?from=EUR&to=USD`)
+    if (!response.ok) throw new Error(`EUR/USD HTTP ${response.status}`)
+    const eurUsd = parseMontoImportado((await response.json())?.rates?.USD)
+    const usdCop = await obtenerTrmOficial(clave)
+    const valor = Number.isFinite(eurUsd) && Number.isFinite(usdCop) ? eurUsd * usdCop : NaN
     trmCache.set(cacheKey, valor)
     return valor
   } catch (err) {
@@ -414,7 +418,10 @@ async function procesarWalletDolarapp(client, job, datos, wallet) {
   let creados = 0; let duplicados = 0
   for (const item of asArray(datos)) {
     const regla = normalizarMovimientoDolarapp(item)
-    const monto = Math.abs(parseMontoImportado(item.monto))
+    const textoFila = String(item.descripcion || '').trim()
+    const operacionFila = textoFila.match(/\b(venta|compra)\s+(usdc?|eurc?)\b\s*[-:]?\s*([\d.,]+)\s+(?:cop|usd|usdc|eur|eurc)\s*[-:]?\s*([\d.,]+)/i)
+    const montoFila = operacionFila ? parseMontoImportado(operacionFila[3]) : parseMontoImportado(item.monto)
+    const monto = Math.abs(montoFila)
     if (!item.fecha || !Number.isFinite(monto) || monto <= 0 || !regla?.descripcion || !['ingreso', 'egreso'].includes(regla.tipo)) continue
     const clave = normalizarTextoClave(`${item.tipo_original || ''} ${item.tipo_movimiento || ''} ${item.tipo_operacion || ''} ${item.operacion || ''} ${item.tipo || ''} ${item.descripcion || ''}`)
     const esEur = /\beurc?\b/.test(clave)
@@ -424,13 +431,12 @@ async function procesarWalletDolarapp(client, job, datos, wallet) {
     const tieneCop = normalizarTextoClave(textoEquivalente).includes('cop')
     const monedaDeclarada = String(item.moneda || item.moneda_principal || '').trim().toUpperCase()
     const moneda = monedaDeclarada === 'EURC' || monedaDeclarada === 'EUR' || (!monedaDeclarada && esEur) ? 'EUR' : ['USD', 'USDT', 'USDC'].includes(monedaDeclarada) || (!monedaDeclarada && !esEur) ? 'USDC' : monedaDeclarada
-    const esOperacionEurCopSinTipo = moneda === 'EUR' && Number.isFinite(parseMontoImportado(item.monto_equivalente ?? item.monto_local_equivalente ?? item.montoLocalEquivalente))
+    const montoDesdeDescripcion = String(item.descripcion || '').match(/[+-]?\s*[\d.,]+\s+cop\s+[+-]?\s*([\$\d.,]+)/i)?.[1]
+    const montoEquivalenteDetectado = [item.monto_equivalente, item.monto_local_equivalente, item.montoLocalEquivalente, item.equivalente, item.valor_equivalente, montoDesdeDescripcion, operacionFila?.[4]].map(parseMontoImportado).find(Number.isFinite)
+    const esOperacionEurCopSinTipo = moneda === 'EUR' && Number.isFinite(montoEquivalenteDetectado)
     const esOperacionCompra = esCompra || (!esVenta && esOperacionEurCopSinTipo && regla.tipo === 'ingreso')
     const esOperacionVenta = esVenta || (!esCompra && esOperacionEurCopSinTipo && regla.tipo === 'egreso')
-    const montoDesdeDescripcion = String(item.descripcion || '').match(/[+-]\s*[\d.,]+\s+cop\s+[+-]\s*([$\d.,]+)/i)?.[1]
-    const montoEquivalente = esOperacionCompra || esOperacionVenta
-      ? [item.monto_equivalente, item.monto_local_equivalente, item.montoLocalEquivalente, item.equivalente, item.valor_equivalente, montoDesdeDescripcion].map(parseMontoImportado).find(Number.isFinite)
-      : NaN
+    const montoEquivalente = esOperacionCompra || esOperacionVenta ? montoEquivalenteDetectado : NaN
     let trm = esOperacionCompra || esOperacionVenta ? [item.trm, item.valor_trm, item.trm_dia, item.trm_del_dia].map(parseMontoImportado).find(Number.isFinite) : NaN
     if ((esOperacionCompra || esOperacionVenta) && (tieneCop || Number.isFinite(montoEquivalente)) && !Number.isFinite(trm)) {
       trm = esEur ? await obtenerTrmEuroDolarapp(item.fecha) : await obtenerTrmOficial(item.fecha)
