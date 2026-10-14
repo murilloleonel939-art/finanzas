@@ -433,9 +433,11 @@ async function procesarWalletDolarapp(client, job, datos, wallet) {
     const moneda = monedaDeclarada === 'EURC' || monedaDeclarada === 'EUR' || (!monedaDeclarada && esEur) ? 'EUR' : ['USD', 'USDT', 'USDC'].includes(monedaDeclarada) || (!monedaDeclarada && !esEur) ? 'USDC' : monedaDeclarada
     const montoDesdeDescripcion = String(item.descripcion || '').match(/[+-]?\s*[\d.,]+\s+cop\s+[+-]?\s*([\$\d.,]+)/i)?.[1]
     const montoEquivalenteDetectado = [item.monto_equivalente, item.monto_local_equivalente, item.montoLocalEquivalente, item.equivalente, item.valor_equivalente, montoDesdeDescripcion, operacionFila?.[4]].map(parseMontoImportado).find(Number.isFinite)
-    const esOperacionEurCopSinTipo = moneda === 'EUR' && Number.isFinite(montoEquivalenteDetectado)
-    const esOperacionCompra = esCompra || (!esVenta && esOperacionEurCopSinTipo && regla.tipo === 'ingreso')
-    const esOperacionVenta = esVenta || (!esCompra && esOperacionEurCopSinTipo && regla.tipo === 'egreso')
+    // El diferencial cambiario solo aplica a operaciones explícitas de compra/venta.
+    // Una transferencia P2P con EURc no debe inferirse como conversión aunque tenga
+    // un monto equivalente o la regla general sea ingreso/egreso.
+    const esOperacionCompra = esCompra
+    const esOperacionVenta = esVenta
     const montoEquivalente = esOperacionCompra || esOperacionVenta ? montoEquivalenteDetectado : NaN
     let trm = esOperacionCompra || esOperacionVenta ? [item.trm, item.valor_trm, item.trm_dia, item.trm_del_dia].map(parseMontoImportado).find(Number.isFinite) : NaN
     if ((esOperacionCompra || esOperacionVenta) && (tieneCop || Number.isFinite(montoEquivalente)) && !Number.isFinite(trm)) {
