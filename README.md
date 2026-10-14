@@ -107,6 +107,8 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - Para operaciones DolarApp con moneda equivalente `COP`, conserva `TRM`, `M. de compra`, `valorTrm` y `Diferencia cambio` como datos de análisis separados del saldo de la wallet.
 - El importador reconoce también la fila literal completa, por ejemplo `Venta EURc - 4.99 COP - 18,001 ALE*** MUN***`, extrayendo el monto EUR y su equivalente COP.
 - Para compras, la diferencia de cambio es `valorTrm - M. de compra`; para ventas, es `M. de compra - valorTrm`. En EURc, la TRM EUR/COP se obtiene combinando EUR/USD con la TRM oficial USD/COP del día.
+- Las transferencias P2P y otros movimientos EURc que no indiquen explícitamente compra o venta no reciben cálculo de diferencial cambiario.
+- El resumen muestra un único cuadro de **Diferencial cambiario** en COP, separado en diferencias positivas y negativas, con dos decimales.
 - El detalle de movimientos DolarApp muestra fechas y montos compactos, recorta descripciones largas con opción para desplegarlas y omite la columna Saldo.
 - Cada movimiento importado se vincula con el job que lo creó, lo que permite borrar la última importación desde el detalle de la wallet sin afectar los movimientos manuales ni los de otros archivos.
 - El detalle de la wallet concentra todas las acciones en la cabecera: **Exportar**, **Registrar movimiento**, **Importar extracto** y un menú **Borrar** con las dos formas de deshacer.
