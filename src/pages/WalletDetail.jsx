@@ -495,6 +495,12 @@ export default function WalletDetail() {
             {[
               { id: 'movimientos', etiqueta: 'Movimientos' },
               { id: 'earn', etiqueta: 'Earn' },
+              ...(esBinance
+                ? [
+                    { id: 'activos', etiqueta: 'Activos' },
+                    { id: 'p2p', etiqueta: 'P2P' },
+                  ]
+                : []),
             ].map((p) => (
               <button
                 key={p.id}
