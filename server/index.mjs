@@ -593,11 +593,41 @@ app.post('/api/empresas/:empresaId/comisionistas-fiducias/cuentas', requireAuth,
   }
 })
 
+app.delete('/api/empresas/:empresaId/comisionistas-fiducias/cuentas/:cuentaId', requireAuth, async (req, res) => {
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const deleted = await query(
+    'update cuentas_comisionistas_fiducias set deleted_at = now(), updated_at = now() where id = $1 and empresa_id = $2 and deleted_at is null',
+    [req.params.cuentaId, req.params.empresaId]
+  )
+  if (!deleted.rowCount) return error(res, 404, 'Cuenta no encontrada.')
+  res.status(204).end()
+})
+
 app.delete('/api/empresas/:empresaId/comisionistas-fiducias/:id', requireAuth, async (req, res) => {
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
-  const deleted = await query('update comisionistas_fiducias set deleted_at = now() where id = $1 and empresa_id = $2 and deleted_at is null', [req.params.id, req.params.empresaId])
-  if (!deleted.rowCount) return error(res, 404, 'Comisionista o fiducia no encontrado.')
-  res.status(204).end()
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const deleted = await client.query(
+      'update comisionistas_fiducias set deleted_at = now(), updated_at = now() where id = $1 and empresa_id = $2 and deleted_at is null',
+      [req.params.id, req.params.empresaId]
+    )
+    if (!deleted.rowCount) {
+      await client.query('rollback')
+      return error(res, 404, 'Comisionista o fiducia no encontrado.')
+    }
+    await client.query(
+      'update cuentas_comisionistas_fiducias set deleted_at = now(), updated_at = now() where comisionista_fiducia_id = $1 and empresa_id = $2 and deleted_at is null',
+      [req.params.id, req.params.empresaId]
+    )
+    await client.query('commit')
+    res.status(204).end()
+  } catch (err) {
+    await client.query('rollback')
+    throw err
+  } finally {
+    client.release()
+  }
 })
 
 app.get('/api/brokers/:brokerId', requireAuth, async (req, res) => {

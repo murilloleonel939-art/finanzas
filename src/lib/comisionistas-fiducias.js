@@ -37,6 +37,10 @@ export function crearCuentaComisionistaFiducia(empresaId, datos) {
   return apiJson(`/api/empresas/${empresaId}/comisionistas-fiducias/cuentas`, 'POST', datos)
 }
 
+export function borrarCuentaComisionistaFiducia(empresaId, cuentaId) {
+  return api(`/api/empresas/${empresaId}/comisionistas-fiducias/cuentas/${cuentaId}`, { method: 'DELETE' })
+}
+
 export function borrarComisionistaFiducia(empresaId, id) {
   return api(`/api/empresas/${empresaId}/comisionistas-fiducias/${id}`, { method: 'DELETE' })
 }

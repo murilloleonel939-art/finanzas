@@ -24,6 +24,7 @@ export async function api(path, options = {}) {
     if (body?.error) throw new Error(body.error)
     throw new Error(`El servidor respondió HTTP ${response.status}. Revisa los registros del despliegue en Coolify.`)
   }
+  if (response.status === 204) return null
   if (!body) throw new Error('El servidor respondió un formato inesperado. Revisa los registros del despliegue en Coolify.')
   return body
 }
