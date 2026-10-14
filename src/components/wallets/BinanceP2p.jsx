@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { ArrowUpDown, Loader2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import MonthFilter, { MES_TODOS, YearFilter, filtrarPorAno, filtrarPorMes, formatMes, getAnosDisponibles, getMesesDisponibles } from '@/components/shared/MonthFilter'
 
 const POR_PAGINA = 20
@@ -20,12 +22,15 @@ function valor(valor, formato = numero) {
 export default function BinanceP2p({ ordenes = [], cargando, onImportar }) {
   const [ano, setAno] = useState('')
   const [mes, setMes] = useState(MES_TODOS)
+  const [fiat, setFiat] = useState('all')
   const [pagina, setPagina] = useState(0)
   const anos = useMemo(() => getAnosDisponibles(ordenes), [ordenes])
   const anoActivo = ano || anos[0] || ''
   const ordenesAno = useMemo(() => filtrarPorAno(ordenes, anoActivo), [ordenes, anoActivo])
-  const meses = useMemo(() => getMesesDisponibles(ordenesAno), [ordenesAno])
-  const filtradas = useMemo(() => filtrarPorMes(ordenesAno, mes), [ordenesAno, mes])
+  const fiats = useMemo(() => [...new Set(ordenesAno.map((orden) => String(orden.tipo_fiat || '').trim()).filter(Boolean))].sort(), [ordenesAno])
+  const ordenesFiat = useMemo(() => fiat === 'all' ? ordenesAno : ordenesAno.filter((orden) => String(orden.tipo_fiat || '').trim() === fiat), [ordenesAno, fiat])
+  const meses = useMemo(() => getMesesDisponibles(ordenesFiat), [ordenesFiat])
+  const filtradas = useMemo(() => filtrarPorMes(ordenesFiat, mes), [ordenesFiat, mes])
   const resumen = useMemo(() => filtradas.reduce((acumulado, orden) => {
     const diferencia = Number(orden.diferencia_cambio)
     if (Number.isFinite(diferencia)) {
@@ -37,11 +42,11 @@ export default function BinanceP2p({ ordenes = [], cargando, onImportar }) {
   const totalPaginas = Math.ceil(filtradas.length / POR_PAGINA)
   const paginaSegura = Math.min(pagina, Math.max(0, totalPaginas - 1))
   const visibles = filtradas.slice(paginaSegura * POR_PAGINA, (paginaSegura + 1) * POR_PAGINA)
-  const periodo = mes === MES_TODOS ? `Año ${anoActivo || 'actual'}` : formatMes(mes)
+  const periodo = `${mes === MES_TODOS ? `Año ${anoActivo || 'actual'}` : formatMes(mes)} · ${fiat === 'all' ? 'Todos los fiat' : fiat}`
 
   return <>
     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-      <div className="flex flex-wrap gap-3"><YearFilter id="p2p-year-filter" anos={anos} value={anoActivo} onChange={(v) => { setAno(v); setMes(MES_TODOS); setPagina(0) }} /><MonthFilter id="p2p-month-filter" meses={meses} value={mes} onChange={(v) => { setMes(v); setPagina(0) }} label="Período" /></div>
+      <div className="flex flex-wrap gap-3"><YearFilter id="p2p-year-filter" anos={anos} value={anoActivo} onChange={(v) => { setAno(v); setMes(MES_TODOS); setFiat('all'); setPagina(0) }} /><MonthFilter id="p2p-month-filter" meses={meses} value={mes} onChange={(v) => { setMes(v); setPagina(0) }} label="Período" /><div className="flex flex-col gap-1.5"><Label htmlFor="p2p-fiat-filter">Tipo fiat</Label><Select value={fiat} onValueChange={(v) => { setFiat(v); setMes(MES_TODOS); setPagina(0) }}><SelectTrigger id="p2p-fiat-filter" className="w-full sm:w-36"><SelectValue placeholder="Todos" /></SelectTrigger><SelectContent><SelectItem value="all">Todos</SelectItem>{fiats.map((tipoFiat) => <SelectItem key={tipoFiat} value={tipoFiat}>{tipoFiat}</SelectItem>)}</SelectContent></Select></div></div>
       <Button onClick={onImportar} className="gap-2"><Upload className="w-4 h-4" />Importar P2P</Button>
     </div>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
