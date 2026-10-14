@@ -18,8 +18,13 @@ export async function api(path, options = {}) {
   if (token) headers.set('Authorization', `Bearer ${token}`)
 
   const response = await fetch(path, { ...options, headers })
-  const body = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(body?.error || 'No se pudo comunicar con el servidor.')
+  const contentType = response.headers.get('content-type') || ''
+  const body = contentType.includes('application/json') ? await response.json().catch(() => null) : null
+  if (!response.ok) {
+    if (body?.error) throw new Error(body.error)
+    throw new Error(`El servidor respondió HTTP ${response.status}. Revisa los registros del despliegue en Coolify.`)
+  }
+  if (!body) throw new Error('El servidor respondió un formato inesperado. Revisa los registros del despliegue en Coolify.')
   return body
 }
 
