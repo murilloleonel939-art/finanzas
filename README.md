@@ -163,7 +163,10 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
   - Credicorp Capital Fiduciaria
   - trii
   - acciones y valores S.A.
-- Listado y borrado lógico.
+- Listado y borrado lógico de comisionistas y fiducias.
+- Creación de cuentas asociadas a cada fiducia usando únicamente nombre o número de cuenta.
+- Visualización jerárquica en el menú lateral: fiducia y sus cuentas, con opción para crear una cuenta.
+- Borrado lógico individual de cuentas y borrado de la fiducia con sus cuentas asociadas.
 - Prevención de duplicados activos por empresa, país y nombre.
 
 ## Arquitectura
