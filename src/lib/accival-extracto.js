@@ -66,9 +66,16 @@ export function extraerExtractoAccival(paginas) {
   const fondos = []
   for (const texto of textos) {
     if (!/Extracto Fondos/i.test(texto) || !/Acciones\s*&\s*Valores/i.test(texto)) continue
-    const nombre = texto.match(/^\s*(FIC\s+ACCIVAL\s+.+?)\s{2,}(?:Comisi[oó]n|\d|$)/im)?.[1]?.replace(/\s+/g, ' ').trim()
-    const nombreCompleto = nombre && !nombre.includes('...') ? nombre.replace(/ACCIO NES/gi, 'ACCIONES') : null
-    if (!nombreCompleto) throw new Error('No se pudo identificar el nombre completo de un fondo.')
+    // La línea del fondo puede terminar en la columna "Comisión Fondo", en un NIT
+    // o inmediatamente tras el nombre; otra línea suele mostrarlo abreviado (...).
+    const candidatos = texto.split('\n').flatMap((linea) => {
+      const inicio = linea.search(/\bFIC\s+ACCIVAL\b/i)
+      if (inicio < 0) return []
+      const columna = linea.slice(inicio).split(/\s{2,}|\s+Comisi[oó]n\b/i)[0].trim()
+      return columna && !/\.\.\./.test(columna) ? [columna] : []
+    })
+    const nombreCompleto = candidatos[0]?.replace(/ACCIO NES/gi, 'ACCIONES').replace(/\s+/g, ' ').trim()
+    if (!nombreCompleto) throw new Error('No se pudo identificar el nombre completo de un fondo; el PDF solo contiene nombres abreviados.')
     const saldos = {
       saldo_anterior: renglon(texto, 'Saldo anterior'), adiciones: renglon(texto, 'Adiciones'),
       retiros: renglon(texto, 'Retiros'), rendimientos: renglon(texto, 'Rendimientos'),
