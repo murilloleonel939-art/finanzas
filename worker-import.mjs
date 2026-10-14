@@ -229,25 +229,39 @@ function fechaP2p(valor) {
 
 async function extraerActivoFiduciariaBancolombia(filePath) {
   const { stdout } = await execFileAsync(process.env.PDFTOTEXT_BIN || 'pdftotext', ['-layout', filePath, '-'])
-  const texto = String(stdout || '').normalize('NFC').replace(/\\([0-9]{3})/g, (_, codigo) => String.fromCharCode(parseInt(codigo, 8))).replace(/\s+/g, ' ').replace(/\s{2,}/g, ' ').trim()
+  const filas = String(stdout || '').normalize('NFC').replace(/\\([0-7]{3})/g, (_, codigo) => String.fromCharCode(parseInt(codigo, 8))).split(/\r?\n/).map((fila) => fila.replace(/\s+/g, ' ').trim()).filter(Boolean)
+  const texto = filas.join(' ')
   const exigir = (expresion, etiqueta) => {
     const encontrado = texto.match(expresion)
     if (!encontrado) throw new Error(`El extracto no contiene ${etiqueta}.`)
     return encontrado
   }
-  exigir(/FONDO\s+DE\s+INVERSI[ÓO]N\s+COLECTIV\s*A\s+ABIER\s*T?\s*O/i, 'el tipo de fondo Fiducuenta')
-  exigir(/FIDUCUENTA\s+FIDUCIARIA\s+BANCOLOMBIA/i, 'el encabezado de Fiduciaria Bancolombia')
-  const monto = (valor) => parseMontoImportado(String(valor).replace(/%/g, ''))
-  const trasEtiqueta = (expresion, etiqueta) => {
-    const encontrado = exigir(expresion, etiqueta)
-    const resto = texto.slice(encontrado.index + encontrado[0].length)
-    const bloque = resto.match(/VALOR\s+EN\s+PESOS([\s\S]*?)(?:VALOR\s+EN\s+UNIDADES|NUEVO\s+SALDO|$)/i)?.[1] || resto
-    const valor = monto(bloque.match(/[-$\s]*([0-9][0-9.,]*)/)?.[1])
-    if (!Number.isFinite(valor)) throw new Error(`No se pudo leer ${etiqueta}.`)
-    return valor
+  exigir(/FONDO\s*DE\s*INVERSI[ÓO]N\s*COLECTIV\s*A?\s*ABIER\s*T?\s*O/i, 'el tipo de fondo Fiducuenta')
+  exigir(/FIDUCUENT\s*A\s+FIDUCIARIA\s+BANCOLOMBIA/i, 'el encabezado de Fiduciaria Bancolombia')
+  const montoEnColumna = (expresion, etiqueta) => {
+    const indiceEncabezado = filas.findIndex((fila) => expresion.test(fila))
+    if (indiceEncabezado < 0) throw new Error(`El extracto no contiene ${etiqueta}.`)
+    const encabezado = filas[indiceEncabezado]
+    const posicion = encabezado.search(expresion)
+    const columnas = [...encabezado.matchAll(/SALDO\s+ANTERIOR|ADICIONES|RETIROS|REND\.\s+NET\s*OS|RETENCI[ÓO]N|NUEVO\s+SALDO/gi)]
+    const indiceColumna = Math.max(0, columnas.filter((columna) => columna.index < posicion).length)
+    for (const fila of filas.slice(indiceEncabezado + 1, indiceEncabezado + 5)) {
+      const valores = fila.match(/-?\d[\d.,]*/g) || []
+      if (valores.length > indiceColumna) {
+        const valor = parseMontoImportado(valores[indiceColumna])
+        if (Number.isFinite(valor)) return valor
+      }
+    }
+    throw new Error(`No se pudo leer ${etiqueta}.`)
   }
   const rentabilidad = exigir(/Rentabilidad\s+Periodo\s*:\s*([-+]?\d[\d.,]*)\s*%/i, 'la Rentabilidad Periodo')
-  return { tipo_fiducia: 'FIDUCUENTA', saldo_anterior: trasEtiqueta(/SALDO\s+ANTERIOR/i, 'el saldo anterior'), rendimientos_netos: trasEtiqueta(/REND\.\s+NET\s*OS/i, 'los rendimientos netos'), nuevo_saldo: trasEtiqueta(/NUEVO\s+SALDO/i, 'el nuevo saldo'), rentabilidad_periodo: monto(rentabilidad[1]) }
+  return {
+    tipo_fiducia: 'FIDUCUENTA',
+    saldo_anterior: montoEnColumna(/SALDO\s+ANTERIOR/i, 'el saldo anterior'),
+    rendimientos_netos: montoEnColumna(/REND\.\s+NET\s*OS/i, 'los rendimientos netos'),
+    nuevo_saldo: montoEnColumna(/NUEVO\s+SALDO/i, 'el nuevo saldo'),
+    rentabilidad_periodo: parseMontoImportado(rentabilidad[1]),
+  }
 }
 
 function extraerOrdenesBinanceP2p(filePath) {
