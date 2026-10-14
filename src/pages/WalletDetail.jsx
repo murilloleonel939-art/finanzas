@@ -132,6 +132,8 @@ export default function WalletDetail() {
   const esPaypal = String(wallet?.proveedor_nombre || '').trim().toLowerCase() === 'paypal'
   const todoEarn = esProveedorEarn(wallet?.proveedor_nombre)
   const esDolarapp = String(wallet?.proveedor_nombre || '').trim().toLowerCase() === 'dolarapp'
+  const esPlenti = String(wallet?.proveedor_nombre || '').trim().toLowerCase() === 'plenti'
+  const mostrarDiferencialCambio = esDolarapp || esPlenti
   const mostrarEarn = !esPaypal
 
   const meses = useMemo(() => getMesesDisponibles(movimientos), [movimientos])
@@ -297,7 +299,7 @@ export default function WalletDetail() {
                 { key: 'tipo_movimiento', label: 'Tipo' },
                 { key: 'monto', label: 'Monto' },
                 { key: 'moneda', label: 'Moneda' },
-                ...(esDolarapp ? [
+                ...(mostrarDiferencialCambio ? [
                   { key: 'trm', label: 'TRM' },
                   { key: 'monto_equivalente', label: 'M. de compra' },
                   { key: 'valor_trm', label: 'valorTrm' },
@@ -577,7 +579,7 @@ export default function WalletDetail() {
                           <th className="w-[300px] text-left px-4 py-3 font-medium">Descripción</th>
                           <th className="w-[110px] text-left px-4 py-3 font-medium">Tipo</th>
                           <th className="w-[145px] text-right px-4 py-3 font-medium">Monto</th>
-                           {esDolarapp && <>
+                           {mostrarDiferencialCambio && <>
                              <th className="text-right px-4 py-3 font-medium">TRM</th>
                              <th className="text-right px-4 py-3 font-medium">M. de compra</th>
                              <th className="text-right px-4 py-3 font-medium">valorTrm</th>
@@ -624,7 +626,7 @@ export default function WalletDetail() {
                               {m.tipo === 'ingreso' ? '+' : '−'}
                               {formatearNumeroCompacto(m.monto, 2)} {m.tipo_moneda}
                             </td>
-                            {esDolarapp && <>
+                            {mostrarDiferencialCambio && <>
                               <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{formatearValorTrm(m.trm)}</td>
                               <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.monto_equivalente != null ? formatearPesos(m.monto_equivalente) : '—'}</td>
                               <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{m.valor_trm != null ? formatearPesos(m.valor_trm) : '—'}</td>
