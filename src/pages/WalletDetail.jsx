@@ -167,6 +167,26 @@ export default function WalletDetail() {
 
   const periodo = mes === MES_TODOS ? 'acumulado' : formatMes(mes)
 
+  // P2P se mantiene fuera de movimientos_wallet y wallet_saldos. Sus comisiones
+  // se muestran como información adicional por activo, sin alterar el total ni
+  // los saldos calculados desde el extracto de la wallet.
+  const activosBinance = useMemo(() => {
+    if (!esBinance) return analisis.porMoneda
+    const porMoneda = new Map(analisis.porMoneda.map((activo) => [activo.moneda, { ...activo, comisionesP2p: 0 }]))
+    for (const orden of ordenesP2p) {
+      const moneda = String(orden.activo || '').trim().toUpperCase()
+      if (!moneda) continue
+      if (!porMoneda.has(moneda)) {
+        porMoneda.set(moneda, { moneda, neto: 0, interesesGanados: 0, comisiones: 0, comisionesP2p: 0 })
+      }
+      const comision = Number(orden.tarifa_creador || 0) + Number(orden.comision_tomador || 0)
+      if (Number.isFinite(comision)) porMoneda.get(moneda).comisionesP2p += comision
+    }
+    return [...porMoneda.values()]
+      .map((activo) => ({ ...activo, comisionesP2p: Number(activo.comisionesP2p.toFixed(8)) }))
+      .sort((a, b) => a.moneda.localeCompare(b.moneda))
+  }, [analisis.porMoneda, ordenesP2p, esBinance])
+
   // Resumen acumulado del crédito desde los movimientos de Coindepo. Los montos
   // se guardan positivos y la dirección está en `tipo`: Loan Withdrawal ingreso
   // suma crédito; Loan Repayment egreso reduce el saldo pendiente.
@@ -541,12 +561,12 @@ export default function WalletDetail() {
 
         {esBinance && pestana === 'activos' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {analisis.porMoneda.length === 0 ? (
+            {activosBinance.length === 0 ? (
               <Card className="p-6 col-span-full text-center">
                 <p className="text-muted-foreground">Sin activos registrados.</p>
               </Card>
             ) : (
-              analisis.porMoneda.map((m) => (
+              activosBinance.map((m) => (
                 <Card key={m.moneda} className="p-4">
                   <div className="flex items-baseline justify-between mb-3">
                     <p className="text-sm font-semibold">{m.moneda}</p>
@@ -555,7 +575,7 @@ export default function WalletDetail() {
                   <div className="space-y-2">
                     <Fila etiqueta="Total" valor={m.neto} moneda={m.moneda} />
                     <Fila etiqueta="Intereses ganados" valor={m.interesesGanados} moneda={m.moneda} tono="positivo" />
-                    <Fila etiqueta="Comisiones" valor={m.comisiones} moneda={m.moneda} />
+                    <Fila etiqueta="Comisiones P2P" valor={m.comisionesP2p} moneda={m.moneda} tono="positivo" />
                   </div>
                 </Card>
               ))
