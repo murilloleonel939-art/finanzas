@@ -506,8 +506,9 @@ async function procesarWallet(client, job, datos) {
     const esVentaUsdCCop = dolarapp && descripcionClave.includes('venta usdc') && monedaEquivalente.includes('cop')
     const esCompraUsdCCop = dolarapp && descripcionClave.includes('compra usdc') && monedaEquivalente.includes('cop')
     const esOperacionUsdCCop = esCompraUsdCCop || esVentaUsdCCop
-    const esOperacionPlentiCop = plenti && ['USD', 'USDT'].includes(monedaImportada)
-    const montoDesdeDescripcion = String(item.descripcion || '').match(/[+-]?\s*[\d.,]+\s+(?:cop|usd|usdt)\s+[+-]?\s*([$\d.,]+)/i)?.[1]
+    const esTransferenciaPlenti = plenti && descripcionClave.includes('transferencia')
+    const esOperacionPlentiCop = esTransferenciaPlenti && ['USD', 'USDT'].includes(monedaImportada)
+    const montoDesdeDescripcion = String(item.descripcion || '').match(/(?:valor\s+en\s+pesos|cop)\s*[:\-]?\s*([$\d.,]+)/i)?.[1]
     const montoEquivalenteDetectado = [item.monto_equivalente, item.monto_local_equivalente, item.montoLocalEquivalente, item.equivalente, item.valor_equivalente, montoDesdeDescripcion]
       .map(parseMontoImportado)
       .find(Number.isFinite)
@@ -521,7 +522,7 @@ async function procesarWallet(client, job, datos) {
     const requiereValorTrm = esOperacionUsdCCop || esOperacionPlentiCop
     const valorTrm = requiereValorTrm && Number.isFinite(trm) ? montoPrincipal * trm : NaN
     const diferenciaCambio = requiereValorTrm && Number.isFinite(montoEquivalente) && Number.isFinite(valorTrm)
-      ? regla.tipo === 'egreso' ? montoEquivalente - valorTrm : valorTrm - montoEquivalente
+      ? esOperacionPlentiCop ? valorTrm - montoEquivalente : regla.tipo === 'egreso' ? montoEquivalente - valorTrm : valorTrm - montoEquivalente
       : NaN
     const r = await client.query(`insert into movimientos_wallet (empresa_id, proveedor_id, wallet_id, fecha, descripcion, tipo, monto, tipo_moneda, trm, monto_equivalente, valor_trm, diferencia_cambio, external_id, source_file, import_job_id, created_by)
       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) on conflict (wallet_id, external_id) where external_id is not null and deleted_at is null do nothing returning id`,
