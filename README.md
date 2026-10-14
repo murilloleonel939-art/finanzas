@@ -168,8 +168,11 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - Visualización jerárquica en el menú lateral: fiducia y sus cuentas, con opción para crear una cuenta.
 - Borrado lógico individual de cuentas y borrado de la fiducia con sus cuentas asociadas.
 - Prevención de duplicados activos por empresa, país y nombre.
-- Las cuentas de **Fiduciaria Bancolombia** tienen detalle propio con pestaña **Activo**.
+- Las cuentas de **Fiduciaria Bancolombia** tienen detalle propio con pestañas **Activo** y **Movimientos**. Activo presenta el histórico de extractos mensuales, filtro por año y corte hasta un mes o todo lo transcurrido del año. Suma rendimientos netos y estima el porcentaje acumulado respecto al saldo inicial del primer mes cargado; advierte cuando faltan meses o puede haber ajustes no desglosados.
+- La pestaña Movimientos queda pendiente del extracto con adiciones y retiros reales para poder implementar y verificar su importación.
 - El detalle importa exclusivamente extractos PDF Bancolombia y extrae tipo de fondo, saldo anterior, rendimientos netos, nuevo saldo y rentabilidad del periodo.
+- Para extractos **Fiducuenta** de Fiduciaria Bancolombia, el worker usa `pdftotext -layout` y lee los saldos según las columnas de cada bloque del PDF, aunque los encabezados se extraigan con espacios entre letras. Esto corrige el error «No se pudo leer el saldo anterior» y evita confundir los rendimientos con el nuevo saldo.
+- En el extracto de enero de 2026 comprobado, los valores son: saldo anterior **447,61 COP**, rendimientos netos **2,53 COP**, nuevo saldo **450,14 COP** y rentabilidad del periodo **6,87 %**. La importación de ese PDF también fue confirmada como funcional en la aplicación.
 - Las demás fiducias no aceptan este importador.
 
 ## Arquitectura
