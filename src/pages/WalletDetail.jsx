@@ -130,6 +130,7 @@ export default function WalletDetail() {
   })
 
   const esPaypal = String(wallet?.proveedor_nombre || '').trim().toLowerCase() === 'paypal'
+  const esBinance = String(wallet?.proveedor_nombre || '').trim().toLowerCase() === 'binance'
   const todoEarn = esProveedorEarn(wallet?.proveedor_nombre)
   const esDolarapp = String(wallet?.proveedor_nombre || '').trim().toLowerCase() === 'dolarapp'
   const esPlenti = String(wallet?.proveedor_nombre || '').trim().toLowerCase() === 'plenti'
@@ -624,7 +625,7 @@ export default function WalletDetail() {
                               }`}
                             >
                               {m.tipo === 'ingreso' ? '+' : '−'}
-                              {formatearNumeroCompacto(m.monto, 2)} {m.tipo_moneda}
+                              {formatearNumeroCompacto(m.monto, esBinance ? 8 : 2)} {m.tipo_moneda}
                             </td>
                             {mostrarDiferencialCambio && <>
                               <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{formatearValorTrm(m.trm)}</td>
