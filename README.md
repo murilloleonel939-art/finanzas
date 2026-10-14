@@ -103,9 +103,10 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - Saldos por moneda y recálculo de saldos.
 - Movimientos de wallet con deduplicación e importación.
 - Importación de extractos desde PDF, CSV, XLS y XLSX con reglas por proveedor; los proveedores sin reglas propias usan la extracción genérica.
-- Regla específica de DolarApp: normaliza USDT y USDC como USDC, interpreta `Compra USDc` como ingreso y `Venta USDc` como egreso/débito.
+- Regla específica de DolarApp: normaliza USDT y USDC como USDC, interpreta `Compra USDc` y `Compra EURc` como ingresos, y `Venta USDc` y `Venta EURc` como egresos/débitos.
 - Para operaciones DolarApp con moneda equivalente `COP`, conserva `TRM`, `M. de compra`, `valorTrm` y `Diferencia cambio` como datos de análisis separados del saldo de la wallet.
-- En `Compra USDc`, la diferencia de cambio es `valorTrm - M. de compra`; en `Venta USDc`, es `M. de compra - valorTrm`.
+- El importador reconoce también la fila literal completa, por ejemplo `Venta EURc - 4.99 COP - 18,001 ALE*** MUN***`, extrayendo el monto EUR y su equivalente COP.
+- Para compras, la diferencia de cambio es `valorTrm - M. de compra`; para ventas, es `M. de compra - valorTrm`. En EURc, la TRM EUR/COP se obtiene combinando EUR/USD con la TRM oficial USD/COP del día.
 - El detalle de movimientos DolarApp muestra fechas y montos compactos, recorta descripciones largas con opción para desplegarlas y omite la columna Saldo.
 - Cada movimiento importado se vincula con el job que lo creó, lo que permite borrar la última importación desde el detalle de la wallet sin afectar los movimientos manuales ni los de otros archivos.
 - El detalle de la wallet concentra todas las acciones en la cabecera: **Exportar**, **Registrar movimiento**, **Importar extracto** y un menú **Borrar** con las dos formas de deshacer.
