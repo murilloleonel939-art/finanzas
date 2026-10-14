@@ -14,7 +14,7 @@ RUN npm run build
 ENV NODE_ENV=production
 EXPOSE 3000
 
-# Se arrancan los DOS workers: sin `worker-precios.mjs` los jobs de la cola
-# `precios_jobs` se crean pero nadie los procesa, y el botón «Actualizar precios»
-# se queda esperando hasta agotar el tiempo.
-CMD ["sh", "-c", "node server/migrate.mjs && (node worker-import.mjs & node worker-precios.mjs & exec node server/index.mjs)"]
+# Coolify ejecuta la migración en cada arranque del contenedor. Si falla, no
+# arranca ni la API ni los workers; las migraciones son idempotentes.
+# Ambos workers deben arrancar después para procesar importaciones y precios.
+CMD ["sh", "-c", "npm run db:migrate && (node worker-import.mjs & node worker-precios.mjs & exec node server/index.mjs)"]

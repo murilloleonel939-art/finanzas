@@ -41,16 +41,6 @@ await query(`create table if not exists activos_accival (
   created_at timestamptz not null default now(), deleted_at timestamptz
 )`)
 await query('create unique index if not exists activos_accival_cuenta_periodo_idx on activos_accival (cuenta_id, periodo) where deleted_at is null')
-// Ampliar las restricciones existentes sin cambiar el destino del importador Bancolombia.
-await query('alter table import_jobs drop constraint if exists import_jobs_target_check')
-await query("alter table import_jobs add constraint import_jobs_target_check check (target in ('cuenta', 'fiducia', 'accival', 'wallet', 'broker', 'binance_p2p'))")
-await query('alter table import_jobs drop constraint if exists import_jobs_destino_coherente')
-await query(`alter table import_jobs add constraint import_jobs_destino_coherente check (
-  (target = 'cuenta' and cuenta_id is not null and fiducia_id is null and wallet_id is null and broker_id is null)
-  or (target in ('fiducia', 'accival') and fiducia_id is not null and cuenta_id is null and wallet_id is null and broker_id is null)
-  or (target in ('wallet', 'binance_p2p') and wallet_id is not null and cuenta_id is null and fiducia_id is null and broker_id is null)
-  or (target = 'broker' and broker_id is not null and cuenta_id is null and fiducia_id is null and wallet_id is null)
-)`)
 await query('create unique index if not exists cuentas_comisionistas_fiducias_unique_active_idx on cuentas_comisionistas_fiducias (comisionista_fiducia_id, nombre_cuenta) where deleted_at is null')
 await query('create index if not exists cuentas_comisionistas_fiducias_entidad_idx on cuentas_comisionistas_fiducias (comisionista_fiducia_id) where deleted_at is null')
 await query(`create table if not exists activos_comisionistas_fiducias (
@@ -92,12 +82,12 @@ await query(`create table if not exists binance_p2p_ordenes (
 )`)
 await query('create index if not exists binance_p2p_wallet_fecha_idx on binance_p2p_ordenes (wallet_id, fecha desc)')
 await query('create index if not exists binance_p2p_empresa_fecha_idx on binance_p2p_ordenes (empresa_id, fecha desc)')
-await query("alter table import_jobs drop constraint if exists import_jobs_target_check")
 await query('alter table import_jobs add column if not exists fiducia_id uuid references cuentas_comisionistas_fiducias(id) on delete cascade')
 await query('alter table import_jobs drop constraint if exists import_jobs_target_check')
-await query("alter table import_jobs add constraint import_jobs_target_check check (target in ('cuenta', 'fiducia', 'wallet', 'broker', 'binance_p2p'))")
+// Esta es la restricción final: debe admitir los jobs accival antes de iniciar el worker.
+await query("alter table import_jobs add constraint import_jobs_target_check check (target in ('cuenta', 'fiducia', 'accival', 'wallet', 'broker', 'binance_p2p'))")
 await query('alter table import_jobs drop constraint if exists import_jobs_destino_coherente')
-await query("alter table import_jobs add constraint import_jobs_destino_coherente check ((target = 'cuenta' and cuenta_id is not null and fiducia_id is null and wallet_id is null and broker_id is null) or (target = 'fiducia' and fiducia_id is not null and cuenta_id is null and wallet_id is null and broker_id is null) or (target in ('wallet', 'binance_p2p') and wallet_id is not null and cuenta_id is null and fiducia_id is null and broker_id is null) or (target = 'broker' and broker_id is not null and cuenta_id is null and fiducia_id is null and wallet_id is null))")
+await query("alter table import_jobs add constraint import_jobs_destino_coherente check ((target = 'cuenta' and cuenta_id is not null and fiducia_id is null and wallet_id is null and broker_id is null) or (target in ('fiducia', 'accival') and fiducia_id is not null and cuenta_id is null and wallet_id is null and broker_id is null) or (target in ('wallet', 'binance_p2p') and wallet_id is not null and cuenta_id is null and fiducia_id is null and broker_id is null) or (target = 'broker' and broker_id is not null and cuenta_id is null and fiducia_id is null and wallet_id is null))")
 await query('create index if not exists mov_broker_import_job_idx on movimientos_broker (import_job_id) where import_job_id is not null and deleted_at is null')
 await query('create index if not exists activos_broker_import_job_idx on activos_broker (import_job_id) where import_job_id is not null and deleted_at is null')
 

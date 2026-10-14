@@ -228,7 +228,7 @@ La aplicación frontend de Vite se ejecuta normalmente en `http://localhost:5173
 
 ## Docker y despliegue
 
-El `Dockerfile` instala dependencias, compila el frontend, ejecuta la migración y levanta la API junto con el worker de importaciones. En Coolify u otro proveedor define como mínimo:
+El `Dockerfile` instala dependencias, compila el frontend y ejecuta `npm run db:migrate` al arrancar el contenedor, antes de iniciar la API y ambos workers (importaciones y precios). Si la migración falla, no arranca el servicio. En Coolify selecciona el despliegue con este `Dockerfile` y define como mínimo:
 
 - `DATABASE_URL`
 - `JWT_SECRET` con mínimo 32 caracteres
@@ -237,7 +237,7 @@ El `Dockerfile` instala dependencias, compila el frontend, ejecuta la migración
 - `ADMIN_PASSWORD` con mínimo 12 caracteres
 - Credenciales del proveedor de IA para importaciones, si se usarán
 
-El contenedor expone el puerto `3000`. La migración es idempotente y el superusuario inicial solo se crea si aún no existe.
+El contenedor expone el puerto `3000`. Coolify aplica la migración en cada despliegue o reinicio del contenedor; no hay que ejecutarla manualmente allí. La migración es idempotente y el superusuario inicial solo se crea si aún no existe.
 
 ## Scripts principales
 
