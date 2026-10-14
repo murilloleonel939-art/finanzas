@@ -21,7 +21,7 @@ import { Layers } from 'lucide-react'
  * «Solo activos con algún valor distinto de cero» (PRD §7): una moneda por la
  * que solo pasaron ceros se filtra en `activosConSaldo()`.
  */
-export default function WalletEarnAssets({ activos = [], monedaPrincipal }) {
+export default function WalletEarnAssets({ activos = [], monedaPrincipal, esBinance = false }) {
   if (activos.length === 0) {
     return (
       <Card className="p-8 text-center">
@@ -41,11 +41,11 @@ export default function WalletEarnAssets({ activos = [], monedaPrincipal }) {
           <thead className="border-b bg-muted/50">
             <tr>
               <th className="text-left px-4 py-3 font-medium">Moneda</th>
-              <th className="text-right px-4 py-3 font-medium">Saldo</th>
-              <th className="text-right px-4 py-3 font-medium">Invertido</th>
-              <th className="text-right px-4 py-3 font-medium">Rendimiento</th>
-              <th className="text-right px-4 py-3 font-medium">Redimido</th>
-              <th className="text-right px-4 py-3 font-medium">Movs.</th>
+              <th className="text-right px-4 py-3 font-medium">{esBinance ? 'Saldo en Earn' : 'Saldo'}</th>
+              <th className="text-right px-4 py-3 font-medium">{esBinance ? 'Ingresado a Earn' : 'Invertido'}</th>
+              <th className="text-right px-4 py-3 font-medium">{esBinance ? 'Intereses ganados' : 'Rendimiento'}</th>
+              <th className="text-right px-4 py-3 font-medium">{esBinance ? 'Retirado de Earn' : 'Redimido'}</th>
+              {!esBinance && <th className="text-right px-4 py-3 font-medium">Movs.</th>}
             </tr>
           </thead>
           <tbody>
@@ -73,9 +73,11 @@ export default function WalletEarnAssets({ activos = [], monedaPrincipal }) {
                 <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">
                   {formatearMonto(a.redimido, a.moneda)}
                 </td>
-                <td className="px-4 py-3 text-right text-muted-foreground">
-                  {a.movimientos}
-                </td>
+                {!esBinance && (
+                  <td className="px-4 py-3 text-right text-muted-foreground">
+                    {a.movimientos}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

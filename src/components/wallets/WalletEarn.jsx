@@ -49,7 +49,7 @@ export default function WalletEarn({
   const resumen = useMemo(() => resumenEarn(earn, proveedorNombre), [earn, proveedorNombre])
 
   const activos = useMemo(
-    () => activosConSaldo(activosEarnPorMoneda(earn)),
+    () => activosConSaldo(activosEarnPorMoneda(earn, proveedorNombre)),
     [earn]
   )
 
@@ -66,6 +66,20 @@ export default function WalletEarn({
       onBorrar?.()
     },
   })
+
+  const esBinance = String(proveedorNombre || '').trim().toLowerCase() === 'binance'
+
+  if (esBinance) {
+    return (
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <Sparkles className="w-4 h-4 text-primary" />
+          <h2 className="font-semibold">Earn por moneda</h2>
+        </div>
+        <WalletEarnAssets activos={activos} monedaPrincipal={monedaPrincipal} esBinance />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

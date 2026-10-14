@@ -57,6 +57,14 @@ export const PALABRAS_EARN = [
   'redencion',
 ]
 
+// Binance usa conceptos literales en la columna Operación. Limitar la pestaña
+// Earn a estos tres evita incluir transferencias, conversiones o pagos normales.
+export const OPERACIONES_EARN_BINANCE = [
+  'simple earn flexible subscription',
+  'simple earn flexible interest',
+  'simple earn flexible redemption',
+]
+
 /**
  * Normaliza una descripción para buscar palabras clave: sin acentos, en
  * minúsculas y con los separadores raros de los extractos convertidos en
@@ -89,6 +97,11 @@ export function contienePalabraEarn(descripcion) {
 export function esMovimientoEarn(movimiento, nombreProveedor) {
   if (!movimiento) return false
   if (esProveedorEarn(nombreProveedor ?? movimiento.proveedor_nombre)) return true
+  const proveedor = claveProveedor(nombreProveedor ?? movimiento.proveedor_nombre)
+  if (proveedor === 'binance') {
+    const descripcion = normalizarTexto(movimiento.descripcion)
+    return OPERACIONES_EARN_BINANCE.some((operacion) => descripcion === operacion || descripcion.startsWith(`${operacion} `))
+  }
   return contienePalabraEarn(movimiento.descripcion)
 }
 
@@ -253,8 +266,9 @@ export function resumenEarn(movimientos = [], proveedorNombre = '') {
  * reporta el proveedor y sumarlo aquí duplicaría capital, porque el extracto ya
  * lo refleja en sus propias redenciones.
  */
-export function activosEarnPorMoneda(movimientos = []) {
+export function activosEarnPorMoneda(movimientos = [], nombreProveedor = '') {
   const porMoneda = new Map()
+  const esBinance = claveProveedor(nombreProveedor) === 'binance'
 
   for (const m of movimientos) {
     const moneda = (m.tipo_moneda || m.moneda || '').toUpperCase()
@@ -272,10 +286,14 @@ export function activosEarnPorMoneda(movimientos = []) {
 
     const categoria = categoriaEarn(m.descripcion)
     const monto = Number(m.monto || 0)
+    const operacionBinance = normalizarTexto(m.descripcion)
+    const esSubscriptionBinance = esBinance && operacionBinance.startsWith('simple earn flexible subscription')
+    const esInterestBinance = esBinance && operacionBinance.startsWith('simple earn flexible interest')
+    const esRedemptionBinance = esBinance && operacionBinance.startsWith('simple earn flexible redemption')
 
-    if (esEgreso(m) && categoria === CATEGORIA_EARN.SUSCRIPCION) actual.invertido += monto
-    if (esIngreso(m) && categoria === CATEGORIA_EARN.INTERES) actual.rendimiento += monto
-    if (esIngreso(m) && categoria === CATEGORIA_EARN.REDENCION) actual.redimido += monto
+    if ((esBinance ? esSubscriptionBinance : esEgreso(m) && categoria === CATEGORIA_EARN.SUSCRIPCION)) actual.invertido += monto
+    if ((esBinance ? esInterestBinance : esIngreso(m) && categoria === CATEGORIA_EARN.INTERES)) actual.rendimiento += monto
+    if ((esBinance ? esRedemptionBinance : esIngreso(m) && categoria === CATEGORIA_EARN.REDENCION)) actual.redimido += monto
 
     porMoneda.set(moneda, actual)
   }
