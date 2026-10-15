@@ -549,7 +549,7 @@ app.get('/api/empresas/:empresaId/comisionistas-fiducias/cuentas', requireAuth, 
   const result = await query(
     `select c.id, c.empresa_id, c.comisionista_fiducia_id, c.nombre_cuenta, c.created_at,
             f.nombre as comisionista_nombre,
-            a.tipo_fiducia, a.saldo_anterior, a.rendimientos_netos, a.nuevo_saldo, a.rentabilidad_periodo, a.periodo as activo_periodo
+            a.tipo_fiducia, a.riesgo, a.saldo_anterior, a.rendimientos_netos, a.nuevo_saldo, a.rentabilidad_periodo, a.periodo as activo_periodo
      from cuentas_comisionistas_fiducias c
      join comisionistas_fiducias f on f.id = c.comisionista_fiducia_id and f.deleted_at is null
      left join lateral (select * from activos_comisionistas_fiducias where cuenta_id = c.id and deleted_at is null order by created_at desc limit 1) a on true
@@ -563,12 +563,12 @@ app.get('/api/empresas/:empresaId/comisionistas-fiducias/cuentas', requireAuth, 
 app.get('/api/empresas/:empresaId/comisionistas-fiducias/cuentas/:cuentaId', requireAuth, async (req, res) => {
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
   const result = await query(`select c.id, c.empresa_id, c.comisionista_fiducia_id, c.nombre_cuenta, c.created_at,
-    f.nombre as comisionista_nombre, (c.pdf_password_encrypted is not null) as tiene_clave_pdf, a.tipo_fiducia, a.saldo_anterior, a.rendimientos_netos, a.nuevo_saldo, a.rentabilidad_periodo, a.periodo as activo_periodo, a.source_file
+    f.nombre as comisionista_nombre, (c.pdf_password_encrypted is not null) as tiene_clave_pdf, a.tipo_fiducia, a.riesgo, a.saldo_anterior, a.rendimientos_netos, a.nuevo_saldo, a.rentabilidad_periodo, a.periodo as activo_periodo, a.source_file
     from cuentas_comisionistas_fiducias c join comisionistas_fiducias f on f.id = c.comisionista_fiducia_id and f.deleted_at is null
     left join lateral (select * from activos_comisionistas_fiducias where cuenta_id = c.id and deleted_at is null order by periodo desc, created_at desc limit 1) a on true
     where c.id = $1 and c.empresa_id = $2 and c.deleted_at is null`, [req.params.cuentaId, req.params.empresaId])
   if (!result.rowCount) return error(res, 404, 'Cuenta fiduciaria no encontrada.')
-  const activos = await query(`select id, tipo_fiducia, saldo_anterior, rendimientos_netos, nuevo_saldo, rentabilidad_periodo, periodo, created_at
+  const activos = await query(`select id, tipo_fiducia, riesgo, saldo_anterior, rendimientos_netos, nuevo_saldo, rentabilidad_periodo, periodo, created_at
     from activos_comisionistas_fiducias where cuenta_id = $1 and empresa_id = $2 and deleted_at is null
     order by periodo desc, created_at desc`, [req.params.cuentaId, req.params.empresaId])
   const entidadExtractoUnificado = ['acciones y valores s.a.', 'trii'].includes(String(result.rows[0].comisionista_nombre).trim().toLowerCase())

@@ -61,10 +61,14 @@ await query('create index if not exists cuentas_comisionistas_fiducias_entidad_i
 await query(`create table if not exists activos_comisionistas_fiducias (
   id uuid primary key default gen_random_uuid(), empresa_id uuid not null references empresas(id) on delete cascade,
   cuenta_id uuid not null references cuentas_comisionistas_fiducias(id) on delete cascade, tipo_fiducia text not null,
+  riesgo text,
   saldo_anterior numeric(20,2), rendimientos_netos numeric(20,2), nuevo_saldo numeric(20,2), rentabilidad_periodo numeric(12,6),
   periodo text, source_file text, import_job_id uuid, created_by uuid references usuarios(id) on delete set null,
   created_at timestamptz not null default now(), updated_at timestamptz not null default now(), deleted_at timestamptz
 )`)
+await query('alter table activos_comisionistas_fiducias add column if not exists riesgo text')
+await query(`update activos_comisionistas_fiducias set riesgo = 'Conservador', updated_at = now()
+  where upper(trim(tipo_fiducia)) = 'FIDUCUENTA' and riesgo is null`)
 await query('create unique index if not exists activos_comisionistas_fiducias_cuenta_periodo_idx on activos_comisionistas_fiducias (cuenta_id, periodo) where deleted_at is null')
 await query('create index if not exists activos_comisionistas_fiducias_empresa_idx on activos_comisionistas_fiducias (empresa_id) where deleted_at is null')
 

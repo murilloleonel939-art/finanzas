@@ -119,6 +119,7 @@ create table if not exists activos_comisionistas_fiducias (
   empresa_id uuid not null references empresas(id) on delete cascade,
   cuenta_id uuid not null references cuentas_comisionistas_fiducias(id) on delete cascade,
   tipo_fiducia text not null,
+  riesgo text,
   saldo_anterior numeric(20, 2),
   rendimientos_netos numeric(20, 2),
   nuevo_saldo numeric(20, 2),

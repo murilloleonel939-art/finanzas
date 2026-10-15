@@ -259,6 +259,7 @@ async function extraerActivoFiduciariaBancolombia(filePath) {
   const rentabilidad = exigir(/Rentabilidad\s+Periodo\s*:\s*([-+]?\d[\d.,]*)\s*%/i, 'la Rentabilidad Periodo')
   return {
     tipo_fiducia: 'FIDUCUENTA',
+    riesgo: 'Conservador',
     saldo_anterior: montoEnColumna(/SALDO\s+ANTERIOR/i, 'el saldo anterior'),
     rendimientos_netos: montoEnColumna(/REND\.\s+NET\s*OS/i, 'los rendimientos netos'),
     nuevo_saldo: montoEnColumna(/NUEVO\s+SALDO/i, 'el nuevo saldo'),
@@ -608,8 +609,8 @@ async function procesarFiducia(client, job, datos) {
   if (String(entidad.rows[0]?.nombre || '').trim().toLowerCase() !== 'fiduciaria bancolombia') throw new Error('La importación está disponible únicamente para Fiduciaria Bancolombia.')
   const periodo = job.periodo || new Date().toISOString().slice(0, 7)
   await client.query('update activos_comisionistas_fiducias set deleted_at = now(), updated_at = now() where cuenta_id = $1 and periodo = $2 and deleted_at is null', [job.fiducia_id, periodo])
-  await client.query(`insert into activos_comisionistas_fiducias (empresa_id, cuenta_id, tipo_fiducia, saldo_anterior, rendimientos_netos, nuevo_saldo, rentabilidad_periodo, periodo, source_file, import_job_id, created_by)
-    values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, [job.empresa_id, job.fiducia_id, datos.tipo_fiducia, datos.saldo_anterior, datos.rendimientos_netos, datos.nuevo_saldo, datos.rentabilidad_periodo, periodo, job.storage_path, job.id, job.created_by])
+  await client.query(`insert into activos_comisionistas_fiducias (empresa_id, cuenta_id, tipo_fiducia, riesgo, saldo_anterior, rendimientos_netos, nuevo_saldo, rentabilidad_periodo, periodo, source_file, import_job_id, created_by)
+    values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, [job.empresa_id, job.fiducia_id, datos.tipo_fiducia, datos.riesgo || null, datos.saldo_anterior, datos.rendimientos_netos, datos.nuevo_saldo, datos.rentabilidad_periodo, periodo, job.storage_path, job.id, job.created_by])
   return { creados: 0, activos: 1, duplicados: 0 }
 }
 
