@@ -16,5 +16,5 @@ EXPOSE 3000
 
 # Coolify ejecuta la migración en cada arranque del contenedor. Si falla, no
 # arranca ni la API ni los workers; las migraciones son idempotentes.
-# Ambos workers deben arrancar después para procesar importaciones y precios.
-CMD ["sh", "-c", "npm run db:migrate && (node worker-import.mjs & node worker-precios.mjs & exec node server/index.mjs)"]
+# Los workers deben arrancar después para procesar importaciones, precios y riesgos.
+CMD ["sh", "-c", "npm run db:migrate && (node worker-import.mjs & node worker-precios.mjs & node worker-riesgos.mjs & exec node server/index.mjs)"]

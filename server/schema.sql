@@ -349,6 +349,20 @@ create table if not exists activos_accival (
 );
 create unique index if not exists activos_accival_cuenta_periodo_idx on activos_accival (cuenta_id, periodo) where deleted_at is null;
 
+-- Catálogo global del emisor: se busca cada nombre de FIC solo una vez, incluso
+-- cuando aparece en otra cuenta o en un extracto de un periodo posterior.
+create table if not exists riesgos_fondos_accival (
+  nombre_clave text primary key,
+  nombre text not null,
+  estado text not null default 'pendiente' check (estado in ('pendiente', 'consultando', 'confirmado', 'no_encontrado', 'error')),
+  perfil_riesgo text,
+  fuente_url text,
+  consultado_at timestamptz,
+  intentos integer not null default 0,
+  proximo_intento_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists import_jobs (
   id uuid primary key default gen_random_uuid(),
   empresa_id uuid not null references empresas(id) on delete cascade,

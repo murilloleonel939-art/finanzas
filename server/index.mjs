@@ -8,6 +8,7 @@ import cors from 'cors'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { pool, query } from './db.mjs'
+import { claveFondo } from './riesgos-fondos-accival.mjs'
 
 const app = express()
 const port = Number(process.env.PORT || 3000)
@@ -573,6 +574,12 @@ app.get('/api/empresas/:empresaId/comisionistas-fiducias/cuentas/:cuentaId', req
   const entidadExtractoUnificado = ['acciones y valores s.a.', 'trii'].includes(String(result.rows[0].comisionista_nombre).trim().toLowerCase())
   const activosAccival = entidadExtractoUnificado ? await query(`select id, periodo, resumen, fondos from activos_accival
     where cuenta_id = $1 and empresa_id = $2 and deleted_at is null order by periodo desc`, [req.params.cuentaId, req.params.empresaId]) : null
+  if (activosAccival?.rowCount) {
+    const claves = [...new Set(activosAccival.rows.flatMap((registro) => registro.fondos.map((fondo) => claveFondo(fondo.nombre))))]
+    const catalogo = await query(`select nombre_clave, estado, perfil_riesgo, fuente_url from riesgos_fondos_accival where nombre_clave = any($1::text[])`, [claves])
+    const riesgos = new Map(catalogo.rows.map((fila) => [fila.nombre_clave, fila]))
+    for (const registro of activosAccival.rows) registro.fondos = registro.fondos.map((fondo) => ({ ...fondo, riesgo_fondo: riesgos.get(claveFondo(fondo.nombre)) ?? null }))
+  }
   res.json({ cuenta: { ...result.rows[0], activos: activos.rows, activos_accival: activosAccival?.rows ?? [] } })
 })
 

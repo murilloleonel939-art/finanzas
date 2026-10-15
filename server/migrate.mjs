@@ -41,6 +41,21 @@ await query(`create table if not exists activos_accival (
   created_at timestamptz not null default now(), deleted_at timestamptz
 )`)
 await query('create unique index if not exists activos_accival_cuenta_periodo_idx on activos_accival (cuenta_id, periodo) where deleted_at is null')
+await query(`create table if not exists riesgos_fondos_accival (
+  nombre_clave text primary key, nombre text not null,
+  estado text not null default 'pendiente' check (estado in ('pendiente', 'consultando', 'confirmado', 'no_encontrado', 'error')),
+  perfil_riesgo text, fuente_url text, consultado_at timestamptz,
+  intentos integer not null default 0, proximo_intento_at timestamptz,
+  updated_at timestamptz not null default now()
+)`)
+await query(`insert into riesgos_fondos_accival (nombre_clave, nombre)
+  select distinct on (nombre_clave) nombre_clave, nombre from (
+    select lower(trim(regexp_replace(translate(fondo->>'nombre', 'áéíóúÁÉÍÓÚñÑ', 'aeiouAEIOUnN'), '[^a-zA-Z0-9]+', ' ', 'g'))) as nombre_clave,
+      fondo->>'nombre' as nombre
+    from activos_accival cross join lateral jsonb_array_elements(activos_accival.fondos) as fondo
+    where activos_accival.deleted_at is null
+  ) existentes where nombre_clave <> '' and length(nombre_clave) <= 200
+  on conflict (nombre_clave) do nothing`)
 await query('create unique index if not exists cuentas_comisionistas_fiducias_unique_active_idx on cuentas_comisionistas_fiducias (comisionista_fiducia_id, nombre_cuenta) where deleted_at is null')
 await query('create index if not exists cuentas_comisionistas_fiducias_entidad_idx on cuentas_comisionistas_fiducias (comisionista_fiducia_id) where deleted_at is null')
 await query(`create table if not exists activos_comisionistas_fiducias (

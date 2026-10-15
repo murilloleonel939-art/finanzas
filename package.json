@@ -11,6 +11,7 @@
     "start": "node server/index.mjs",
     "worker:import": "node worker-import.mjs",
     "worker:precios": "node worker-precios.mjs",
+    "worker:riesgos": "node worker-riesgos.mjs",
     "db:migrate": "node server/migrate.mjs",
     "verificar": "node scripts/verificar-columnas.mjs",
     "pruebas": "node scripts/precios-suite.mjs",

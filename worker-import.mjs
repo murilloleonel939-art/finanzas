@@ -7,6 +7,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { query, pool } from './server/db.mjs'
 import { extraerExtractoAccival } from './src/lib/accival-extracto.js'
+import { registrarFondosNuevos } from './server/riesgos-fondos-accival.mjs'
 import {
   generarPromptMovimientosCuenta,
   generarPromptMovimientosBroker,
@@ -598,6 +599,7 @@ async function procesarAccival(client, job, datos) {
   await client.query('update activos_accival set deleted_at = now() where cuenta_id = $1 and periodo = $2 and deleted_at is null', [job.fiducia_id, datos.periodo])
   await client.query(`insert into activos_accival (empresa_id, cuenta_id, periodo, resumen, fondos, import_job_id)
     values ($1,$2,$3,$4,$5,$6)`, [job.empresa_id, job.fiducia_id, datos.periodo, JSON.stringify(datos.resumen), JSON.stringify(datos.fondos), job.id])
+  await registrarFondosNuevos(client, datos.fondos)
   return { creados: 0, activos: 1, duplicados: 0 }
 }
 
