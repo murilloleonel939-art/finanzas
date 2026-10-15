@@ -8,10 +8,10 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 import { borrarComisionistaFiducia, borrarCuentaComisionistaFiducia, listarCuentasComisionistasFiducias, listarComisionistasFiducias, nombrePaisComisionista } from '@/lib/comisionistas-fiducias'
 
 const LOGOS_ENTIDADES = {
-  fiduciariabancolombia: 'fiduciaria-bancolombia.svg', fiduciariabogota: 'fiduciaria-bogota.svg', fidudavivienda: 'fidudavivienda.png',
+  fiduciariabancolombia: 'fiduciaria-bancolombia.png', fiduciariabogota: 'fiduciaria-bogota.svg', fidudavivienda: 'fidudavivienda.png',
   fiduciariadeoccidentefiduoccidente: 'fiduoccidente.svg', fiduciariapopular: 'fiduciaria-popular.svg', bbvaassetmanagementsasociedadfiduciaria: 'bbva-asset-management.png',
   fiducolpatria: 'fiducolpatria.png', servitrustgnbsudameris: 'servitrust.png', alianzafiduciaria: 'alianza-fiduciaria.png', accionfiduciaria: 'accion-fiduciaria.png',
-  fiducentral: 'fiducentral.png', fiducoomeva: 'fiducoomeva.png', skandiasociedadfiduciaria: 'skandia.png', credicorpcapitalfiduciaria: 'credicorp-capital.png', trii: 'trii.png', accionesyvaloressa: 'accion-fiduciaria.png',
+  fiducentral: 'fiducentral.png', fiducoomeva: 'fiducoomeva.png', skandiasociedadfiduciaria: 'skandia.png', credicorpcapitalfiduciaria: 'credicorp-capital.png', trii: 'trii.png', accionesyvaloressa: 'acciones-y-valores.png',
 }
 
 function LogoEntidad({ nombre }) {
