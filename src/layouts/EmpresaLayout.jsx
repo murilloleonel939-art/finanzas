@@ -211,12 +211,11 @@ export default function EmpresaLayout() {
 
         {/* Navegación de salida */}
         <div className="mt-auto space-y-2 border-t border-gray-200 p-4">
-          <Button
-            onClick={() => navigate('/workspace')}
-            variant="outline"
-            className="w-full"
-          >
+          <Button onClick={() => navigate('/workspace')} variant="outline" className="w-full">
             Volver al workspace
+          </Button>
+          <Button onClick={async () => { await signOut(); navigate('/') }} variant="ghost" className="w-full gap-2 text-red-600 hover:bg-red-50 hover:text-red-700">
+            <LogOut className="h-4 w-4" /> Cerrar sesión
           </Button>
         </div>
       </div>
