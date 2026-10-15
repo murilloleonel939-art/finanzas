@@ -24,6 +24,7 @@ export default function EmpresaOverview() {
     { id: 'cuentas', label: 'Cuentas bancarias', icon: Landmark, color: '#10b981' },
     { id: 'brokers', label: 'Brokers', icon: BriefcaseBusiness, color: '#3b82f6' },
     { id: 'wallets', label: 'Wallets', icon: Wallet, color: '#8b5cf6' },
+    { id: 'comisionistas_fiducias', label: 'Comisionistas y fiducias', icon: Building2, color: '#f59e0b' },
   ]
   const obtenerMonto = (categoria, moneda) => porCategoria.find((item) => item.categoria === categoria && item.moneda === moneda)?.monto || 0
   const obtenerRendimiento = (moneda) => rendimientos.find((item) => item.moneda === moneda)?.monto || 0
@@ -50,13 +51,13 @@ export default function EmpresaOverview() {
             return <Card key={moneda} className="p-5 border-l-4" style={{ borderLeftColor: obtenerColorMoneda(moneda) }}>
               <p className="text-sm text-muted-foreground">Patrimonio total en {moneda}</p>
               <p className="text-3xl font-bold mt-1">{formatearMonto(total, moneda)}</p>
-              <p className="text-xs text-muted-foreground mt-2">Cuentas, brokers y wallets</p>
+              <p className="text-xs text-muted-foreground mt-2">Cuentas, brokers, wallets, comisionistas y fiducias</p>
             </Card>
           })}
         </div>
 
         <div className="flex items-center gap-2 mb-3"><PieChart className="h-5 w-5 text-primary" /><h2 className="text-lg font-semibold">Dónde está concentrado el dinero</h2></div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           {categorias.map(({ id, label, icon: Icon, color }) => <Card key={id} className="p-4 border-t-4" style={{ borderTopColor: color }}>
             <div className="flex items-center gap-2 mb-3"><Icon className="h-5 w-5" style={{ color }} /><span className="font-medium">{label}</span></div>
             {monedasFiatConSaldo.map((moneda) => {

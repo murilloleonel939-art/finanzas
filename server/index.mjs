@@ -208,7 +208,7 @@ app.get('/api/empresas/:empresaId/resumen', requireAuth, async (req, res) => {
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) {
     return error(res, 403, 'No tienes acceso a esta empresa.')
   }
-  const [cuentas, brokers, wallets, rendimientos] = await Promise.all([
+  const [cuentas, brokers, wallets, comisionistasFiducias, rendimientos] = await Promise.all([
     query(`select tipo_moneda as moneda, coalesce(sum(monto), 0) as monto
       from cuentas where empresa_id = $1 and deleted_at is null group by tipo_moneda`, [req.params.empresaId]),
     query(`with caja as (
@@ -238,6 +238,24 @@ app.get('/api/empresas/:empresaId/resumen', requireAuth, async (req, res) => {
         when lower(p.nombre_proveedor) = 'plenti' and upper(s.moneda) = 'USDT' then 'USD'
         else s.moneda
       end`, [req.params.empresaId]),
+    query(`with fiducias as (
+        select distinct on (a.cuenta_id) a.cuenta_id, coalesce(a.nuevo_saldo, 0) as monto
+        from activos_comisionistas_fiducias a
+        join cuentas_comisionistas_fiducias c on c.id = a.cuenta_id and c.deleted_at is null
+        join comisionistas_fiducias f on f.id = c.comisionista_fiducia_id and f.deleted_at is null
+        where a.empresa_id = $1 and a.deleted_at is null
+        order by a.cuenta_id, a.periodo desc, a.created_at desc
+      ), accival as (
+        select distinct on (a.cuenta_id) a.cuenta_id, coalesce((a.resumen->>'total_portafolio')::numeric, (a.resumen->>'total_activos')::numeric, 0) as monto
+        from activos_accival a
+        join cuentas_comisionistas_fiducias c on c.id = a.cuenta_id and c.deleted_at is null
+        join comisionistas_fiducias f on f.id = c.comisionista_fiducia_id and f.deleted_at is null
+        where a.empresa_id = $1 and a.deleted_at is null
+        order by a.cuenta_id, a.periodo desc, a.created_at desc
+      )
+      select 'COP' as moneda, coalesce(sum(monto), 0) as monto from (
+        select monto from fiducias union all select monto from accival
+      ) valores`, [req.params.empresaId]),
     query(`select moneda, coalesce(sum(monto), 0) as monto from (
         select c.tipo_moneda as moneda, m.monto
         from movimientos m join cuentas c on c.id = m.cuenta_id
@@ -259,14 +277,16 @@ app.get('/api/empresas/:empresaId/resumen', requireAuth, async (req, res) => {
     cuentas: sumar(cuentas.rows),
     brokers: sumar(brokers.rows),
     wallets: sumar(wallets.rows),
+    comisionistas_fiducias: sumar(comisionistasFiducias.rows),
   }
-  const monedas = new Set(Object.keys(porCategoria.cuentas).concat(Object.keys(porCategoria.brokers), Object.keys(porCategoria.wallets)))
+  const monedas = new Set(Object.keys(porCategoria.cuentas).concat(Object.keys(porCategoria.brokers), Object.keys(porCategoria.wallets), Object.keys(porCategoria.comisionistas_fiducias)))
   const totales = [...monedas].map((moneda) => ({
     moneda,
     monto: Number([
       porCategoria.cuentas[moneda] || 0,
       porCategoria.brokers[moneda] || 0,
       porCategoria.wallets[moneda] || 0,
+      porCategoria.comisionistas_fiducias[moneda] || 0,
     ].reduce((a, b) => a + b, 0).toFixed(8)),
   })).filter((row) => row.monto !== 0).sort((a, b) => a.moneda.localeCompare(b.moneda))
   res.json({
