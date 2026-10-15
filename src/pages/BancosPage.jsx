@@ -5,31 +5,40 @@ import { borrarBanco as borrarBancoApi, listarBancos, listarCuentas } from '@/li
 import { formatearMonto } from '@/lib/monedas'
 import { nombrePais } from '@/lib/paises'
 
-const DOMINIOS_BANCOS = {
-  bancolombia: 'bancolombia.com',
-  dale: 'dale.com.co',
-  nequi: 'nequi.com.co',
-  davivienda: 'davivienda.com',
-  bbva: 'bbva.com',
-  santander: 'santander.com',
-  banorte: 'banorte.com',
+const LOGOS_BANCOS = {
+  bancolombia: '/logos-bancos/bancolombia.svg',
+  bancodebogota: '/logos-bancos/banco-bogota.svg',
+  davivienda: '/logos-bancos/davivienda.png',
+  bbva: '/logos-bancos/bbva.png',
+  bancodeoccidente: '/logos-bancos/banco-occidente.svg',
+  bancopopular: '/logos-bancos/banco-popular.svg',
+  scotiabankcolpatria: '/logos-bancos/scotiabank-colpatria.png',
+  itaucolombia: '/logos-bancos/itau.png',
+  bancoavvillas: '/logos-bancos/av-villas.svg',
+  bancocajasocial: '/logos-bancos/caja-social.svg',
+  bancamia: '/logos-bancos/bancamia.png',
+  nequi: '/logos-bancos/nequi.svg',
+  dale: '/logos-bancos/dale.png',
+  plata: '/logos-bancos/plata.png',
+  daviplata: '/logos-bancos/daviplata.png',
+  nubank: '/logos-bancos/nubank.png',
 }
 
-const dominioBanco = (nombre) => {
+const logoBanco = (nombre) => {
   const limpio = nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '')
-  const clave = Object.keys(DOMINIOS_BANCOS).find((banco) => limpio.includes(banco))
-  return DOMINIOS_BANCOS[clave] || (limpio ? `${limpio}.com` : '')
+  const clave = Object.keys(LOGOS_BANCOS).find((banco) => limpio.includes(banco))
+  return LOGOS_BANCOS[clave] || ''
 }
 
 function LogoBanco({ nombre }) {
   const [fallo, setFallo] = useState(false)
   const inicial = nombre?.trim()?.charAt(0)?.toUpperCase() || 'B'
-  const dominio = dominioBanco(nombre || '')
+  const logo = logoBanco(nombre || '')
 
   return (
     <div className="flex h-12 w-28 items-center justify-center overflow-hidden rounded-lg bg-slate-50 px-2">
-      {!fallo && dominio ? (
-        <img src={dominio} alt={`Logo de ${nombre}`} className="max-h-9 max-w-full object-contain" onError={() => setFallo(true)} />
+      {!fallo && logo ? (
+        <img src={logo} alt={`Logo de ${nombre}`} className="max-h-9 max-w-full object-contain" onError={() => setFallo(true)} />
       ) : <span className="text-2xl font-bold text-blue-700">{inicial}</span>}
     </div>
   )
