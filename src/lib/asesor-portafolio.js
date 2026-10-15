@@ -239,8 +239,6 @@ export function analizarPortafolio({ brokers = [], activos = [], movimientos = [
     if (fila.rendimientos > 0) observaciones.push({ tipo: 'ok', texto: `En ${fila.moneda}, los últimos 12 meses registran rendimientos por ${fila.rendimientos.toFixed(2)} ${fila.moneda}.` })
   }
   if (productosAnalizados.some((producto) => producto.nivelRiesgo === 'alto')) observaciones.push({ tipo: 'aviso', texto: 'Hay productos cuyo riesgo propio supera el perfil moderado del cliente; revisa si la rentabilidad compensa ese riesgo.' })
-  if (productosAnalizados.some((producto) => producto.nivelRiesgo === 'sin_clasificar')) observaciones.push({ tipo: 'info', texto: 'Hay productos sin nivel de riesgo registrado; el asesor los marca aparte para no confundirlos con el perfil moderado del cliente.' })
-  if (monedas.length > 1) observaciones.push({ tipo: 'info', texto: `El portafolio está expresado en ${monedas.length} monedas fiat y no se convierte entre divisas.` })
   for (const fila of monedas.filter((item) => item.comisiones > 0)) observaciones.push({ tipo: 'info', texto: `En ${fila.moneda}, se identificaron comisiones por ${fila.comisiones.toFixed(2)} ${fila.moneda}. Se muestran aparte del costo de inversión.` })
   return { perfilCliente: PERFIL_CLIENTE.nombre, totalActivos: productosAnalizados.length, totalBrokers: brokers.length, valorTotal: redondear(valorTotal), invertidoTotal: redondear(invertidoTotal), gananciaTotal: redondear(gananciaTotal), comisionesTotal: redondear(comisionesTotal), rendimientos12mTotal: redondear(rendimientos12mTotal), porcentajeTotal: invertidoTotal > 0 ? redondear((gananciaTotal / invertidoTotal) * 100) : null, monedas, activos: activosAnalizados, productos: productosAnalizados, riesgos, mejoras, observaciones }
 }
