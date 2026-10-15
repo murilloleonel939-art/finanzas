@@ -26,10 +26,10 @@ const LOGOS_WALLETS = {
 
 function LogoWallet({ nombre }) {
   const [fallo, setFallo] = useState(false)
-  const clave = nombre.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]/g, '')
+  const clave = nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '')
   const archivo = LOGOS_WALLETS[clave]
   return <div className="flex h-12 w-28 items-center justify-center overflow-hidden rounded-lg bg-slate-50 px-2">
-    {!fallo && archivo ? <img src={`/logos-wallets/${archivo}`} alt={`Logo de ${nombre}`} className="max-h-9 max-w-full object-contain" onError={() => setFallo(true)} /> : <span className="text-2xl font-bold text-blue-700">{nombre.trim().charAt(0).toUpperCase()}</span>}
+    {!fallo && archivo ? <img src={`/logos-wallets/${archivo}?v=2`} alt={`Logo de ${nombre}`} className="max-h-9 max-w-full object-contain" onError={() => setFallo(true)} /> : <span className="text-2xl font-bold text-blue-700">{nombre.trim().charAt(0).toUpperCase()}</span>}
   </div>
 }
 
