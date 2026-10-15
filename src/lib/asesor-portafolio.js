@@ -233,13 +233,15 @@ export function analizarPortafolio({ brokers = [], activos = [], movimientos = [
   else if (concentracion >= 70) observaciones.push({ tipo: 'alerta', texto: `${principal.nombre} concentra ${concentracion.toFixed(1)} % del valor registrado. Revisa si coincide con tu perfil moderado y con el riesgo propio del producto.` })
   else if (concentracion >= 40) observaciones.push({ tipo: 'aviso', texto: `${principal.nombre} es el producto principal con ${concentracion.toFixed(1)} % del valor registrado.` })
   else observaciones.push({ tipo: 'ok', texto: 'No se observa una concentración superior al 40 % en un solo producto.' })
-  if (gananciaTotal > 0) observaciones.push({ tipo: 'ok', texto: `El valor actual supera el costo de las operaciones en ${Math.abs(gananciaTotal).toFixed(2)} unidades monetarias.` })
-  if (gananciaTotal < 0) observaciones.push({ tipo: 'alerta', texto: `El valor actual está por debajo del costo de las operaciones en ${Math.abs(gananciaTotal).toFixed(2)} unidades monetarias.` })
-  if (rendimientos12mTotal > 0) observaciones.push({ tipo: 'ok', texto: `En los últimos 12 meses se registraron rendimientos por ${rendimientos12mTotal.toFixed(2)} unidades monetarias, sin convertir divisas.` })
+  for (const fila of monedas) {
+    if (fila.ganancia > 0) observaciones.push({ tipo: 'ok', texto: `En ${fila.moneda}, el valor actual supera el costo de las operaciones en ${Math.abs(fila.ganancia).toFixed(2)} ${fila.moneda}.` })
+    if (fila.ganancia < 0) observaciones.push({ tipo: 'alerta', texto: `En ${fila.moneda}, el valor actual está por debajo del costo de las operaciones en ${Math.abs(fila.ganancia).toFixed(2)} ${fila.moneda}.` })
+    if (fila.rendimientos > 0) observaciones.push({ tipo: 'ok', texto: `En ${fila.moneda}, los últimos 12 meses registran rendimientos por ${fila.rendimientos.toFixed(2)} ${fila.moneda}.` })
+  }
   if (productosAnalizados.some((producto) => producto.nivelRiesgo === 'alto')) observaciones.push({ tipo: 'aviso', texto: 'Hay productos cuyo riesgo propio supera el perfil moderado del cliente; revisa si la rentabilidad compensa ese riesgo.' })
   if (productosAnalizados.some((producto) => producto.nivelRiesgo === 'sin_clasificar')) observaciones.push({ tipo: 'info', texto: 'Hay productos sin nivel de riesgo registrado; el asesor los marca aparte para no confundirlos con el perfil moderado del cliente.' })
   if (monedas.length > 1) observaciones.push({ tipo: 'info', texto: `El portafolio está expresado en ${monedas.length} monedas fiat y no se convierte entre divisas.` })
-  if (comisionesTotal > 0) observaciones.push({ tipo: 'info', texto: `Se identificaron comisiones por ${comisionesTotal.toFixed(2)}. Se muestran aparte del costo de inversión.` })
+  for (const fila of monedas.filter((item) => item.comisiones > 0)) observaciones.push({ tipo: 'info', texto: `En ${fila.moneda}, se identificaron comisiones por ${fila.comisiones.toFixed(2)} ${fila.moneda}. Se muestran aparte del costo de inversión.` })
   return { perfilCliente: PERFIL_CLIENTE.nombre, totalActivos: productosAnalizados.length, totalBrokers: brokers.length, valorTotal: redondear(valorTotal), invertidoTotal: redondear(invertidoTotal), gananciaTotal: redondear(gananciaTotal), comisionesTotal: redondear(comisionesTotal), rendimientos12mTotal: redondear(rendimientos12mTotal), porcentajeTotal: invertidoTotal > 0 ? redondear((gananciaTotal / invertidoTotal) * 100) : null, monedas, activos: activosAnalizados, productos: productosAnalizados, riesgos, mejoras, observaciones }
 }
 
