@@ -2,6 +2,14 @@
 
 Aplicación web multiempresa para administrar finanzas empresariales: bancos, cuentas bancarias, movimientos, brokers, activos, wallets, importación de extractos y el catálogo de comisionistas y fiducias.
 
+## Actualizaciones recientes
+
+- Resumen financiero de empresa accesible desde el botón **Inicio** del menú lateral.
+- Botón **Cerrar sesión** disponible debajo de **Volver al workspace**.
+- Bancos, brokers, wallets y comisionistas/fiducias organizados en tarjetas responsivas con logos institucionales cuando están disponibles.
+- Cuentas de comisionistas y fiducias accesibles directamente desde su nombre para abrir el detalle de la cuenta.
+- Logos locales con carga versionada para reflejar correctamente las actualizaciones visuales.
+
 ## Funcionalidades disponibles
 
 ### Acceso y empresas
