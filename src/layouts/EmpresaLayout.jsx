@@ -8,7 +8,7 @@ import { listarProveedores, listarWallets } from '@/lib/wallets-datos'
 import { listarComisionistasFiducias, listarCuentasComisionistasFiducias } from '@/lib/comisionistas-fiducias'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
-import { ChevronDown, ChevronRight, Building2, Landmark, CreditCard, Plus, TrendingUp, Wallet, BriefcaseBusiness, Bot, PiggyBank } from 'lucide-react'
+import { ChevronDown, ChevronRight, Building2, Landmark, CreditCard, Plus, TrendingUp, Wallet, BriefcaseBusiness, Bot, PiggyBank, Home, LogOut } from 'lucide-react'
 
 /**
  * EmpresaLayout: Layout principal para la navegación dentro de una empresa.
@@ -25,7 +25,7 @@ import { ChevronDown, ChevronRight, Building2, Landmark, CreditCard, Plus, Trend
 export default function EmpresaLayout() {
   const { empresaId } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
   const [, setRefresh] = useState(0)
   const [bancosAbiertos, setBancosAbiertos] = useState({})
 
@@ -124,7 +124,7 @@ export default function EmpresaLayout() {
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-gray-200 overflow-y-auto">
+      <div className="flex w-64 flex-col overflow-y-auto border-r border-gray-200 bg-white">
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center gap-2 mb-2">
             <Building2 className="w-5 h-5 text-blue-600" />
@@ -135,7 +135,10 @@ export default function EmpresaLayout() {
 
         {/* Módulos (tres ramas fijas) */}
         <div className="p-4">
-          <button type="button" onClick={() => navigate(`/empresa/${empresaId}/asesor-portafolio`)} className="mb-4 flex w-full items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-left text-sm font-medium text-blue-800 hover:bg-blue-100">
+          <button type="button" onClick={() => navigate(`/empresa/${empresaId}`)} className="mb-3 flex w-full items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-left text-sm font-medium text-gray-800 hover:bg-gray-100">
+             <Home className="h-4 w-4" /> Inicio
+           </button>
+           <button type="button" onClick={() => navigate(`/empresa/${empresaId}/asesor-portafolio`)} className="mb-4 flex w-full items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-left text-sm font-medium text-blue-800 hover:bg-blue-100">
             <Bot className="h-4 w-4" /> Asesor del portafolio
           </button>
           <button type="button" onClick={() => navigate(`/empresa/${empresaId}/desafio-ahorro`)} className="mb-4 flex w-full items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-sm font-medium text-emerald-800 hover:bg-emerald-100">
@@ -206,8 +209,8 @@ export default function EmpresaLayout() {
           </div>
         </div>
 
-        {/* Volver */}
-        <div className="p-4 border-t border-gray-200 mt-auto">
+        {/* Navegación de salida */}
+        <div className="mt-auto space-y-2 border-t border-gray-200 p-4">
           <Button
             onClick={() => navigate('/workspace')}
             variant="outline"
@@ -218,7 +221,10 @@ export default function EmpresaLayout() {
         </div>
       </div>
 
-      {/* Main Content */}
+      
+
+
+       {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
         <Outlet context={{ empresa, ramas }} />
       </div>
