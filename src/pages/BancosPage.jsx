@@ -4,10 +4,40 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { borrarBanco as borrarBancoApi, listarBancos, listarCuentas } from '@/lib/bancos'
 import { formatearMonto } from '@/lib/monedas'
 import { nombrePais } from '@/lib/paises'
+
+const DOMINIOS_BANCOS = {
+  bancolombia: 'bancolombia.com',
+  dale: 'dale.com.co',
+  nequi: 'nequi.com.co',
+  davivienda: 'davivienda.com',
+  bbva: 'bbva.com',
+  santander: 'santander.com',
+  banorte: 'banorte.com',
+}
+
+const dominioBanco = (nombre) => {
+  const limpio = nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '')
+  const clave = Object.keys(DOMINIOS_BANCOS).find((banco) => limpio.includes(banco))
+  return DOMINIOS_BANCOS[clave] || (limpio ? `${limpio}.com` : '')
+}
+
+function LogoBanco({ nombre }) {
+  const [fallo, setFallo] = useState(false)
+  const inicial = nombre?.trim()?.charAt(0)?.toUpperCase() || 'B'
+  const dominio = dominioBanco(nombre || '')
+
+  return (
+    <div className="flex h-12 w-28 items-center justify-center overflow-hidden rounded-lg bg-slate-50 px-2">
+      {!fallo && dominio ? (
+        <img src={dominio} alt={`Logo de ${nombre}`} className="max-h-9 max-w-full object-contain" onError={() => setFallo(true)} />
+      ) : <span className="text-2xl font-bold text-blue-700">{inicial}</span>}
+    </div>
+  )
+}
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import { Loader2, Plus, ChevronRight, Trash2, AlertCircle } from 'lucide-react'
+import { Loader2, Plus, Trash2, AlertCircle } from 'lucide-react'
 
 /**
  * BancosPage: listado de bancos con sus cuentas asociadas.
@@ -55,7 +85,7 @@ export default function BancosPage() {
 
   return (
     <div className="flex-1 p-6 md:p-8 overflow-y-auto">
-      <div className="max-w-4xl">
+      <div className="max-w-6xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -97,81 +127,52 @@ export default function BancosPage() {
             </Button>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {bancos.map((banco) => {
               const cuentasBanco = cuentasPorBanco[banco.id] ?? []
 
               return (
-                <Card key={banco.id} className="p-4">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold">{banco.nombre_banco}</h3>
+                <Card key={banco.id} className="overflow-hidden border-slate-200 bg-white shadow-sm">
+                  <div className="flex items-start justify-between p-4 pb-3">
+                    <div>
+                      <LogoBanco nombre={banco.nombre_banco} />
+                      <h3 className="mt-3 text-sm font-semibold">{banco.nombre_banco}</h3>
                       <p className="text-xs text-muted-foreground mt-1">
                         {nombrePais(banco.pais) || banco.pais}
                       </p>
                     </div>
                     <button
                       onClick={() => setBancoABorrar(banco)}
-                      className="p-2 hover:bg-red-100 rounded text-red-600 transition-colors"
+                      className="rounded p-1.5 text-red-500 transition-colors hover:bg-red-50"
                       title="Borrar banco"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
 
-                  {/* Cuentas del banco */}
-                  {cuentasBanco.length === 0 ? (
-                    <div className="p-3 bg-muted/50 rounded border border-dashed text-center">
-                      <p className="text-xs text-muted-foreground mb-2">Sin cuentas</p>
-                      <Button
-                        onClick={() =>
-                          navigate(`/empresa/${empresaId}/cuentas/crear?banco=${banco.id}`)
-                        }
-                        size="sm"
-                        variant="outline"
-                        className="gap-1"
-                      >
-                        <Plus className="w-3 h-3" />
-                        Crear cuenta
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {cuentasBanco.map((cuenta) => (
-                        <button
-                          key={cuenta.id}
-                          onClick={() =>
-                            navigate(`/empresa/${empresaId}/cuentas/${cuenta.id}`)
-                          }
-                          className="w-full flex items-center justify-between p-3 bg-muted/50 hover:bg-muted rounded border transition-colors text-left group"
-                        >
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">
-                              {cuenta.numero_cuenta}
-                              <span className="text-xs text-muted-foreground ml-2">
-                                ({cuenta.tipo_cuenta})
-                              </span>
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Saldo: {formatearMonto(cuenta.monto, cuenta.tipo_moneda)}
-                            </p>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
-                        </button>
-                      ))}
-                      <Button
-                        onClick={() =>
-                          navigate(`/empresa/${empresaId}/cuentas/crear?banco=${banco.id}`)
-                        }
-                        size="sm"
-                        variant="ghost"
-                        className="w-full gap-2 text-primary"
-                      >
-                        <Plus className="w-3 h-3" />
-                        Añadir cuenta
-                      </Button>
-                    </div>
-                  )}
+                  <div className="px-4 pb-4">
+                    {cuentasBanco.length === 0 ? (
+                      <div className="rounded-lg border border-dashed p-3 text-center">
+                        <p className="mb-2 text-xs text-muted-foreground">Sin cuentas</p>
+                        <Button onClick={() => navigate(`/empresa/${empresaId}/cuentas/crear?banco=${banco.id}`)} size="sm" variant="outline" className="gap-1">
+                          <Plus className="h-3 w-3" />Crear cuenta
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {cuentasBanco.map((cuenta) => (
+                          <button key={cuenta.id} onClick={() => navigate(`/empresa/${empresaId}/cuentas/${cuenta.id}`)} className="group w-full rounded-lg border bg-white p-3 text-left transition-colors hover:bg-slate-50">
+                            <p className="text-sm font-medium">{cuenta.numero_cuenta} <span className="text-xs text-muted-foreground">({cuenta.tipo_cuenta})</span></p>
+                            <p className="text-xs text-muted-foreground">Saldo: {formatearMonto(cuenta.monto, cuenta.tipo_moneda)}</p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <Button onClick={() => navigate(`/empresa/${empresaId}/cuentas/crear?banco=${banco.id}`)} size="sm" variant="ghost" className="w-full rounded-none border-t py-3 text-primary">
+                    <Plus className="mr-1 h-3 w-3" />Añadir cuenta
+                  </Button>
                 </Card>
               )
             })}
