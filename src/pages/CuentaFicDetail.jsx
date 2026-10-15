@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, Upload } from 'lucide-react'
+import { ChevronLeft, Upload, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { actualizarClavePdfComisionista } from '@/lib/comisionistas-fiducias'
+import { actualizarClavePdfComisionista, borrarDatosAccival } from '@/lib/comisionistas-fiducias'
 import { crearImportJob, obtenerImportJob } from '@/lib/import-jobs'
 import { YearFilter, formatMes } from '@/components/shared/MonthFilter'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -21,6 +21,7 @@ export default function CuentaFicDetail({ cuenta }) {
   const [estado, setEstado] = useState('')
   const [errorImportacion, setErrorImportacion] = useState('')
   const [subiendo, setSubiendo] = useState(false)
+  const [borrando, setBorrando] = useState(false)
   const [anoElegido, setAnoElegido] = useState('')
   const [corteElegido, setCorteElegido] = useState('all')
   const [tab, setTab] = useState('activos')
@@ -86,6 +87,24 @@ export default function CuentaFicDetail({ cuenta }) {
       revisar()
     } catch (err) { setErrorImportacion(err.message); setSubiendo(false); setEstado('error') }
   }
+  const borrarExtractos = async (alcance) => {
+    const todos = alcance === 'todos'
+    const confirmacion = window.confirm(todos
+      ? '¿Eliminar toda la información importada de esta cuenta Acciones y Valores/trii? Esta acción no se puede deshacer.'
+      : '¿Eliminar el último extracto cargado de esta cuenta? Esta acción no se puede deshacer.')
+    if (!confirmacion) return
+    setBorrando(true)
+    setErrorImportacion('')
+    try {
+      const resultado = await borrarDatosAccival(empresaId, cuentaId, alcance)
+      setEstado(`${resultado.extractos_eliminados} extracto(s) eliminado(s).`)
+      await queryClient.invalidateQueries({ queryKey: ['cuenta-fiducia', empresaId, cuentaId] })
+    } catch (error) {
+      setErrorImportacion(error.message)
+    } finally {
+      setBorrando(false)
+    }
+  }
   const { mutate: guardarClave, isPending } = useMutation({
     mutationFn: (valor) => actualizarClavePdfComisionista(empresaId, cuentaId, valor),
     onSuccess: (resultado) => {
@@ -100,7 +119,7 @@ export default function CuentaFicDetail({ cuenta }) {
     <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
       <div className="flex items-center gap-3"><button type="button" onClick={() => navigate(`/empresa/${empresaId}/comisionistas-fiducias`)} className="rounded-lg p-2 hover:bg-muted" aria-label="Volver"><ChevronLeft className="h-5 w-5" /></button><div><h1 className="text-3xl font-bold">{cuenta.nombre_cuenta}</h1><p className="text-sm text-muted-foreground">{cuenta.comisionista_nombre}</p></div></div>
       {esExtractoUnificado && <input ref={archivoInput} type="file" accept="application/pdf,.pdf" className="hidden" onChange={(event) => { const archivo = event.target.files?.[0]; event.target.value = ''; if (archivo) importar(archivo) }} />}
-      <Button className="gap-2" disabled={!esExtractoUnificado || subiendo || !cuenta.tiene_clave_pdf} title={!cuenta.tiene_clave_pdf ? 'Primero guarda la clave del PDF' : undefined} onClick={() => archivoInput.current?.click()}><Upload className="h-4 w-4" />{subiendo ? 'Procesando…' : 'Importar'}</Button>
+      {esExtractoUnificado && <div className="flex flex-wrap gap-2"><Button className="gap-2" disabled={subiendo || borrando || !cuenta.tiene_clave_pdf} title={!cuenta.tiene_clave_pdf ? 'Primero guarda la clave del PDF' : undefined} onClick={() => archivoInput.current?.click()}><Upload className="h-4 w-4" />{subiendo ? 'Procesando…' : 'Importar'}</Button><Button variant="outline" className="gap-2" disabled={subiendo || borrando || activos.length === 0} onClick={() => borrarExtractos('ultimo')}><Trash2 className="h-4 w-4" />{borrando ? 'Borrando…' : 'Borrar último'}</Button><Button variant="destructive" className="gap-2" disabled={subiendo || borrando || activos.length === 0} onClick={() => borrarExtractos('todos')}><Trash2 className="h-4 w-4" />Borrar todo</Button></div>}
     </div>
     <div className="mb-6 flex gap-2 border-b"><button type="button" onClick={() => setTab('activos')} className={`border-b-2 px-4 py-2 text-sm font-medium ${tab === 'activos' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Activos</button><button type="button" onClick={() => setTab('movimientos')} className={`border-b-2 px-4 py-2 text-sm font-medium ${tab === 'movimientos' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Movimientos</button></div>
     {(estado || errorImportacion) && <div className="mb-4 text-sm">{estado && <p>Estado: {estado}</p>}{errorImportacion && <p className="text-destructive" role="alert">{errorImportacion}</p>}</div>}

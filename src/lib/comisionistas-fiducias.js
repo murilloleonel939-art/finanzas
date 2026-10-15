@@ -50,6 +50,10 @@ export function borrarCuentaComisionistaFiducia(empresaId, cuentaId) {
   return api(`/api/empresas/${empresaId}/comisionistas-fiducias/cuentas/${cuentaId}`, { method: 'DELETE' })
 }
 
+export function borrarDatosAccival(empresaId, cuentaId, alcance) {
+  return apiJson(`/api/empresas/${empresaId}/comisionistas-fiducias/cuentas/${cuentaId}/extractos`, 'DELETE', { alcance })
+}
+
 export function borrarComisionistaFiducia(empresaId, id) {
   return api(`/api/empresas/${empresaId}/comisionistas-fiducias/${id}`, { method: 'DELETE' })
 }

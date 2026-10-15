@@ -583,6 +583,39 @@ app.get('/api/empresas/:empresaId/comisionistas-fiducias/cuentas/:cuentaId', req
   res.json({ cuenta: { ...result.rows[0], activos: activos.rows, activos_accival: activosAccival?.rows ?? [] } })
 })
 
+app.delete('/api/empresas/:empresaId/comisionistas-fiducias/cuentas/:cuentaId/extractos', requireAuth, async (req, res) => {
+  const { empresaId, cuentaId } = req.params
+  if (!await requireCompanyAccess(req.auth.sub, req.auth.role, empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
+  const alcance = req.body?.alcance
+  if (!['ultimo', 'todos'].includes(alcance)) return error(res, 400, 'El alcance debe ser ultimo o todos.')
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const cuenta = await client.query(`select c.id from cuentas_comisionistas_fiducias c
+      join comisionistas_fiducias f on f.id = c.comisionista_fiducia_id and f.deleted_at is null
+      where c.id = $1 and c.empresa_id = $2 and c.deleted_at is null
+        and lower(trim(f.nombre)) in ('trii', 'acciones y valores s.a.') for update of c`, [cuentaId, empresaId])
+    if (!cuenta.rowCount) { await client.query('rollback'); return error(res, 404, 'Cuenta de Acciones y Valores o trii no encontrada.') }
+    const queryUltimo = `update activos_accival set deleted_at = now()
+      where id = (select id from activos_accival where cuenta_id = $1 and empresa_id = $2 and deleted_at is null order by created_at desc, periodo desc limit 1)
+        and deleted_at is null`
+    const result = alcance === 'ultimo'
+      ? await client.query(queryUltimo, [cuentaId, empresaId])
+      : await client.query('update activos_accival set deleted_at = now() where cuenta_id = $1 and empresa_id = $2 and deleted_at is null', [cuentaId, empresaId])
+    if (!result.rowCount) {
+      await client.query('rollback')
+      return error(res, 404, alcance === 'ultimo' ? 'No hay extractos para borrar.' : 'No hay información importada para borrar.')
+    }
+    await client.query('commit')
+    res.json({ extractos_eliminados: result.rowCount })
+  } catch (err) {
+    await client.query('rollback')
+    throw err
+  } finally {
+    client.release()
+  }
+})
+
 app.put('/api/empresas/:empresaId/comisionistas-fiducias/cuentas/:cuentaId/pdf-password', requireAuth, async (req, res) => {
   if (!await requireCompanyAccess(req.auth.sub, req.auth.role, req.params.empresaId)) return error(res, 403, 'No tienes acceso a esta empresa.')
   const account = await query(`select c.id from cuentas_comisionistas_fiducias c
