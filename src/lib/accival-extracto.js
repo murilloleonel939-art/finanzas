@@ -95,7 +95,7 @@ export function extraerExtractoAccival(paginas) {
     if (Math.abs(saldos.saldo_anterior + saldos.adiciones - saldos.retiros - (gmf ?? 0) + saldos.rendimientos - saldos.pago_rendimientos - (retencion ?? 0) + (entradas ?? 0) - (salidas ?? 0) - saldos.nuevo_saldo) > 0.03) throw new Error(`El saldo del fondo ${nombreCompleto} no cuadra con sus movimientos.`)
     fondos.push({ nombre: nombreCompleto, ...saldos, unidades: decimal(unidades), valor_unidad: decimal(valorUnidad), rentabilidad_valor_unidad_ea: decimal(rentabilidad), movimientos: movimientosFondo(texto, periodo, nombreCompleto, saldos) })
   }
-  if (!fondos.length) throw new Error('No se encontraron fondos detallados en el extracto.')
+  if (!fondos.length && resumen.fondos_inversion !== 0) throw new Error('El extracto informa saldo en fondos, pero no incluye su detalle.')
   const suma = Math.round(fondos.reduce((total, fondo) => total + fondo.nuevo_saldo, 0) * 100) / 100
   if (Math.abs(suma - resumen.fondos_inversion) > 0.03 || Math.abs(resumen.total_activos - resumen.total_pasivos - resumen.total_portafolio) > 0.03) throw new Error('Los totales del resumen no concuerdan con los fondos o el portafolio.')
   return { periodo, resumen, fondos }
