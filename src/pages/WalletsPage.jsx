@@ -16,6 +16,23 @@ import { Badge } from '@/components/ui/badge'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { Loader2, Plus, ChevronRight, Trash2, AlertCircle, Wallet, Sparkles, Upload } from 'lucide-react'
 
+const LOGOS_WALLETS = {
+  paypal: 'paypal.png', wise: 'wise.png', payoneer: 'payoneer.png', revolut: 'revolut.png', mercadopago: 'mercado-pago.png', n26: 'n26.png',
+  cryptocurrency: 'crypto-com.png', crypto: 'crypto-com.png', cryptocom: 'crypto-com.png', bitso: 'bitso.png', buda: 'buda.png', nexo: 'nexo.png', wirex: 'wirex.png',
+  coinbase: 'coinbase.png', binance: 'binance.png', coindepo: 'coindepo.png', dolarapp: 'dolarapp.png', plenti: 'plenti.png', littio: 'littio.png', wenia: null, youhodler: 'youhodler.png',
+  metamask: 'metamask.png', trustwallet: 'trust-wallet.png', kraken: 'kraken.png', bybit: 'bybit.png', kucoin: 'kucoin.png', okx: 'okx.png', ledger: 'ledger.png', trezor: 'trezor.png', phantom: 'phantom.png', exodus: 'exodus.png', electrum: 'electrum.png', atomicwallet: 'atomic-wallet.png', guarda: 'guarda.png', bitfinex: 'bitfinex.png', gateio: 'gate-io.png', huobi: 'huobi.png', paxful: 'paxful.png',
+  skrill: 'skrill.png', neteller: null, venmo: 'venmo.png', zelle: 'zelle.png', applepay: 'apple-pay.png', googlepay: 'google-pay.png', samsungpay: 'samsung-pay.png', paysera: 'paysera.png', ecopayz: 'ecopayz.png', muchbetter: 'muchbetter.png', jeton: 'jeton.png', stripe: 'stripe.png', square: 'square.png', adyen: 'adyen.png',
+}
+
+function LogoWallet({ nombre }) {
+  const [fallo, setFallo] = useState(false)
+  const clave = nombre.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]/g, '')
+  const archivo = LOGOS_WALLETS[clave]
+  return <div className="flex h-12 w-28 items-center justify-center overflow-hidden rounded-lg bg-slate-50 px-2">
+    {!fallo && archivo ? <img src={`/logos-wallets/${archivo}`} alt={`Logo de ${nombre}`} className="max-h-9 max-w-full object-contain" onError={() => setFallo(true)} /> : <span className="text-2xl font-bold text-blue-700">{nombre.trim().charAt(0).toUpperCase()}</span>}
+  </div>
+}
+
 /**
  * WalletsPage: proveedores de wallet con sus wallets (PRD §6 y §11.3).
  *
@@ -72,7 +89,7 @@ export default function WalletsPage() {
 
   return (
     <div className="flex-1 p-6 md:p-8 overflow-y-auto">
-      <div className="max-w-4xl">
+      <div className="max-w-6xl">
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold">Proveedores de wallet</h1>
@@ -116,17 +133,18 @@ export default function WalletsPage() {
             </Button>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {proveedores.map((proveedor) => {
               const suyas = walletsPorProveedor[proveedor.id] ?? []
               const todoEarn = esProveedorEarn(proveedor.nombre_proveedor)
 
               return (
-                <Card key={proveedor.id} className="p-4">
-                  <div className="flex items-start justify-between mb-4">
+                <Card key={proveedor.id} className="overflow-hidden border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+                  <div className="flex items-start justify-between p-4 pb-3">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-lg font-bold">{proveedor.nombre_proveedor}</h3>
+                      <LogoWallet nombre={proveedor.nombre_proveedor} />
+                       <div className="mt-3 flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm font-bold">{proveedor.nombre_proveedor}</h3>
                         <Badge variant="outline">{proveedor.tipo}</Badge>
                         {todoEarn && (
                           <Badge variant="admin" className="gap-1">
