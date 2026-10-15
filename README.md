@@ -174,6 +174,12 @@ Aplicación web multiempresa para administrar finanzas empresariales: bancos, cu
 - El detalle importa exclusivamente extractos PDF Bancolombia y extrae tipo de fondo, saldo anterior, rendimientos netos, nuevo saldo y rentabilidad del periodo.
 - Para extractos **Fiducuenta** de Fiduciaria Bancolombia, el worker usa `pdftotext -layout` y lee los saldos según las columnas de cada bloque del PDF, aunque los encabezados se extraigan con espacios entre letras. Esto corrige el error «No se pudo leer el saldo anterior» y evita confundir los rendimientos con el nuevo saldo.
 - En el extracto de enero de 2026 comprobado, los valores son: saldo anterior **447,61 COP**, rendimientos netos **2,53 COP**, nuevo saldo **450,14 COP** y rentabilidad del periodo **6,87 %**. La importación de ese PDF también fue confirmada como funcional en la aplicación.
+- Para extractos unificados de **Acciones y Valores / trii**, la cuenta permite importar PDF protegido con clave guardada cifrada. El importador extrae el resumen de activos y el detalle de fondos, y valida la conciliación de saldos.
+- Los extractos sin saldo en fondos se aceptan si informan saldo FIC de cero; el efectivo se conserva como efectivo y no se registra como adición ficticia a un fondo. Si el resumen reporta saldo FIC distinto de cero sin detalle, la importación se rechaza.
+- El detalle de cuenta permite elegir un corte mensual o **Todo lo transcurrido del año**. En el acumulado, el saldo anterior y el nuevo saldo corresponden a los extremos del periodo; adiciones, retiros, rendimientos, pagos de rendimientos e impuestos se suman entre los extractos cargados. Los fondos conservan el mismo orden alfabético en cada vista.
+- El resumen anual muestra los activos del último corte disponible, sin sumar saldos mensuales repetidos, y agrega rendimientos de fondos e impuestos (GMF y retenciones) del periodo seleccionado.
+- La rentabilidad anual estimada se calcula a partir de los rendimientos cargados respecto del saldo inicial o la primera adición; no se suman tasas mensuales del extracto.
+- La clasificación de riesgo de los fondos puede consultarse desde su ficha junto con el enlace a la fuente oficial, cuando está disponible.
 - Las demás fiducias no aceptan este importador.
 
 ## Arquitectura
