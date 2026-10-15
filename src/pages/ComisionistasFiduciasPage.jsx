@@ -7,6 +7,22 @@ import { Card } from '@/components/ui/card'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { borrarComisionistaFiducia, borrarCuentaComisionistaFiducia, listarCuentasComisionistasFiducias, listarComisionistasFiducias, nombrePaisComisionista } from '@/lib/comisionistas-fiducias'
 
+const LOGOS_ENTIDADES = {
+  fiduciariabancolombia: 'fiduciaria-bancolombia.svg', fiduciariabogota: 'fiduciaria-bogota.svg', fidudavivienda: 'fidudavivienda.png',
+  fiduciariadeoccidentefiduoccidente: 'fiduoccidente.svg', fiduciariapopular: 'fiduciaria-popular.svg', bbvaassetmanagementsasociedadfiduciaria: 'bbva-asset-management.png',
+  fiducolpatria: 'fiducolpatria.png', servitrustgnbsudameris: 'servitrust.png', alianzafiduciaria: 'alianza-fiduciaria.png', accionfiduciaria: 'accion-fiduciaria.png',
+  fiducentral: 'fiducentral.png', fiducoomeva: 'fiducoomeva.png', skandiasociedadfiduciaria: 'skandia.png', credicorpcapitalfiduciaria: 'credicorp-capital.png', trii: 'trii.png', accionesyvaloressa: 'accion-fiduciaria.png',
+}
+
+function LogoEntidad({ nombre }) {
+  const [fallo, setFallo] = useState(false)
+  const clave = nombre.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]/g, '')
+  const archivo = LOGOS_ENTIDADES[clave]
+  return <div className="flex h-12 w-28 items-center justify-center overflow-hidden rounded-lg bg-slate-50 px-2">
+    {!fallo && archivo ? <img src={`/logos-comisionistas-fiducias/${archivo}`} alt={`Logo de ${nombre}`} className="max-h-9 max-w-full object-contain" onError={() => setFallo(true)} /> : <span className="text-2xl font-bold text-blue-700">{nombre.trim().charAt(0).toUpperCase()}</span>}
+  </div>
+}
+
 export default function ComisionistasFiduciasPage() {
   const { empresaId } = useParams()
   const navigate = useNavigate()
@@ -47,7 +63,7 @@ export default function ComisionistasFiduciasPage() {
 
   return (
     <div className="flex-1 p-6 md:p-8 overflow-y-auto">
-      <div className="max-w-4xl">
+      <div className="max-w-6xl">
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold">Comisionistas y fiducias</h1>
@@ -63,7 +79,7 @@ export default function ComisionistasFiduciasPage() {
         ) : items.length === 0 ? (
           <Card className="p-8 text-center"><Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-3" /><p className="text-muted-foreground mb-4">No hay comisionistas o fiducias creados aún.</p><Button onClick={() => navigate(`/empresa/${empresaId}/comisionistas-fiducias/crear`)}><Plus className="w-4 h-4 mr-2" />Crear el primero</Button></Card>
         ) : (
-          <div className="space-y-3">{items.map((item) => <Card key={item.id} className="p-4"><div className="flex items-center justify-between"><div><h3 className="font-medium">{item.nombre}</h3><p className="text-xs text-muted-foreground">{nombrePaisComisionista(item.pais)}</p><div className="mt-2 space-y-1">{(cuentasPorEntidad[item.id] ?? []).map((cuenta) => <div key={cuenta.id} className="flex items-center gap-2"><p className="text-sm text-muted-foreground">Cuenta: {cuenta.nombre_cuenta}</p><button type="button" className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title={`Borrar cuenta ${cuenta.nombre_cuenta}`} onClick={() => { setErrorBorrado(''); setCuentaPorBorrar(cuenta) }}><Trash2 className="h-3.5 w-3.5" /></button></div>)}</div></div><div className="flex items-center gap-2"><Button variant="outline" size="sm" onClick={() => navigate(`/empresa/${empresaId}/comisionistas-fiducias/crear-cuenta?fiducia=${item.id}`)}><Plus className="mr-1 h-4 w-4" />Crear cuenta</Button><button type="button" className="p-2 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive" title="Borrar" onClick={() => { setErrorBorrado(''); setPorBorrar(item) }}><Trash2 className="w-4 h-4" /></button></div></div></Card>)}</div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{items.map((item) => <Card key={item.id} className="overflow-hidden border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"><div className="flex items-start justify-between p-4 pb-3"><div><LogoEntidad nombre={item.nombre} /><h3 className="mt-3 text-sm font-semibold">{item.nombre}</h3><p className="text-xs text-muted-foreground">{nombrePaisComisionista(item.pais)}</p><div className="mt-2 space-y-1">{(cuentasPorEntidad[item.id] ?? []).map((cuenta) => <div key={cuenta.id} className="flex items-center gap-2"><p className="text-sm text-muted-foreground">Cuenta: {cuenta.nombre_cuenta}</p><button type="button" className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title={`Borrar cuenta ${cuenta.nombre_cuenta}`} onClick={() => { setErrorBorrado(''); setCuentaPorBorrar(cuenta) }}><Trash2 className="h-3.5 w-3.5" /></button></div>)}</div></div><div className="flex items-center gap-2"><Button variant="outline" size="sm" onClick={() => navigate(`/empresa/${empresaId}/comisionistas-fiducias/crear-cuenta?fiducia=${item.id}`)}><Plus className="mr-1 h-4 w-4" />Crear cuenta</Button><button type="button" className="p-2 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive" title="Borrar" onClick={() => { setErrorBorrado(''); setPorBorrar(item) }}><Trash2 className="w-4 h-4" /></button></div></div></Card>)}</div>
         )}
       </div>
       <ConfirmDialog open={!!porBorrar} onOpenChange={(open) => !open && setPorBorrar(null)} title={`¿Borrar ${porBorrar?.nombre}?`} description="La fiducia y sus cuentas dejarán de aparecer en el listado." actionText="Borrar" onConfirm={() => borrar(porBorrar.id)} isLoading={borrando} />
